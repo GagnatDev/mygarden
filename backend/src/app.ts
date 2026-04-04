@@ -1,21 +1,37 @@
-import express from 'express';
+import cookieParser from 'cookie-parser';
+import cors from 'cors';
+import express, { Router } from 'express';
 import path from 'node:path';
 import type pino from 'pino';
-import { healthRouter } from './modules/health/health.routes.js';
+import type { AppContainer } from './config/container.js';
+import type { Env } from './config/env.js';
 import { problemDetailsHandler } from './middleware/problem-details.js';
 import { requestLogger } from './middleware/request-logger.js';
-import type { Env } from './config/env.js';
+import { createAdminRouter } from './modules/admin/admin.routes.js';
+import { createAuthRouter } from './modules/auth/auth.routes.js';
+import { healthRouter } from './modules/health/health.routes.js';
+import { createUsersRouter } from './modules/users/users.routes.js';
 
-export function createApp(env: Env, logger: pino.Logger) {
+export function createApp(env: Env, logger: pino.Logger, container: AppContainer) {
   const app = express();
 
+  if (env.NODE_ENV !== 'production') {
+    app.use(cors({ origin: true, credentials: true }));
+  }
+
+  app.use(cookieParser());
   app.use(express.json());
   app.use(requestLogger(logger));
 
   app.use('/health', healthRouter);
 
+  const api = Router();
+  api.use('/auth', createAuthRouter(env, container));
+  api.use('/admin', createAdminRouter(env, container));
+  api.use('/users', createUsersRouter(env, container));
+  app.use('/api/v1', api);
+
   if (env.NODE_ENV === 'production') {
-    // Docker runs `node dist/server.js` with cwd = backend/; static assets live in ../public
     const publicDir = path.join(process.cwd(), '..', 'public');
     app.use(express.static(publicDir));
     app.get('*', (_req, res, next) => {

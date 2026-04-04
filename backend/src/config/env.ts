@@ -3,7 +3,20 @@ import { z } from 'zod';
 const envSchema = z.object({
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
   PORT: z.coerce.number().int().positive().default(3000),
+  MONGODB_URI: z.string().min(1, 'MONGODB_URI is required'),
   JWT_SECRET: z.string().min(32, 'JWT_SECRET must be at least 32 characters'),
+  JWT_REFRESH_SECRET: z
+    .string()
+    .min(32, 'JWT_REFRESH_SECRET must be at least 32 characters'),
+  ACCESS_TOKEN_EXPIRES: z.string().default('15m'),
+  REFRESH_TOKEN_EXPIRES: z.string().default('7d'),
+  ADMIN_EMAIL: z
+    .string()
+    .email()
+    .optional()
+    .or(z.literal(''))
+    .transform((v) => (v && v.length > 0 ? v.toLowerCase() : undefined)),
+  BCRYPT_ROUNDS: z.coerce.number().int().min(10).max(14).default(12),
 });
 
 export type Env = z.infer<typeof envSchema>;

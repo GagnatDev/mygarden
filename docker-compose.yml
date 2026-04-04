@@ -28,6 +28,8 @@ services:
       NODE_ENV: production
       PORT: 8080
       JWT_SECRET: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+      JWT_REFRESH_SECRET: bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+      MONGODB_URI: mongodb://mongodb:27017/mygarden
     depends_on:
       - mongodb
       - minio
