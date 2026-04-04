@@ -1,5 +1,40 @@
 {
   "app": {
     "title": "MyGarden"
+  },
+  "auth": {
+    "loading": "Loading…",
+    "loginTitle": "Log in",
+    "registerTitle": "Create account",
+    "email": "Email",
+    "password": "Password",
+    "displayName": "Display name",
+    "passwordHint": "At least 8 characters.",
+    "loginSubmit": "Log in",
+    "registerSubmit": "Register",
+    "submitting": "Please wait…",
+    "logout": "Log out",
+    "goToRegister": "Need an account? Register",
+    "goToLogin": "Already have an account? Log in",
+    "unknownError": "Something went wrong."
+  },
+  "nav": {
+    "main": "Main navigation",
+    "home": "Home",
+    "gardenMap": "Garden map",
+    "plantingPlan": "Planting plan",
+    "calendar": "Calendar",
+    "plantProfiles": "Plant profiles",
+    "notes": "Notes"
+  },
+  "lang": {
+    "nb": "NB",
+    "en": "EN"
+  },
+  "home": {
+    "welcome": "Choose a section from the menu to get started."
+  },
+  "placeholders": {
+    "comingSoon": "This section will be available in a later release."
   }
 }

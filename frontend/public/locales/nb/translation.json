@@ -1,5 +1,40 @@
 {
   "app": {
     "title": "MyGarden"
+  },
+  "auth": {
+    "loading": "Laster…",
+    "loginTitle": "Logg inn",
+    "registerTitle": "Opprett konto",
+    "email": "E-post",
+    "password": "Passord",
+    "displayName": "Visningsnavn",
+    "passwordHint": "Minst 8 tegn.",
+    "loginSubmit": "Logg inn",
+    "registerSubmit": "Registrer",
+    "submitting": "Vent litt…",
+    "logout": "Logg ut",
+    "goToRegister": "Trenger du konto? Registrer deg",
+    "goToLogin": "Har du allerede konto? Logg inn",
+    "unknownError": "Noe gikk galt."
+  },
+  "nav": {
+    "main": "Hovedmeny",
+    "home": "Hjem",
+    "gardenMap": "Hagekart",
+    "plantingPlan": "Plantingsplan",
+    "calendar": "Kalender",
+    "plantProfiles": "Plantprofiler",
+    "notes": "Notater"
+  },
+  "lang": {
+    "nb": "NB",
+    "en": "EN"
+  },
+  "home": {
+    "welcome": "Velg en del fra menyen for å komme i gang."
+  },
+  "placeholders": {
+    "comingSoon": "Denne delen kommer i en senere versjon."
   }
 }

@@ -1,8 +1,7 @@
-import { describe, expect, it } from 'vitest';
-import { render, screen } from '@testing-library/react';
-import { I18nextProvider } from 'react-i18next';
+import { render, screen, waitFor } from '@testing-library/react';
 import i18n from 'i18next';
-import { initReactI18next } from 'react-i18next';
+import { I18nextProvider, initReactI18next } from 'react-i18next';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { App } from './App';
 
 async function initTestI18n() {
@@ -14,7 +13,37 @@ async function initTestI18n() {
     defaultNS: 'translation',
     resources: {
       en: {
-        translation: { app: { title: 'MyGarden' } },
+        translation: {
+          app: { title: 'MyGarden' },
+          auth: {
+            loading: 'Loading…',
+            loginTitle: 'Log in',
+            registerTitle: 'Create account',
+            email: 'Email',
+            password: 'Password',
+            displayName: 'Display name',
+            loginSubmit: 'Log in',
+            registerSubmit: 'Register',
+            submitting: 'Wait',
+            logout: 'Log out',
+            goToRegister: 'Reg',
+            goToLogin: 'Login',
+            unknownError: 'Err',
+            passwordHint: 'hint',
+          },
+          nav: {
+            main: 'Nav',
+            home: 'Home',
+            gardenMap: 'Garden',
+            plantingPlan: 'Plan',
+            calendar: 'Cal',
+            plantProfiles: 'Plants',
+            notes: 'Notes',
+          },
+          lang: { nb: 'NB', en: 'EN' },
+          home: { welcome: 'Welcome' },
+          placeholders: { comingSoon: 'Soon' },
+        },
       },
     },
     interpolation: { escapeValue: false },
@@ -23,13 +52,27 @@ async function initTestI18n() {
 }
 
 describe('App', () => {
-  it('renders MyGarden heading', async () => {
+  const fetchMock = vi.fn();
+
+  beforeEach(() => {
+    vi.stubGlobal('fetch', fetchMock);
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('shows login when there is no session', async () => {
+    fetchMock.mockResolvedValueOnce(new Response(null, { status: 401 }));
     const i18nInstance = await initTestI18n();
     render(
       <I18nextProvider i18n={i18nInstance}>
         <App />
       </I18nextProvider>,
     );
-    expect(screen.getByRole('heading', { name: /MyGarden/i })).toBeInTheDocument();
+
+    await waitFor(() => {
+      expect(screen.getByRole('heading', { name: /log in/i })).toBeInTheDocument();
+    });
   });
 });
