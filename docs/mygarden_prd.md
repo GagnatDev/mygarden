@@ -53,7 +53,7 @@ A progressive web app (PWA) that combines:
 | **Platform** | Web application, delivered as a PWA |
 | **Frontend** | React with TypeScript |
 | **Backend** | Node.js (v24) with TypeScript |
-| **Auth** | User accounts (email/password at minimum; social login as future option) |
+| **Auth** | User accounts (email/password); registration restricted to pre-approved email addresses managed by the app owner. Social login as a future option. |
 | **Data sync** | Cloud-synced; data persisted server-side |
 | **Offline support** | Service worker caching for offline use; local changes sync when connectivity returns |
 | **i18n** | Norwegian Bokmål (nb) as primary language; English (en) supported from launch |
@@ -247,7 +247,7 @@ The first release focuses on delivering a usable core loop: **set up garden → 
 
 | # | Feature | Scope |
 |---|---|---|
-| 1 | **User accounts** | Email/password registration and login |
+| 1 | **User accounts** | Email/password registration and login; invite-only (only pre-approved email addresses can register) |
 | 2 | **Garden map** | Grid-based editor; place, label, and color-code rectangular areas |
 | 3 | **Planting plan** | Assign plants to areas with sowing method and key dates |
 | 4 | **Activity logging** | Log: sown indoors, sown outdoors, transplanted, watered, fertilized, harvested |
