@@ -14,3 +14,33 @@ Examples:
 - `feat(garden): add plant search`
 - `fix(api): handle empty plot list`
 - `docs: update architecture diagram`
+
+## Cursor Cloud specific instructions
+
+### Overview
+
+MyGarden is a pnpm monorepo with two workspace packages: `backend/` (Express + MongoDB) and `frontend/` (React + Vite). See `README.md` for the standard dev commands (`pnpm lint`, `pnpm typecheck`, `pnpm test`, etc.).
+
+### Environment requirements
+
+- **Node.js >= 24** (use `nvm install 24 && nvm use 24`). pnpm 9.15.9 is declared via corepack (`corepack enable && corepack prepare pnpm@9.15.9 --activate`).
+- **Docker** is required for two things: running MongoDB (the backend's datastore) and running backend integration tests (which use `@testcontainers/mongodb` to spin up disposable MongoDB instances).
+
+### Running services
+
+1. **MongoDB**: `docker run -d --name mongodb -p 27017:27017 mongo:7`. Verify with `docker exec mongodb mongosh --eval "db.runCommand({ping:1})" --quiet`.
+2. **Backend**: `pnpm --filter backend dev` (port 3000). Requires a `backend/.env` file with at minimum:
+   ```
+   MONGODB_URI=mongodb://localhost:27017/mygarden
+   JWT_SECRET=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+   JWT_REFRESH_SECRET=bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+   ```
+3. **Frontend**: `pnpm --filter frontend dev` (port 5173, proxies `/api` and `/health` to `localhost:3000`).
+
+### Gotchas
+
+- The app uses invite-only registration. Before registering a user, you must seed an allowed email: `ALLOWED_EMAIL=user@example.com pnpm --filter backend seed`.
+- Registration payload uses `displayName` (not `name`): `{ "email": "...", "password": "...", "displayName": "..." }`.
+- Garden creation requires grid dimensions: `{ "name": "...", "gridWidth": 10, "gridHeight": 8, "cellSizeMeters": 1 }`.
+- Backend integration tests use testcontainers and need Docker running; they spin up their own MongoDB instances and do **not** need the standalone MongoDB container.
+- Frontend tests use jsdom + fake-indexeddb and do **not** require Docker or a running backend.
