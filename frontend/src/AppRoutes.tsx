@@ -1,6 +1,8 @@
 import { Navigate, Route, Routes } from 'react-router-dom';
+import { GardenProvider } from './garden/GardenContext';
 import { AppShell } from './layout/AppShell';
 import { HomeDashboard } from './pages/HomeDashboard';
+import { GardenMapPage } from './pages/GardenMapPage';
 import { LoginPage } from './pages/LoginPage';
 import { PlaceholderPage } from './pages/PlaceholderPage';
 import { RegisterPage } from './pages/RegisterPage';
@@ -16,9 +18,15 @@ export function AppRoutes() {
       </Route>
 
       <Route element={<ProtectedRoute />}>
-        <Route element={<AppShell />}>
+        <Route
+          element={
+            <GardenProvider>
+              <AppShell />
+            </GardenProvider>
+          }
+        >
           <Route path="/" element={<HomeDashboard />} />
-          <Route path="/garden" element={<PlaceholderPage titleKey="nav.gardenMap" />} />
+          <Route path="/garden" element={<GardenMapPage />} />
           <Route path="/plan" element={<PlaceholderPage titleKey="nav.plantingPlan" />} />
           <Route path="/calendar" element={<PlaceholderPage titleKey="nav.calendar" />} />
           <Route path="/plants" element={<PlaceholderPage titleKey="nav.plantProfiles" />} />

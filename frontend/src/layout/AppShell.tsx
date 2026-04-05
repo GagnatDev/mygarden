@@ -78,7 +78,7 @@ export function AppShell() {
             </button>
           </div>
         </header>
-        <main className="flex-1 overflow-auto p-4 md:p-8">
+        <main className="flex min-h-0 flex-1 flex-col overflow-auto p-4 md:p-8">
           <Outlet />
         </main>
       </div>

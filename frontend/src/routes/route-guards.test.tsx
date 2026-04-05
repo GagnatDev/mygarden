@@ -43,6 +43,47 @@ async function testI18n() {
           lang: { nb: 'NB', en: 'EN' },
           home: { welcome: 'Welcome' },
           placeholders: { comingSoon: 'Soon' },
+          garden: {
+            createTitle: 'Create',
+            name: 'Name',
+            nameRequired: 'Name req',
+            gridWidth: 'W',
+            gridHeight: 'H',
+            gridBounds: 'Bounds',
+            cellSizeMeters: 'Cell',
+            cellSizeBounds: 'Cell bounds',
+            createSubmit: 'Create',
+            noGardenHint: 'No garden',
+            mapHint: 'Map',
+            selectGarden: 'Garden',
+            toolSelect: 'Select',
+            toolPan: 'Pan',
+            zoomIn: 'In',
+            zoomOut: 'Out',
+            gridAriaLabel: 'Grid {{width}} {{height}}',
+            createAreaTitle: 'Area',
+            areaName: 'Area name',
+            areaNameRequired: 'Req',
+            areaType: 'Type',
+            areaColor: 'Color',
+            areaTypes: {
+              raised_bed: 'Raised',
+              open_bed: 'Open',
+              tree_zone: 'Tree',
+              path: 'Path',
+              lawn: 'Lawn',
+              other: 'Other',
+            },
+            cells: 'cells',
+            cancel: 'Cancel',
+            saveArea: 'Save',
+            areaDetails: 'Details',
+            close: 'Close',
+            editArea: 'Edit',
+            saveChanges: 'Save',
+            deleteArea: 'Delete',
+            confirmDelete: 'Confirm',
+          },
         },
       },
     },
@@ -66,6 +107,7 @@ describe('route guards', () => {
 
   beforeEach(() => {
     vi.stubGlobal('fetch', fetchMock);
+    fetchMock.mockReset();
   });
 
   afterEach(() => {
@@ -106,6 +148,12 @@ describe('route guards', () => {
           }),
           { status: 200, headers: { 'Content-Type': 'application/json' } },
         ),
+      )
+      .mockResolvedValue(
+        new Response(JSON.stringify([]), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        }),
       );
 
     const i18nInstance = await testI18n();
@@ -140,6 +188,12 @@ describe('route guards', () => {
           }),
           { status: 200, headers: { 'Content-Type': 'application/json' } },
         ),
+      )
+      .mockResolvedValue(
+        new Response(JSON.stringify([]), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        }),
       );
 
     const i18nInstance = await testI18n();
