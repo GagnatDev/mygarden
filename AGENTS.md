@@ -15,6 +15,15 @@ Examples:
 - `fix(api): handle empty plot list`
 - `docs: update architecture diagram`
 
+## Planning and testing discipline
+
+When writing or executing implementation plans (roadmaps, phased work, Cursor plans):
+
+- **Tests with the code, not after.** For each module or feature slice in a plan, add or update tests in the same stretch of work before moving on. Do not defer a dedicated “testing phase” after implementation.
+- **Completion means green tests.** A milestone or phase is done only when the full suite passes: `pnpm test` at the repo root (backend and frontend).
+- **Plans should name coverage.** Spell out what to test (unit vs integration, critical paths, CI gates) per task or phase so expectations are explicit, not implied.
+- **Commits stay green.** Commit whenever a sensible unit of work is finished (e.g. a module plus its tests). Never commit with failing tests.
+
 ## Cursor Cloud specific instructions
 
 ### Overview
