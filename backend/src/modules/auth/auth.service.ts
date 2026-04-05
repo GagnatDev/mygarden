@@ -51,7 +51,10 @@ export class AuthService {
     }
 
     const entry = await this.allowedEmails.findByEmail(email);
-    if (!entry) {
+    const implicitAdminAllow =
+      this.env.ADMIN_EMAIL !== undefined && email === this.env.ADMIN_EMAIL;
+
+    if (!entry && !implicitAdminAllow) {
       throw new HttpError(
         403,
         'This email is not approved for registration',
@@ -59,7 +62,7 @@ export class AuthService {
         'https://mygarden.app/problems/email-not-approved',
       );
     }
-    if (entry.registeredAt) {
+    if (entry?.registeredAt) {
       throw new HttpError(
         403,
         'This invitation has already been used',

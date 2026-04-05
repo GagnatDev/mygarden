@@ -24,6 +24,29 @@ describe('Auth API (integration)', () => {
 
   afterAll(stopMongo, 30_000);
 
+  it('register succeeds for ADMIN_EMAIL without allowlist entry', async () => {
+    const adminEmail = `owner-${uuidv4()}@test.com`;
+    const adminEnv = loadEnv({
+      MONGODB_URI: env.MONGODB_URI,
+      JWT_SECRET: 'a'.repeat(32),
+      JWT_REFRESH_SECRET: 'b'.repeat(32),
+      NODE_ENV: 'test',
+      ADMIN_EMAIL: adminEmail,
+    });
+    const adminApp = createApp(adminEnv, pino({ level: 'silent' }), buildContainer(adminEnv));
+
+    const reg = await request(adminApp)
+      .post('/api/v1/auth/register')
+      .send({
+        email: adminEmail,
+        password: 'password12',
+        displayName: 'Owner',
+      })
+      .expect(201);
+    expect(reg.body.user.email).toBe(adminEmail);
+    expect(reg.body.accessToken).toBeTruthy();
+  });
+
   it('register returns 403 when email is not on allowlist', async () => {
     const res = await request(app)
       .post('/api/v1/auth/register')
