@@ -1,0 +1,22 @@
+# Example production-style Compose: app image + external MongoDB / S3 (Scaleway or other).
+# Copy to docker-compose.override pattern or set variables in a `.env` file (not committed).
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    ports:
+      - "8080:8080"
+    environment:
+      NODE_ENV: production
+      PORT: 8080
+      MONGODB_URI: ${MONGODB_URI:?set MONGODB_URI}
+      JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:?set JWT_REFRESH_SECRET}
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-}
+      # Object Storage (Scaleway S3-compatible) — optional until file uploads are wired
+      S3_ENDPOINT: ${S3_ENDPOINT:-}
+      S3_BUCKET: ${S3_BUCKET:-}
+      S3_ACCESS_KEY: ${S3_ACCESS_KEY:-}
+      S3_SECRET_KEY: ${S3_SECRET_KEY:-}

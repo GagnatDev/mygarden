@@ -15,6 +15,7 @@ RUN pnpm --filter frontend run build
 FROM node:24-alpine
 WORKDIR /app
 ENV NODE_ENV=production
+ENV PORT=8080
 # pnpm: backend/node_modules symlinks into root node_modules/.pnpm — copy both.
 COPY --from=installer /app/node_modules ./node_modules
 COPY --from=installer /app/backend/package.json ./backend/package.json
