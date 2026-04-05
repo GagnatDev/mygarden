@@ -5,6 +5,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Area } from '../api/gardens';
 import { AreaDetailPanel } from './AreaDetailPanel';
 
+vi.mock('../auth/useAuth', () => ({
+  useAuth: () => ({ user: { id: 'user-1' } }),
+}));
+
 const area: Area = {
   id: 'a1',
   gardenId: 'g1',
@@ -51,7 +55,16 @@ async function testI18n() {
       en: {
         translation: {
           garden: gardenKeys,
-          auth: { submitting: 'Wait', unknownError: 'Err' },
+          auth: { submitting: 'Wait', unknownError: 'Err', loading: 'Loading' },
+          notes: {
+            title: 'Notes',
+            placeholder: 'Write…',
+            add: 'Add',
+            edit: 'Edit',
+            delete: 'Delete note',
+            save: 'Save',
+            confirmDelete: 'Delete?',
+          },
           planning: {
             sowing: { indoor: 'Indoor', direct_outdoor: 'Outdoor' },
           },
@@ -71,6 +84,13 @@ describe('AreaDetailPanel', () => {
   beforeEach(() => {
     vi.stubGlobal('fetch', fetchMock);
     fetchMock.mockReset();
+    fetchMock.mockImplementation((input: RequestInfo | URL) => {
+      const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
+      if (url.includes('/notes')) {
+        return Promise.resolve(new Response('[]', { status: 200, headers: { 'Content-Type': 'application/json' } }));
+      }
+      return Promise.resolve(new Response(null, { status: 404 }));
+    });
     onClose.mockClear();
     onChanged.mockClear();
   });
@@ -83,7 +103,7 @@ describe('AreaDetailPanel', () => {
     const i18nInstance = await testI18n();
     render(
       <I18nextProvider i18n={i18nInstance}>
-        <AreaDetailPanel gardenId="g1" area={area} onClose={onClose} onChanged={onChanged} />
+        <AreaDetailPanel gardenId="g1" seasonId="s1" area={area} onClose={onClose} onChanged={onChanged} />
       </I18nextProvider>,
     );
 
@@ -93,17 +113,26 @@ describe('AreaDetailPanel', () => {
   });
 
   it('submits patch when saving edits', async () => {
-    fetchMock.mockResolvedValueOnce(
-      new Response(
-        JSON.stringify({ ...area, name: 'Updated' }),
-        { status: 200, headers: { 'Content-Type': 'application/json' } },
-      ),
-    );
+    fetchMock.mockImplementation((input: RequestInfo | URL) => {
+      const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
+      if (url.includes('/notes')) {
+        return Promise.resolve(new Response('[]', { status: 200, headers: { 'Content-Type': 'application/json' } }));
+      }
+      if (url.includes('/areas/a1')) {
+        return Promise.resolve(
+          new Response(JSON.stringify({ ...area, name: 'Updated' }), {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' },
+          }),
+        );
+      }
+      return Promise.resolve(new Response(null, { status: 404 }));
+    });
 
     const i18nInstance = await testI18n();
     render(
       <I18nextProvider i18n={i18nInstance}>
-        <AreaDetailPanel gardenId="g1" area={area} onClose={onClose} onChanged={onChanged} />
+        <AreaDetailPanel gardenId="g1" seasonId="s1" area={area} onClose={onClose} onChanged={onChanged} />
       </I18nextProvider>,
     );
 
@@ -127,6 +156,7 @@ describe('AreaDetailPanel', () => {
       <I18nextProvider i18n={i18nInstance}>
         <AreaDetailPanel
           gardenId="g1"
+          seasonId="s1"
           area={area}
           plantings={[{ id: 'p1', plantName: 'Tomato', sowingMethod: 'indoor' }]}
           onClose={onClose}
@@ -141,12 +171,21 @@ describe('AreaDetailPanel', () => {
   });
 
   it('shows delete confirmation flow', async () => {
-    fetchMock.mockResolvedValueOnce(new Response(null, { status: 204 }));
+    fetchMock.mockImplementation((input: RequestInfo | URL) => {
+      const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
+      if (url.includes('/notes')) {
+        return Promise.resolve(new Response('[]', { status: 200, headers: { 'Content-Type': 'application/json' } }));
+      }
+      if (url.includes('/areas/a1')) {
+        return Promise.resolve(new Response(null, { status: 204 }));
+      }
+      return Promise.resolve(new Response(null, { status: 404 }));
+    });
 
     const i18nInstance = await testI18n();
     render(
       <I18nextProvider i18n={i18nInstance}>
-        <AreaDetailPanel gardenId="g1" area={area} onClose={onClose} onChanged={onChanged} />
+        <AreaDetailPanel gardenId="g1" seasonId="s1" area={area} onClose={onClose} onChanged={onChanged} />
       </I18nextProvider>,
     );
 

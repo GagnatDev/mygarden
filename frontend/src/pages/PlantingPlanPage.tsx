@@ -14,6 +14,7 @@ import { listPlantProfiles, type PlantProfile } from '../api/plantProfiles';
 import { useGardenContext } from '../garden/garden-context';
 import { useActiveSeason } from '../garden/useActiveSeason';
 import { LocaleDateField } from '../components/LocaleDateField';
+import { NotesSection } from '../components/NotesSection';
 import { QuickLogModal } from '../planning/QuickLogModal';
 
 export function PlantingPlanPage() {
@@ -41,6 +42,7 @@ export function PlantingPlanPage() {
   const [outdoorSow, setOutdoorSow] = useState('');
   const [harvestStart, setHarvestStart] = useState('');
   const [formBusy, setFormBusy] = useState(false);
+  const [notesPlantingId, setNotesPlantingId] = useState<string | null>(null);
 
   const loadAll = useCallback(async () => {
     if (!selectedGarden || !seasonId) return;
@@ -189,6 +191,16 @@ export function PlantingPlanPage() {
                           {pl.plantName} · {t(`planning.sowing.${pl.sowingMethod}`)}
                         </span>
                         <div className="flex flex-wrap items-center gap-2">
+                          <button
+                            type="button"
+                            data-testid={`planting-notes-toggle-${pl.id}`}
+                            className="rounded border border-stone-200 px-2 py-1 text-xs font-medium text-stone-800 hover:bg-stone-50"
+                            onClick={() =>
+                              setNotesPlantingId((cur) => (cur === pl.id ? null : pl.id))
+                            }
+                          >
+                            {t('notes.title')}
+                          </button>
                           <label className="flex items-center gap-1 text-xs text-stone-600">
                             <span>{t('planning.moveToArea')}</span>
                             <select
@@ -213,6 +225,16 @@ export function PlantingPlanPage() {
                             {t('planning.removePlanting')}
                           </button>
                         </div>
+                        {notesPlantingId === pl.id ? (
+                          <NotesSection
+                            className="mt-3 border-stone-200"
+                            gardenId={selectedGarden.id}
+                            seasonId={seasonId}
+                            targetType="planting"
+                            targetId={pl.id}
+                            hideHeading
+                          />
+                        ) : null}
                       </li>
                     ))}
                   </ul>

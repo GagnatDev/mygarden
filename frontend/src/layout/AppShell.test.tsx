@@ -23,6 +23,7 @@ async function testI18n() {
             calendar: 'Calendar',
             plantProfiles: 'Plants',
             notes: 'Notes',
+            history: 'History',
           },
           auth: { logout: 'Log out', loading: '…' },
           lang: { nb: 'NB', en: 'EN' },

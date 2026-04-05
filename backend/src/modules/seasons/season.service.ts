@@ -1,5 +1,14 @@
+import { toPublicActivityLog } from '../../domain/activity-log.js';
+import { toPublicArea } from '../../domain/area.js';
+import { toPublicNote } from '../../domain/note.js';
+import { toPublicPlanting } from '../../domain/planting.js';
 import type { Season } from '../../domain/season.js';
+import { toPublicSeason } from '../../domain/season.js';
 import { HttpError } from '../../middleware/problem-details.js';
+import type { IActivityLogRepository } from '../../repositories/interfaces/activity-log.repository.interface.js';
+import type { IAreaRepository } from '../../repositories/interfaces/area.repository.interface.js';
+import type { INoteRepository } from '../../repositories/interfaces/note.repository.interface.js';
+import type { IPlantingRepository } from '../../repositories/interfaces/planting.repository.interface.js';
 import type { ISeasonRepository } from '../../repositories/interfaces/season.repository.interface.js';
 
 export interface CreateSeasonDto {
@@ -10,7 +19,13 @@ export interface CreateSeasonDto {
 }
 
 export class SeasonService {
-  constructor(private readonly seasonRepo: ISeasonRepository) {}
+  constructor(
+    private readonly seasonRepo: ISeasonRepository,
+    private readonly plantingRepo: IPlantingRepository,
+    private readonly activityLogRepo: IActivityLogRepository,
+    private readonly noteRepo: INoteRepository,
+    private readonly areaRepo: IAreaRepository,
+  ) {}
 
   async listByGarden(gardenId: string): Promise<Season[]> {
     return this.seasonRepo.findByGardenId(gardenId);
@@ -80,5 +95,55 @@ export class SeasonService {
     if (!ok) {
       throw new HttpError(404, 'Season not found', 'Not Found');
     }
+  }
+
+  /**
+   * Deactivates the current active season and creates a new active season (planning rollover).
+   */
+  async archiveActiveAndCreateNext(
+    gardenId: string,
+    activeSeasonId: string,
+    next?: Partial<Pick<CreateSeasonDto, 'name' | 'startDate' | 'endDate'>>,
+  ): Promise<{ archived: Season; created: Season }> {
+    const toArchive = await this.seasonRepo.findById(activeSeasonId);
+    if (!toArchive || toArchive.gardenId !== gardenId) {
+      throw new HttpError(404, 'Season not found', 'Not Found');
+    }
+    if (!toArchive.isActive) {
+      throw new HttpError(400, 'Only the active season can be archived', 'Bad Request');
+    }
+    const active = await this.seasonRepo.findActiveByGardenId(gardenId);
+    if (!active || active.id !== activeSeasonId) {
+      throw new HttpError(400, 'Only the active season can be archived', 'Bad Request');
+    }
+
+    const y = new Date().getUTCFullYear() + 1;
+    const name = next?.name ?? String(y);
+    const startDate = next?.startDate ?? new Date(Date.UTC(y, 0, 1, 0, 0, 0, 0));
+    const endDate = next?.endDate ?? new Date(Date.UTC(y, 11, 31, 23, 59, 59, 999));
+
+    const created = await this.create(gardenId, { name, startDate, endDate, isActive: true });
+    const archived = (await this.seasonRepo.findById(activeSeasonId))!;
+    return { archived, created };
+  }
+
+  async getSeasonSnapshot(gardenId: string, seasonId: string) {
+    const season = await this.seasonRepo.findById(seasonId);
+    if (!season || season.gardenId !== gardenId) {
+      throw new HttpError(404, 'Season not found', 'Not Found');
+    }
+    const [areas, plantings, logs, notes] = await Promise.all([
+      this.areaRepo.findByGardenId(gardenId),
+      this.plantingRepo.findByGardenAndSeason(gardenId, seasonId),
+      this.activityLogRepo.findByGardenSeason(gardenId, seasonId),
+      this.noteRepo.findByGardenSeason(gardenId, seasonId),
+    ]);
+    return {
+      season: toPublicSeason(season),
+      areas: areas.map(toPublicArea),
+      plantings: plantings.map(toPublicPlanting),
+      logs: logs.map(toPublicActivityLog),
+      notes: notes.map(toPublicNote),
+    };
   }
 }

@@ -27,6 +27,10 @@ export interface ActivityLog {
 }
 
 async function throwUnlessOk(res: Response): Promise<void> {
+  if (res.status === 202) {
+    const j = (await res.json().catch(() => null)) as { queued?: boolean } | null;
+    if (j?.queued) return;
+  }
   if (!res.ok) {
     const detail = await readProblemDetails(res);
     throw new Error(detail ?? res.statusText);
@@ -58,11 +62,12 @@ export async function createLog(
     quantity?: number | null;
     clientTimestamp: string;
   },
-): Promise<ActivityLog> {
+): Promise<ActivityLog | { queued: true }> {
   const res = await apiFetch(`/gardens/${gardenId}/logs`, {
     method: 'POST',
     body: JSON.stringify(body),
   });
   await throwUnlessOk(res);
+  if (res.status === 202) return { queued: true };
   return (await res.json()) as ActivityLog;
 }

@@ -25,7 +25,8 @@
     "plantingPlan": "Plantingsplan",
     "calendar": "Kalender",
     "plantProfiles": "Plantprofiler",
-    "notes": "Notater"
+    "notes": "Notater",
+    "history": "Sesonghistorikk"
   },
   "lang": {
     "nb": "NB",
@@ -150,5 +151,30 @@
       "harvested": "Høstet",
       "problem_noted": "Problem notert"
     }
+  },
+  "notes": {
+    "title": "Notater",
+    "placeholder": "Skriv et notat…",
+    "add": "Legg til notat",
+    "edit": "Rediger",
+    "delete": "Slett",
+    "save": "Lagre",
+    "confirmDelete": "Slette dette notatet?",
+    "seasonNotes": "Sesongnotater",
+    "seasonPageHint": "Notater for hele sesongen (ikke knyttet til ett bed eller én planting)."
+  },
+  "history": {
+    "hint": "Velg en sesong for å se kart, plantinger, aktivitet og notater slik de var.",
+    "seasonPicker": "Sesong",
+    "active": "aktiv",
+    "archiveSeason": "Arkiver sesong og start neste",
+    "confirmArchive": "Arkivere denne sesongen? En ny aktiv sesong opprettes for neste år.",
+    "pickSeason": "Velg en sesong.",
+    "mapCaption": "Kartlayout med områder (gjeldende hagerutenett).",
+    "plantings": "Plantinger"
+  },
+  "offline": {
+    "banner": "Du er frakoblet — endringer synkroniseres når du er på nett igjen.",
+    "logQueued": "Logg lagret frakoblet og synkroniseres når du er på nett."
   }
 }

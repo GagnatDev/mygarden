@@ -1,6 +1,7 @@
 import type { Garden } from '../../domain/garden.js';
 import { HttpError } from '../../middleware/problem-details.js';
 import type { IActivityLogRepository } from '../../repositories/interfaces/activity-log.repository.interface.js';
+import type { INoteRepository } from '../../repositories/interfaces/note.repository.interface.js';
 import type { IAreaRepository } from '../../repositories/interfaces/area.repository.interface.js';
 import type { IGardenMembershipRepository } from '../../repositories/interfaces/garden-membership.repository.interface.js';
 import type { IGardenRepository } from '../../repositories/interfaces/garden.repository.interface.js';
@@ -24,6 +25,7 @@ export class GardenService {
     private readonly plantingRepo: IPlantingRepository,
     private readonly taskRepo: ITaskRepository,
     private readonly activityLogRepo: IActivityLogRepository,
+    private readonly noteRepo: INoteRepository,
   ) {}
 
   async listForUser(userId: string): Promise<Garden[]> {
@@ -93,6 +95,7 @@ export class GardenService {
     if (m.role !== 'owner') {
       throw new HttpError(403, 'Only the garden owner can delete the garden', 'Forbidden');
     }
+    await this.noteRepo.deleteByGardenId(gardenId);
     await this.activityLogRepo.deleteByGardenId(gardenId);
     await this.taskRepo.deleteByGardenId(gardenId);
     await this.plantingRepo.deleteByGardenId(gardenId);

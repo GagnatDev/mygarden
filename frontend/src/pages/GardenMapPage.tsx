@@ -233,9 +233,10 @@ export function GardenMapPage() {
             />
           )}
         </div>
-        {selectedArea ? (
+        {selectedArea && seasonId ? (
           <AreaDetailPanel
             gardenId={selectedGarden.id}
+            seasonId={seasonId}
             area={selectedArea}
             plantings={plantingsForSelectedArea}
             onClose={() => setSelectedAreaId(null)}

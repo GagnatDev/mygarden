@@ -8,6 +8,7 @@ import { HttpError } from '../../middleware/problem-details.js';
 import { requireAccessAuth } from '../auth/auth.middleware.js';
 import { createActivityLogsRouter } from '../activity-logs/activity-log.routes.js';
 import { createAreasRouter } from '../areas/area.routes.js';
+import { createNotesRouter } from '../notes/note.routes.js';
 import { createPlantingsRouter } from '../plantings/planting.routes.js';
 import { createSeasonsRouter } from '../seasons/season.routes.js';
 import { createTasksRouter } from '../tasks/task.routes.js';
@@ -77,6 +78,7 @@ export function createGardensRouter(env: Env, c: AppContainer): Router {
   scoped.use('/plantings', createPlantingsRouter(c));
   scoped.use('/tasks', createTasksRouter(c));
   scoped.use('/logs', createActivityLogsRouter(c));
+  scoped.use('/notes', createNotesRouter(c));
 
   r.use('/:gardenId', scoped);
 

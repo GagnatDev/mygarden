@@ -4,6 +4,7 @@ import { I18nextProvider, initReactI18next } from 'react-i18next';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { listAreas } from '../api/gardens';
 import { listLogs } from '../api/logs';
+import { listNotes } from '../api/notes';
 import { deletePlanting, listPlantings, patchPlanting } from '../api/plantings';
 import { listPlantProfiles } from '../api/plantProfiles';
 import { GardenContext, type GardenContextValue } from '../garden/garden-context';
@@ -37,6 +38,14 @@ vi.mock('../api/logs', () => ({
   listLogs: vi.fn(),
 }));
 
+vi.mock('../api/notes', () => ({
+  listNotes: vi.fn(() => Promise.resolve([])),
+}));
+
+vi.mock('../auth/useAuth', () => ({
+  useAuth: () => ({ user: { id: 'u1' } }),
+}));
+
 const garden = {
   id: 'g1',
   name: 'Home',
@@ -61,6 +70,15 @@ const ctx: GardenContextValue = {
 const en = {
   nav: { plantingPlan: 'Plan' },
   auth: { loading: 'Loading…', submitting: 'Wait…', unknownError: 'Error' },
+  notes: {
+    title: 'Notes',
+    placeholder: 'Write',
+    add: 'Add note',
+    edit: 'Edit',
+    delete: 'Delete',
+    save: 'Save',
+    confirmDelete: 'OK?',
+  },
   garden: { noGardenHint: 'No garden', areaDetails: 'Area' },
   planning: {
     planHint: 'Hint',
@@ -290,5 +308,22 @@ describe('PlantingPlanPage', () => {
     });
 
     vi.unstubAllGlobals();
+  });
+
+  it('opens planting notes section when toggled', async () => {
+    const i18nInstance = await testI18n();
+    render(
+      <I18nextProvider i18n={i18nInstance}>
+        <GardenContext.Provider value={ctx}>
+          <PlantingPlanPage />
+        </GardenContext.Provider>
+      </I18nextProvider>,
+    );
+
+    await waitFor(() => expect(screen.getByTestId('planting-notes-toggle-pl1')).toBeInTheDocument());
+    expect(screen.queryByTestId('notes-section')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByTestId('planting-notes-toggle-pl1'));
+    await waitFor(() => expect(screen.getByTestId('notes-section')).toBeInTheDocument());
+    expect(listNotes).toHaveBeenCalledWith('g1', 's1', { targetType: 'planting', targetId: 'pl1' });
   });
 });

@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { Area, AreaType } from '../api/gardens';
 import { deleteArea, patchArea } from '../api/gardens';
+import { NotesSection } from '../components/NotesSection';
 
 const TYPES: AreaType[] = ['raised_bed', 'open_bed', 'tree_zone', 'path', 'lawn', 'other'];
 
@@ -13,6 +14,7 @@ export interface AreaPlantingSummary {
 
 export interface AreaDetailPanelProps {
   gardenId: string;
+  seasonId: string;
   area: Area;
   /** Plantings in this area for the active season (shown when area is selected). */
   plantings?: AreaPlantingSummary[];
@@ -20,7 +22,14 @@ export interface AreaDetailPanelProps {
   onChanged: () => Promise<void>;
 }
 
-export function AreaDetailPanel({ gardenId, area, plantings = [], onClose, onChanged }: AreaDetailPanelProps) {
+export function AreaDetailPanel({
+  gardenId,
+  seasonId,
+  area,
+  plantings = [],
+  onClose,
+  onChanged,
+}: AreaDetailPanelProps) {
   const { t } = useTranslation();
   const [name, setName] = useState(area.name);
   const [type, setType] = useState<AreaType>(area.type);
@@ -91,6 +100,8 @@ export function AreaDetailPanel({ gardenId, area, plantings = [], onClose, onCha
           </ul>
         </section>
       ) : null}
+
+      <NotesSection gardenId={gardenId} seasonId={seasonId} targetType="area" targetId={area.id} />
 
       {editing ? (
         <div className="mt-4 space-y-3">

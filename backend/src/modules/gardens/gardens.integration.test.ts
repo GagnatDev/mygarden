@@ -253,4 +253,244 @@ describe('Gardens, areas, seasons API (integration)', () => {
       .expect(200);
     expect(noneActive.body.filter((s: { isActive: boolean }) => s.isActive)).toHaveLength(0);
   });
+
+  it('notes CRUD scoped by targetType and season', async () => {
+    const { token } = await registerWithToken(app, env, 'Notes');
+    const created = await request(app)
+      .post('/api/v1/gardens')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ name: 'N', gridWidth: 6, gridHeight: 6, cellSizeMeters: 1 })
+      .expect(201);
+    const gardenId = created.body.id as string;
+    const seasons = await request(app)
+      .get(`/api/v1/gardens/${gardenId}/seasons`)
+      .set('Authorization', `Bearer ${token}`)
+      .expect(200);
+    const seasonId = seasons.body.find((s: { isActive: boolean }) => s.isActive).id as string;
+
+    const area = await request(app)
+      .post(`/api/v1/gardens/${gardenId}/areas`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        name: 'A',
+        type: 'raised_bed',
+        color: '#333',
+        gridX: 0,
+        gridY: 0,
+        gridWidth: 1,
+        gridHeight: 1,
+      })
+      .expect(201);
+    const areaId = area.body.id as string;
+
+    const profile = await request(app)
+      .post('/api/v1/plant-profiles')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ name: 'P', type: 'vegetable' })
+      .expect(201);
+
+    const planting = await request(app)
+      .post(`/api/v1/gardens/${gardenId}/plantings`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        seasonId,
+        areaId,
+        plantProfileId: profile.body.id,
+        sowingMethod: 'indoor',
+        indoorSowDate: '2026-03-01T12:00:00.000Z',
+        transplantDate: '2026-04-01T12:00:00.000Z',
+      })
+      .expect(201);
+    const plantingId = planting.body.id as string;
+
+    const seasonNote = await request(app)
+      .post(`/api/v1/gardens/${gardenId}/notes`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        seasonId,
+        targetType: 'season',
+        targetId: seasonId,
+        body: 'Hello season',
+      })
+      .expect(201);
+    expect(seasonNote.body.body).toBe('Hello season');
+
+    await request(app)
+      .post(`/api/v1/gardens/${gardenId}/notes`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        seasonId,
+        targetType: 'season',
+        targetId: uuidv4(),
+        body: 'Wrong id',
+      })
+      .expect(400);
+
+    await request(app)
+      .get(`/api/v1/gardens/${gardenId}/notes?seasonId=${seasonId}&targetType=season&targetId=${seasonId}`)
+      .set('Authorization', `Bearer ${token}`)
+      .expect(200)
+      .expect((res) => {
+        expect(res.body).toHaveLength(1);
+        expect(res.body[0].body).toBe('Hello season');
+      });
+
+    const areaN = await request(app)
+      .post(`/api/v1/gardens/${gardenId}/notes`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        seasonId,
+        targetType: 'area',
+        targetId: areaId,
+        body: 'On bed',
+      })
+      .expect(201);
+
+    await request(app)
+      .get(`/api/v1/gardens/${gardenId}/notes?seasonId=${seasonId}&targetType=area&targetId=${areaId}`)
+      .set('Authorization', `Bearer ${token}`)
+      .expect(200)
+      .expect((res) => {
+        expect(res.body).toHaveLength(1);
+      });
+
+    const plantN = await request(app)
+      .post(`/api/v1/gardens/${gardenId}/notes`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        seasonId,
+        targetType: 'planting',
+        targetId: plantingId,
+        body: 'Plant note',
+      })
+      .expect(201);
+
+    const patched = await request(app)
+      .patch(`/api/v1/gardens/${gardenId}/notes/${plantN.body.id as string}`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ body: 'Edited' })
+      .expect(200);
+    expect(patched.body.body).toBe('Edited');
+
+    const { token: other } = await registerWithToken(app, env, 'Other');
+    await request(app)
+      .patch(`/api/v1/gardens/${gardenId}/notes/${areaN.body.id as string}`)
+      .set('Authorization', `Bearer ${other}`)
+      .send({ body: 'Nope' })
+      .expect(403);
+
+    await request(app)
+      .delete(`/api/v1/gardens/${gardenId}/notes/${seasonNote.body.id as string}`)
+      .set('Authorization', `Bearer ${token}`)
+      .expect(204);
+
+    await request(app)
+      .get(`/api/v1/gardens/${gardenId}/notes?seasonId=${seasonId}`)
+      .set('Authorization', `Bearer ${token}`)
+      .expect(200)
+      .expect((res) => {
+        expect(res.body.length).toBeGreaterThanOrEqual(2);
+      });
+  });
+
+  it('archives active season and returns full history snapshot', async () => {
+    const { token } = await registerWithToken(app, env, 'Archive');
+    const created = await request(app)
+      .post('/api/v1/gardens')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ name: 'H', gridWidth: 4, gridHeight: 4, cellSizeMeters: 1 })
+      .expect(201);
+    const gardenId = created.body.id as string;
+    const seasons = await request(app)
+      .get(`/api/v1/gardens/${gardenId}/seasons`)
+      .set('Authorization', `Bearer ${token}`)
+      .expect(200);
+    const activeId = seasons.body.find((s: { isActive: boolean }) => s.isActive).id as string;
+
+    const area = await request(app)
+      .post(`/api/v1/gardens/${gardenId}/areas`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        name: 'B',
+        type: 'raised_bed',
+        color: '#444',
+        gridX: 0,
+        gridY: 0,
+        gridWidth: 1,
+        gridHeight: 1,
+      })
+      .expect(201);
+
+    const profile = await request(app)
+      .post('/api/v1/plant-profiles')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ name: 'Kale', type: 'vegetable' })
+      .expect(201);
+
+    await request(app)
+      .post(`/api/v1/gardens/${gardenId}/plantings`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        seasonId: activeId,
+        areaId: area.body.id,
+        plantProfileId: profile.body.id,
+        sowingMethod: 'direct_outdoor',
+        outdoorSowDate: '2026-05-01T12:00:00.000Z',
+      })
+      .expect(201);
+
+    await request(app)
+      .post(`/api/v1/gardens/${gardenId}/logs`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        seasonId: activeId,
+        plantingId: null,
+        areaId: area.body.id,
+        activity: 'watered',
+        date: '2026-04-01',
+        clientTimestamp: new Date().toISOString(),
+      })
+      .expect(201);
+
+    await request(app)
+      .post(`/api/v1/gardens/${gardenId}/notes`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        seasonId: activeId,
+        targetType: 'season',
+        targetId: activeId,
+        body: 'Archive me',
+      })
+      .expect(201);
+
+    const snapBefore = await request(app)
+      .get(`/api/v1/gardens/${gardenId}/seasons/${activeId}`)
+      .set('Authorization', `Bearer ${token}`)
+      .expect(200);
+    expect(snapBefore.body.plantings).toHaveLength(1);
+    expect(snapBefore.body.logs.length).toBeGreaterThanOrEqual(1);
+    expect(snapBefore.body.notes).toHaveLength(1);
+    expect(snapBefore.body.areas).toHaveLength(1);
+
+    const archived = await request(app)
+      .post(`/api/v1/gardens/${gardenId}/seasons/${activeId}/archive`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({})
+      .expect(200);
+    expect(archived.body.archived.isActive).toBe(false);
+    expect(archived.body.newActiveSeason.isActive).toBe(true);
+
+    const snapAfter = await request(app)
+      .get(`/api/v1/gardens/${gardenId}/seasons/${activeId}`)
+      .set('Authorization', `Bearer ${token}`)
+      .expect(200);
+    expect(snapAfter.body.season.isActive).toBe(false);
+    expect(snapAfter.body.plantings).toHaveLength(1);
+
+    await request(app)
+      .post(`/api/v1/gardens/${gardenId}/seasons/${activeId}/archive`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({})
+      .expect(400);
+  });
 });

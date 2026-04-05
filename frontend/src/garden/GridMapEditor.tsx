@@ -45,6 +45,8 @@ export interface GridMapEditorProps {
   onSelectionComplete: (sel: GridSelection) => void;
   tool: MapTool;
   onToolChange: (t: MapTool) => void;
+  /** When true, map is view-only (pan/zoom only, no new selections or area clicks). */
+  readOnly?: boolean;
 }
 
 export function GridMapEditor({
@@ -56,8 +58,10 @@ export function GridMapEditor({
   onSelectionComplete,
   tool,
   onToolChange,
+  readOnly = false,
 }: GridMapEditorProps) {
   const { t } = useTranslation();
+  const effectiveTool: MapTool = readOnly ? 'pan' : tool;
   const containerRef = useRef<HTMLDivElement>(null);
   const worldRef = useRef<HTMLDivElement>(null);
   const [view, setView] = useState({ tx: 0, ty: 0, scale: 1 });
@@ -115,7 +119,7 @@ export function GridMapEditor({
   const onPointerDown = (e: React.PointerEvent) => {
     if (e.button !== 0) return;
     (e.target as HTMLElement).setPointerCapture?.(e.pointerId);
-    if (tool === 'pan') {
+    if (effectiveTool === 'pan') {
       dragRef.current = { kind: 'pan', x: e.clientX, y: e.clientY };
       return;
     }
@@ -208,26 +212,28 @@ export function GridMapEditor({
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-2">
       <div className="flex flex-wrap items-center gap-2">
-        <div className="flex rounded-lg border border-stone-200 bg-white p-0.5 text-sm">
-          <button
-            type="button"
-            className={`rounded-md px-3 py-1.5 font-medium ${
-              tool === 'select' ? 'bg-emerald-100 text-emerald-900' : 'text-stone-600'
-            }`}
-            onClick={() => onToolChange('select')}
-          >
-            {t('garden.toolSelect')}
-          </button>
-          <button
-            type="button"
-            className={`rounded-md px-3 py-1.5 font-medium ${
-              tool === 'pan' ? 'bg-emerald-100 text-emerald-900' : 'text-stone-600'
-            }`}
-            onClick={() => onToolChange('pan')}
-          >
-            {t('garden.toolPan')}
-          </button>
-        </div>
+        {!readOnly ? (
+          <div className="flex rounded-lg border border-stone-200 bg-white p-0.5 text-sm">
+            <button
+              type="button"
+              className={`rounded-md px-3 py-1.5 font-medium ${
+                tool === 'select' ? 'bg-emerald-100 text-emerald-900' : 'text-stone-600'
+              }`}
+              onClick={() => onToolChange('select')}
+            >
+              {t('garden.toolSelect')}
+            </button>
+            <button
+              type="button"
+              className={`rounded-md px-3 py-1.5 font-medium ${
+                tool === 'pan' ? 'bg-emerald-100 text-emerald-900' : 'text-stone-600'
+              }`}
+              onClick={() => onToolChange('pan')}
+            >
+              {t('garden.toolPan')}
+            </button>
+          </div>
+        ) : null}
         <div className="flex items-center gap-1">
           <button
             type="button"
@@ -308,11 +314,11 @@ export function GridMapEditor({
                     width: a.gridWidth * CELL,
                     height: a.gridHeight * CELL,
                     backgroundColor: a.color,
-                    pointerEvents: tool === 'pan' ? 'none' : 'auto',
+                    pointerEvents: effectiveTool === 'pan' || readOnly ? 'none' : 'auto',
                   }}
                   onPointerDown={(ev) => ev.stopPropagation()}
                   onClick={(ev) => {
-                    if (tool !== 'select') return;
+                    if (readOnly || effectiveTool !== 'select') return;
                     ev.stopPropagation();
                     onSelectArea(a.id);
                   }}

@@ -4,7 +4,11 @@ import { paramString } from '../../lib/route-params.js';
 import type { AppContainer } from '../../config/container.js';
 import { toPublicSeason } from '../../domain/season.js';
 import { HttpError } from '../../middleware/problem-details.js';
-import { createSeasonBodySchema, patchSeasonBodySchema } from './season.validation.js';
+import {
+  archiveSeasonBodySchema,
+  createSeasonBodySchema,
+  patchSeasonBodySchema,
+} from './season.validation.js';
 
 export function createSeasonsRouter(c: AppContainer): Router {
   const r = Router({ mergeParams: true });
@@ -34,6 +38,37 @@ export function createSeasonsRouter(c: AppContainer): Router {
         isActive,
       });
       res.status(201).json(toPublicSeason(season));
+    }),
+  );
+
+  r.get(
+    '/:seasonId',
+    asyncHandler(async (req, res) => {
+      const gardenId = paramString(req.params.gardenId, 'garden id');
+      const seasonId = paramString(req.params.seasonId, 'season id');
+      const snapshot = await c.seasonService.getSeasonSnapshot(gardenId, seasonId);
+      res.json(snapshot);
+    }),
+  );
+
+  r.post(
+    '/:seasonId/archive',
+    asyncHandler(async (req, res) => {
+      const parsed = archiveSeasonBodySchema.safeParse(req.body ?? {});
+      if (!parsed.success) {
+        throw new HttpError(400, parsed.error.errors[0]?.message ?? 'Invalid body', 'Bad Request');
+      }
+      const gardenId = paramString(req.params.gardenId, 'garden id');
+      const seasonId = paramString(req.params.seasonId, 'season id');
+      const { archived, created } = await c.seasonService.archiveActiveAndCreateNext(
+        gardenId,
+        seasonId,
+        parsed.data,
+      );
+      res.status(200).json({
+        archived: toPublicSeason(archived),
+        newActiveSeason: toPublicSeason(created),
+      });
     }),
   );
 

@@ -5,7 +5,8 @@ import { CalendarPage } from './pages/CalendarPage';
 import { HomeDashboard } from './pages/HomeDashboard';
 import { GardenMapPage } from './pages/GardenMapPage';
 import { LoginPage } from './pages/LoginPage';
-import { PlaceholderPage } from './pages/PlaceholderPage';
+import { HistoryPage } from './pages/HistoryPage';
+import { SeasonNotesPage } from './pages/SeasonNotesPage';
 import { PlantingPlanPage } from './pages/PlantingPlanPage';
 import { PlantProfilesPage } from './pages/PlantProfilesPage';
 import { RegisterPage } from './pages/RegisterPage';
@@ -33,7 +34,8 @@ export function AppRoutes() {
           <Route path="/plan" element={<PlantingPlanPage />} />
           <Route path="/calendar" element={<CalendarPage />} />
           <Route path="/plants" element={<PlantProfilesPage />} />
-          <Route path="/notes" element={<PlaceholderPage titleKey="nav.notes" />} />
+          <Route path="/notes" element={<SeasonNotesPage />} />
+          <Route path="/history" element={<HistoryPage />} />
         </Route>
       </Route>
 

@@ -1,18 +1,23 @@
+import 'fake-indexeddb/auto';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { clearQueueForTests, listQueuedMutations } from '../offline/offline-queue';
 import { apiFetch } from './client';
 import { getAccessToken, setAccessToken } from './token';
 
 describe('apiFetch', () => {
   const fetchMock = vi.fn();
 
-  beforeEach(() => {
+  beforeEach(async () => {
     setAccessToken(null);
     fetchMock.mockClear();
     vi.stubGlobal('fetch', fetchMock);
+    await clearQueueForTests();
+    vi.spyOn(navigator, 'onLine', 'get').mockReturnValue(true);
   });
 
   afterEach(() => {
     vi.unstubAllGlobals();
+    vi.restoreAllMocks();
   });
 
   it('sends Authorization Bearer when access token is set', async () => {
@@ -83,5 +88,18 @@ describe('apiFetch', () => {
 
     expect(res.status).toBe(401);
     expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('queues POST when offline and returns 202', async () => {
+    setAccessToken('tok');
+    vi.spyOn(navigator, 'onLine', 'get').mockReturnValue(false);
+    const res = await apiFetch('/gardens/g1/logs', { method: 'POST', body: '{}' });
+    expect(res.status).toBe(202);
+    const body = (await res.json()) as { queued?: boolean };
+    expect(body.queued).toBe(true);
+    const q = await listQueuedMutations();
+    expect(q).toHaveLength(1);
+    expect(q[0]!.path).toBe('/gardens/g1/logs');
+    expect(q[0]!.method).toBe('POST');
   });
 });

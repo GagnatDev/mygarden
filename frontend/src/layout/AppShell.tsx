@@ -2,6 +2,7 @@ import { useTranslation } from 'react-i18next';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/useAuth';
 import { LanguageSwitcher } from '../components/LanguageSwitcher';
+import { OfflineIndicator } from '../components/OfflineIndicator';
 
 export const APP_NAV = [
   { to: '/', key: 'nav.home', end: true as boolean },
@@ -10,6 +11,7 @@ export const APP_NAV = [
   { to: '/calendar', key: 'nav.calendar', end: false },
   { to: '/plants', key: 'nav.plantProfiles', end: false },
   { to: '/notes', key: 'nav.notes', end: false },
+  { to: '/history', key: 'nav.history', end: false },
 ] as const;
 
 function navClassName({ isActive }: { isActive: boolean }): string {
@@ -31,6 +33,7 @@ export function AppShell() {
 
   return (
     <div className="flex min-h-dvh flex-col bg-stone-50 text-stone-900 md:flex-row">
+      <OfflineIndicator />
       <aside className="hidden w-52 shrink-0 border-r border-stone-200 bg-white md:flex md:flex-col">
         <div className="border-b border-stone-100 p-4">
           <p className="text-lg font-semibold tracking-tight">{t('app.title')}</p>

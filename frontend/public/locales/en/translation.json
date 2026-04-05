@@ -25,7 +25,8 @@
     "plantingPlan": "Planting plan",
     "calendar": "Calendar",
     "plantProfiles": "Plant profiles",
-    "notes": "Notes"
+    "notes": "Notes",
+    "history": "Season history"
   },
   "lang": {
     "nb": "NB",
@@ -150,5 +151,30 @@
       "harvested": "Harvested",
       "problem_noted": "Problem noted"
     }
+  },
+  "notes": {
+    "title": "Notes",
+    "placeholder": "Write a note…",
+    "add": "Add note",
+    "edit": "Edit",
+    "delete": "Delete",
+    "save": "Save",
+    "confirmDelete": "Delete this note?",
+    "seasonNotes": "Season notes",
+    "seasonPageHint": "Notes for the whole season (not tied to a single bed or planting)."
+  },
+  "history": {
+    "hint": "Pick a season to see the map, plantings, activity, and notes as they were.",
+    "seasonPicker": "Season",
+    "active": "active",
+    "archiveSeason": "Archive current season & start next",
+    "confirmArchive": "Archive this season? A new active season will be created for next year.",
+    "pickSeason": "Choose a season.",
+    "mapCaption": "Map layout with areas (current garden grid).",
+    "plantings": "Plantings"
+  },
+  "offline": {
+    "banner": "You are offline — changes will sync when you are back online.",
+    "logQueued": "Log saved offline and will sync when you are online."
   }
 }
