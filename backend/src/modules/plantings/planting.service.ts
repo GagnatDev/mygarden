@@ -70,7 +70,7 @@ export class PlantingService {
     }
 
     let plantName = body.plantName?.trim() ?? '';
-    let plantProfileId: string | null = body.plantProfileId ?? null;
+    const plantProfileId: string | null = body.plantProfileId ?? null;
     if (plantProfileId) {
       const profile = await this.plantProfileRepo.findById(plantProfileId);
       if (!profile || profile.userId !== userId) {
@@ -140,7 +140,7 @@ export class PlantingService {
     }
 
     let plantName = patch.plantName?.trim() ?? current.plantName;
-    let plantProfileId = patch.plantProfileId !== undefined ? patch.plantProfileId : current.plantProfileId;
+    const plantProfileId = patch.plantProfileId !== undefined ? patch.plantProfileId : current.plantProfileId;
     if (patch.plantProfileId !== undefined && patch.plantProfileId) {
       const profile = await this.plantProfileRepo.findById(patch.plantProfileId);
       if (!profile || profile.userId !== userId) {
