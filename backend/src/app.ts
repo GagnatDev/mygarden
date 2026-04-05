@@ -11,6 +11,7 @@ import { createAdminRouter } from './modules/admin/admin.routes.js';
 import { createAuthRouter } from './modules/auth/auth.routes.js';
 import { healthRouter } from './modules/health/health.routes.js';
 import { createGardensRouter } from './modules/gardens/gardens.routes.js';
+import { createPlantProfilesRouter } from './modules/plant-profiles/plant-profile.routes.js';
 import { createUsersRouter } from './modules/users/users.routes.js';
 
 export function createApp(env: Env, logger: pino.Logger, container: AppContainer) {
@@ -31,6 +32,7 @@ export function createApp(env: Env, logger: pino.Logger, container: AppContainer
   api.use('/admin', createAdminRouter(env, container));
   api.use('/users', createUsersRouter(env, container));
   api.use('/gardens', createGardensRouter(env, container));
+  api.use('/plant-profiles', createPlantProfilesRouter(env, container));
   app.use('/api/v1', api);
 
   if (env.NODE_ENV === 'production') {

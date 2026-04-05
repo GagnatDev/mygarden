@@ -1,12 +1,15 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { Area } from '../api/gardens';
 import { deleteGarden, listAreas } from '../api/gardens';
+import { listPlantings } from '../api/plantings';
 import { AreaDetailPanel } from '../garden/AreaDetailPanel';
 import { CreateAreaDialog } from '../garden/CreateAreaDialog';
 import { GardenCreateForm } from '../garden/GardenCreateForm';
 import { useGardenContext } from '../garden/garden-context';
 import { GridMapEditor, type GridSelection, type MapTool } from '../garden/GridMapEditor';
+import { useActiveSeason } from '../garden/useActiveSeason';
+import { QuickLogModal } from '../planning/QuickLogModal';
 
 export function GardenMapPage() {
   const { t } = useTranslation();
@@ -20,6 +23,19 @@ export function GardenMapPage() {
   const [deleteGardenConfirm, setDeleteGardenConfirm] = useState(false);
   const [deleteGardenBusy, setDeleteGardenBusy] = useState(false);
   const [deleteGardenError, setDeleteGardenError] = useState<string | null>(null);
+  const { seasonId } = useActiveSeason(selectedGarden?.id ?? null);
+  const [mapPlantings, setMapPlantings] = useState<Awaited<ReturnType<typeof listPlantings>>>([]);
+  const [quickLogOpen, setQuickLogOpen] = useState(false);
+
+  const refreshMapPlantings = useCallback(async () => {
+    if (!selectedGarden || !seasonId) return;
+    try {
+      const list = await listPlantings(selectedGarden.id, seasonId);
+      setMapPlantings(list);
+    } catch {
+      setMapPlantings([]);
+    }
+  }, [selectedGarden, seasonId]);
 
   const loadAreas = useCallback(async (gardenId: string) => {
     setAreasLoading(true);
@@ -37,10 +53,19 @@ export function GardenMapPage() {
     if (!selectedGarden) {
       setAreas([]);
       setSelectedAreaId(null);
+      setMapPlantings([]);
       return;
     }
     void loadAreas(selectedGarden.id);
   }, [selectedGarden, loadAreas]);
+
+  useEffect(() => {
+    if (!selectedGarden || !seasonId) {
+      setMapPlantings([]);
+      return;
+    }
+    void refreshMapPlantings();
+  }, [selectedGarden, seasonId, refreshMapPlantings]);
 
   useEffect(() => {
     if (selectedAreaId && !areas.some((a) => a.id === selectedAreaId)) {
@@ -49,6 +74,28 @@ export function GardenMapPage() {
   }, [areas, selectedAreaId]);
 
   const selectedArea = areas.find((a) => a.id === selectedAreaId) ?? null;
+
+  const areaIdsWithPlantings = useMemo(
+    () => new Set(mapPlantings.map((p) => p.areaId)),
+    [mapPlantings],
+  );
+
+  const plantingsForSelectedArea = useMemo(() => {
+    if (!selectedAreaId) return [];
+    return mapPlantings
+      .filter((p) => p.areaId === selectedAreaId)
+      .map((p) => ({ id: p.id, plantName: p.plantName, sowingMethod: p.sowingMethod }));
+  }, [mapPlantings, selectedAreaId]);
+
+  const quickLogProps = useMemo(() => {
+    if (!selectedGarden || !seasonId) return null;
+    return {
+      gardenId: selectedGarden.id,
+      seasonId,
+      areas: areas.map((a) => ({ id: a.id, name: a.name })),
+      plantings: mapPlantings.map((p) => ({ id: p.id, plantName: p.plantName, areaId: p.areaId })),
+    };
+  }, [selectedGarden, seasonId, areas, mapPlantings]);
 
   async function handleDeleteGarden() {
     if (!selectedGarden) return;
@@ -94,9 +141,21 @@ export function GardenMapPage() {
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <div className="flex shrink-0 flex-col gap-4 md:flex-row md:items-start md:justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold text-stone-900">{t('nav.gardenMap')}</h1>
-          <p className="mt-1 text-sm text-stone-600">{t('garden.mapHint')}</p>
+        <div className="flex flex-1 flex-wrap items-start justify-between gap-3">
+          <div>
+            <h1 className="text-2xl font-semibold text-stone-900">{t('nav.gardenMap')}</h1>
+            <p className="mt-1 text-sm text-stone-600">{t('garden.mapHint')}</p>
+          </div>
+          {quickLogProps ? (
+            <button
+              type="button"
+              data-testid="map-quick-log"
+              className="shrink-0 rounded-lg bg-stone-800 px-3 py-2 text-sm font-medium text-white"
+              onClick={() => setQuickLogOpen(true)}
+            >
+              {t('planning.quickLog')}
+            </button>
+          ) : null}
         </div>
         <div className="flex flex-col gap-3 md:items-end">
           {gardens.length > 1 ? (
@@ -165,6 +224,7 @@ export function GardenMapPage() {
             <GridMapEditor
               garden={selectedGarden}
               areas={areas}
+              areaIdsWithPlantings={areaIdsWithPlantings}
               selectedAreaId={selectedAreaId}
               onSelectArea={setSelectedAreaId}
               onSelectionComplete={setPendingSelection}
@@ -177,8 +237,12 @@ export function GardenMapPage() {
           <AreaDetailPanel
             gardenId={selectedGarden.id}
             area={selectedArea}
+            plantings={plantingsForSelectedArea}
             onClose={() => setSelectedAreaId(null)}
-            onChanged={async () => loadAreas(selectedGarden.id)}
+            onChanged={async () => {
+              await loadAreas(selectedGarden.id);
+              await refreshMapPlantings();
+            }}
           />
         ) : null}
       </div>
@@ -189,6 +253,18 @@ export function GardenMapPage() {
           selection={pendingSelection}
           onClose={() => setPendingSelection(null)}
           onCreated={async () => loadAreas(selectedGarden.id)}
+        />
+      ) : null}
+
+      {quickLogProps ? (
+        <QuickLogModal
+          open={quickLogOpen}
+          onClose={() => setQuickLogOpen(false)}
+          gardenId={quickLogProps.gardenId}
+          seasonId={quickLogProps.seasonId}
+          areas={quickLogProps.areas}
+          plantings={quickLogProps.plantings}
+          onLogged={() => void refreshMapPlantings()}
         />
       ) : null}
     </div>

@@ -31,6 +31,7 @@ const gardenKeys = {
   deleteArea: 'Delete',
   confirmDelete: 'Confirm delete',
   cells: 'cells',
+  plantingsThisSeason: 'Plantings',
   areaTypes: {
     raised_bed: 'Raised',
     open_bed: 'Open',
@@ -51,6 +52,9 @@ async function testI18n() {
         translation: {
           garden: gardenKeys,
           auth: { submitting: 'Wait', unknownError: 'Err' },
+          planning: {
+            sowing: { indoor: 'Indoor', direct_outdoor: 'Outdoor' },
+          },
         },
       },
     },
@@ -115,6 +119,25 @@ describe('AreaDetailPanel', () => {
     expect(patchCall).toBeTruthy();
     const init = patchCall![1] as RequestInit;
     expect(init.method).toBe('PATCH');
+  });
+
+  it('lists plantings for this area when provided', async () => {
+    const i18nInstance = await testI18n();
+    render(
+      <I18nextProvider i18n={i18nInstance}>
+        <AreaDetailPanel
+          gardenId="g1"
+          area={area}
+          plantings={[{ id: 'p1', plantName: 'Tomato', sowingMethod: 'indoor' }]}
+          onClose={onClose}
+          onChanged={onChanged}
+        />
+      </I18nextProvider>,
+    );
+
+    expect(screen.getByTestId('area-plantings-section')).toBeInTheDocument();
+    expect(screen.getByTestId('area-planting-p1')).toHaveTextContent('Tomato');
+    expect(screen.getByTestId('area-planting-p1')).toHaveTextContent('Indoor');
   });
 
   it('shows delete confirmation flow', async () => {

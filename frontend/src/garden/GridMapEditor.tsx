@@ -38,6 +38,8 @@ export type MapTool = 'select' | 'pan';
 export interface GridMapEditorProps {
   garden: Garden;
   areas: Area[];
+  /** Area IDs that have at least one planting (subtle map indicator only). */
+  areaIdsWithPlantings?: ReadonlySet<string>;
   selectedAreaId: string | null;
   onSelectArea: (id: string | null) => void;
   onSelectionComplete: (sel: GridSelection) => void;
@@ -48,6 +50,7 @@ export interface GridMapEditorProps {
 export function GridMapEditor({
   garden,
   areas,
+  areaIdsWithPlantings,
   selectedAreaId,
   onSelectArea,
   onSelectionComplete,
@@ -291,6 +294,7 @@ export function GridMapEditor({
 
             {areas.map((a) => {
               const selected = a.id === selectedAreaId;
+              const hasPlantings = areaIdsWithPlantings?.has(a.id) ?? false;
               return (
                 <button
                   key={a.id}
@@ -312,8 +316,22 @@ export function GridMapEditor({
                     ev.stopPropagation();
                     onSelectArea(a.id);
                   }}
+                  aria-label={
+                    hasPlantings
+                      ? `${a.name} (${t('garden.hasPlantingsHint')})`
+                      : a.name
+                  }
                 >
-                  <span className="line-clamp-3 break-words px-0.5 drop-shadow-sm">{a.name}</span>
+                  {hasPlantings ? (
+                    <span
+                      className="pointer-events-none absolute right-0.5 top-0.5 z-20 h-2 w-2 rounded-full bg-emerald-300 ring-2 ring-white/90"
+                      data-testid={`map-area-planting-indicator-${a.id}`}
+                      aria-hidden
+                    />
+                  ) : null}
+                  <span className="line-clamp-3 break-words px-0.5 drop-shadow-sm">
+                    <span className="block font-semibold">{a.name}</span>
+                  </span>
                 </button>
               );
             })}

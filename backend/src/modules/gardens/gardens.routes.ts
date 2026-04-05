@@ -6,8 +6,11 @@ import { asyncHandler } from '../../lib/async-handler.js';
 import { paramString } from '../../lib/route-params.js';
 import { HttpError } from '../../middleware/problem-details.js';
 import { requireAccessAuth } from '../auth/auth.middleware.js';
+import { createActivityLogsRouter } from '../activity-logs/activity-log.routes.js';
 import { createAreasRouter } from '../areas/area.routes.js';
+import { createPlantingsRouter } from '../plantings/planting.routes.js';
 import { createSeasonsRouter } from '../seasons/season.routes.js';
+import { createTasksRouter } from '../tasks/task.routes.js';
 import { requireGardenMember } from './garden.middleware.js';
 import { createGardenBodySchema, patchGardenBodySchema } from './garden.validation.js';
 
@@ -71,6 +74,9 @@ export function createGardensRouter(env: Env, c: AppContainer): Router {
 
   scoped.use('/areas', createAreasRouter(c));
   scoped.use('/seasons', createSeasonsRouter(c));
+  scoped.use('/plantings', createPlantingsRouter(c));
+  scoped.use('/tasks', createTasksRouter(c));
+  scoped.use('/logs', createActivityLogsRouter(c));
 
   r.use('/:gardenId', scoped);
 

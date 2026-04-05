@@ -5,14 +5,22 @@ import { deleteArea, patchArea } from '../api/gardens';
 
 const TYPES: AreaType[] = ['raised_bed', 'open_bed', 'tree_zone', 'path', 'lawn', 'other'];
 
+export interface AreaPlantingSummary {
+  id: string;
+  plantName: string;
+  sowingMethod: string;
+}
+
 export interface AreaDetailPanelProps {
   gardenId: string;
   area: Area;
+  /** Plantings in this area for the active season (shown when area is selected). */
+  plantings?: AreaPlantingSummary[];
   onClose: () => void;
   onChanged: () => Promise<void>;
 }
 
-export function AreaDetailPanel({ gardenId, area, onClose, onChanged }: AreaDetailPanelProps) {
+export function AreaDetailPanel({ gardenId, area, plantings = [], onClose, onChanged }: AreaDetailPanelProps) {
   const { t } = useTranslation();
   const [name, setName] = useState(area.name);
   const [type, setType] = useState<AreaType>(area.type);
@@ -70,6 +78,19 @@ export function AreaDetailPanel({ gardenId, area, onClose, onChanged }: AreaDeta
       <p className="mt-1 text-sm text-stone-500">
         {t(`garden.areaTypes.${area.type}`)} · {area.gridWidth}×{area.gridHeight} {t('garden.cells')}
       </p>
+
+      {plantings.length > 0 ? (
+        <section className="mt-4 border-t border-stone-100 pt-4" data-testid="area-plantings-section">
+          <h3 className="text-sm font-semibold text-stone-800">{t('garden.plantingsThisSeason')}</h3>
+          <ul className="mt-2 space-y-1 text-sm text-stone-700">
+            {plantings.map((p) => (
+              <li key={p.id} data-testid={`area-planting-${p.id}`}>
+                {p.plantName} · {t(`planning.sowing.${p.sowingMethod}`)}
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
 
       {editing ? (
         <div className="mt-4 space-y-3">

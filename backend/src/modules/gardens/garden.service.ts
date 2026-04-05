@@ -1,9 +1,12 @@
 import type { Garden } from '../../domain/garden.js';
 import { HttpError } from '../../middleware/problem-details.js';
+import type { IActivityLogRepository } from '../../repositories/interfaces/activity-log.repository.interface.js';
 import type { IAreaRepository } from '../../repositories/interfaces/area.repository.interface.js';
 import type { IGardenMembershipRepository } from '../../repositories/interfaces/garden-membership.repository.interface.js';
 import type { IGardenRepository } from '../../repositories/interfaces/garden.repository.interface.js';
+import type { IPlantingRepository } from '../../repositories/interfaces/planting.repository.interface.js';
 import type { ISeasonRepository } from '../../repositories/interfaces/season.repository.interface.js';
+import type { ITaskRepository } from '../../repositories/interfaces/task.repository.interface.js';
 
 export interface CreateGardenDto {
   name: string;
@@ -18,6 +21,9 @@ export class GardenService {
     private readonly membershipRepo: IGardenMembershipRepository,
     private readonly seasonRepo: ISeasonRepository,
     private readonly areaRepo: IAreaRepository,
+    private readonly plantingRepo: IPlantingRepository,
+    private readonly taskRepo: ITaskRepository,
+    private readonly activityLogRepo: IActivityLogRepository,
   ) {}
 
   async listForUser(userId: string): Promise<Garden[]> {
@@ -87,6 +93,9 @@ export class GardenService {
     if (m.role !== 'owner') {
       throw new HttpError(403, 'Only the garden owner can delete the garden', 'Forbidden');
     }
+    await this.activityLogRepo.deleteByGardenId(gardenId);
+    await this.taskRepo.deleteByGardenId(gardenId);
+    await this.plantingRepo.deleteByGardenId(gardenId);
     await this.areaRepo.deleteByGardenId(gardenId);
     await this.seasonRepo.deleteByGardenId(gardenId);
     await this.membershipRepo.deleteByGardenId(gardenId);

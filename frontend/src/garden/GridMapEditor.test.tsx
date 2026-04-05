@@ -44,6 +44,7 @@ async function testI18n() {
             zoomIn: 'Zoom in',
             zoomOut: 'Zoom out',
             gridAriaLabel: 'Grid {{width}} by {{height}}',
+            hasPlantingsHint: 'has plantings',
           },
         },
       },
@@ -77,7 +78,7 @@ describe('GridMapEditor', () => {
     const map = screen.getByTestId('grid-map');
     expect(map.querySelectorAll('[data-cell]')).toHaveLength(12);
     expect(screen.getByRole('grid', { name: /grid 4 by 3/i })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /bed/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^bed$/i })).toBeInTheDocument();
   });
 
   it('selects an area when its label is clicked in select mode', async () => {
@@ -98,7 +99,27 @@ describe('GridMapEditor', () => {
       </I18nextProvider>,
     );
 
-    fireEvent.click(screen.getByRole('button', { name: /bed/i }));
+    fireEvent.click(screen.getByRole('button', { name: /^bed$/i }));
     expect(onSelectArea).toHaveBeenCalledWith('a1');
+  });
+
+  it('shows a subtle indicator when the area has plantings', async () => {
+    const i18nInstance = await testI18n();
+    render(
+      <I18nextProvider i18n={i18nInstance}>
+        <GridMapEditor
+          garden={garden}
+          areas={[area]}
+          areaIdsWithPlantings={new Set(['a1'])}
+          selectedAreaId={null}
+          onSelectArea={vi.fn()}
+          onSelectionComplete={vi.fn()}
+          tool="select"
+          onToolChange={vi.fn()}
+        />
+      </I18nextProvider>,
+    );
+    expect(screen.getByTestId('map-area-planting-indicator-a1')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /bed.*has plantings/i })).toBeInTheDocument();
   });
 });
