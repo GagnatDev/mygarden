@@ -55,7 +55,7 @@ jobs:
           port: '8080'
           min_scale: '0'
           max_scale: '1'
-          memory_limit: '512'
+          memory_limit: '1024'
           cpu_limit: '560'
           secret_environment_variables: |
             [
