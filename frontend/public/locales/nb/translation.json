@@ -20,6 +20,8 @@
   },
   "nav": {
     "main": "Hovedmeny",
+    "openMenu": "Åpne meny",
+    "closeMenu": "Lukk meny",
     "home": "Hjem",
     "gardenMap": "Hagekart",
     "plantingPlan": "Plantingsplan",
