@@ -145,20 +145,6 @@ export const GridMapAreasSvg = memo<GridMapAreasSvgProps>(function GridMapAreasS
               </>
             )}
 
-            {hasPlantings ? (
-              <circle
-                data-testid={`map-area-planting-indicator-${a.id}`}
-                cx={x + w - 6}
-                cy={y + 6}
-                r={4}
-                fill="#6ee7b7"
-                stroke="rgba(255,255,255,0.9)"
-                strokeWidth={2}
-                aria-hidden="true"
-                pointerEvents="none"
-              />
-            ) : null}
-
             {badge ? (
               <g data-testid={`map-area-badge-${a.id}`} aria-hidden="true" pointerEvents="none">
                 <rect x={x + 4} y={y + 4} width={Math.max(24, badge.text.length * 6 + 10)} height={14} rx={3} ry={3} fill={toneClassToHex(badge.toneClass)} opacity={0.95} />
@@ -180,6 +166,16 @@ export const GridMapAreasSvg = memo<GridMapAreasSvgProps>(function GridMapAreasS
               pointerEvents="none"
             >
               {a.name}
+              {hasPlantings ? (
+                <tspan
+                  data-testid={`map-area-planting-indicator-${a.id}`}
+                  fill="#6ee7b7"
+                  aria-hidden="true"
+                >
+                  {' '}
+                  ●
+                </tspan>
+              ) : null}
             </text>
 
             {overlayBadges.length > 0 ? (
