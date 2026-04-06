@@ -54,6 +54,28 @@
     "toolSelect": "Velg",
     "toolMove": "Flytt",
     "toolPan": "Panorer",
+    "mapLayer": "Kartlag",
+    "layers": {
+      "areaType": "Områdetype",
+      "planVsActual": "Plan vs. faktisk",
+      "status": "Status",
+      "historical": "Historisk"
+    },
+    "legend": "Forklaring",
+    "historicalGhostAreaAria": "Historisk område {{name}}",
+    "historicalSeason": "Sammenligningssesong",
+    "status": {
+      "notStarted": "Ikke startet",
+      "sown": "Sådd",
+      "planted": "Plantet",
+      "harvested": "Høstet"
+    },
+    "planActual": {
+      "complete": "Ferdig",
+      "partial": "Delvis",
+      "notStarted": "Ikke startet",
+      "unplanned": "Uplanlagt"
+    },
     "moveAreaFailed": "Kunne ikke flytte området. Sjekk at det er innenfor rutenettet og ikke overlapper et annet område.",
     "zoomIn": "Zoom inn",
     "zoomOut": "Zoom ut",

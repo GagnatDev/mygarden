@@ -39,6 +39,21 @@ function normalizeRect(
 }
 
 export type MapTool = 'select' | 'pan' | 'move';
+export type MapLayer = 'area-type' | 'plan-vs-actual' | 'status' | 'historical';
+
+export interface MapLegendItem {
+  label: string;
+  color: string;
+}
+
+export interface HistoricalGhostArea {
+  id: string;
+  name: string;
+  gridX: number;
+  gridY: number;
+  gridWidth: number;
+  gridHeight: number;
+}
 
 interface MoveDragState {
   areaId: string;
@@ -61,6 +76,23 @@ export interface GridMapEditorProps {
   areas: Area[];
   /** Area IDs that have at least one planting (subtle map indicator only). */
   areaIdsWithPlantings?: ReadonlySet<string>;
+  /** Controls how areas are colored/badged. */
+  layer?: MapLayer;
+  onLayerChange?: (layer: MapLayer) => void;
+  /** Optional per-area background color overrides for the active layer. */
+  areaColorById?: Readonly<Record<string, string>>;
+  /** Optional per-area badge for the active layer. */
+  areaBadgeById?: Readonly<
+    Record<string, { text: string; toneClass: string }>
+  >;
+  /** Optional per-area overlay badges (e.g. historical plant names). */
+  areaOverlayBadgesById?: Readonly<Record<string, string[]>>;
+  /** Legend items displayed under the toolbar for non-default layers. */
+  legendItems?: readonly MapLegendItem[];
+  /** Historical comparison: show deleted areas as dashed ghosts. */
+  historicalGhostAreas?: readonly HistoricalGhostArea[];
+  /** Optional UI fragment shown in the toolbar (e.g. season picker for historical layer). */
+  toolbarAddon?: React.ReactNode;
   selectedAreaId: string | null;
   onSelectArea: (id: string | null) => void;
   onSelectionComplete: (sel: GridSelection) => void;
@@ -76,6 +108,14 @@ export function GridMapEditor({
   garden,
   areas,
   areaIdsWithPlantings,
+  layer = 'area-type',
+  onLayerChange,
+  areaColorById,
+  areaBadgeById,
+  areaOverlayBadgesById,
+  legendItems,
+  historicalGhostAreas,
+  toolbarAddon,
   selectedAreaId,
   onSelectArea,
   onSelectionComplete,
@@ -467,6 +507,21 @@ export function GridMapEditor({
             </button>
           </div>
         ) : null}
+        <label className="flex items-center gap-2 text-sm font-medium text-stone-700">
+          <span className="sr-only">{t('garden.mapLayer')}</span>
+          <select
+            data-testid="map-layer-selector"
+            className="rounded-lg border border-stone-200 bg-white px-2 py-1.5 text-sm font-normal text-stone-700"
+            value={layer}
+            onChange={(e) => onLayerChange?.(e.target.value as MapLayer)}
+          >
+            <option value="area-type">{t('garden.layers.areaType')}</option>
+            <option value="status">{t('garden.layers.status')}</option>
+            <option value="plan-vs-actual">{t('garden.layers.planVsActual')}</option>
+            <option value="historical">{t('garden.layers.historical')}</option>
+          </select>
+        </label>
+        {toolbarAddon ? <div className="flex items-center gap-2">{toolbarAddon}</div> : null}
         <div className="flex items-center gap-1">
           <button
             type="button"
@@ -486,6 +541,18 @@ export function GridMapEditor({
           </button>
         </div>
       </div>
+
+      {layer !== 'area-type' && legendItems && legendItems.length > 0 ? (
+        <div className="flex flex-wrap items-center gap-2 text-xs text-stone-700" data-testid="map-layer-legend">
+          <span className="font-medium">{t('garden.legend')}</span>
+          {legendItems.map((it) => (
+            <span key={it.label} className="inline-flex items-center gap-1.5 rounded-full bg-white px-2 py-1 ring-1 ring-stone-200">
+              <span className="h-2.5 w-2.5 rounded-sm ring-1 ring-black/10" style={{ backgroundColor: it.color }} />
+              <span>{it.label}</span>
+            </span>
+          ))}
+        </div>
+      ) : null}
 
       <div
         ref={containerRef}
@@ -517,10 +584,28 @@ export function GridMapEditor({
           >
             <GridMapCellLayer worldW={worldW} worldH={worldH} cell={CELL} />
 
+            {historicalGhostAreas?.map((ga) => (
+              <div
+                key={ga.id}
+                data-testid="map-historical-ghost-area"
+                className="pointer-events-none absolute box-border border-2 border-dashed border-stone-700/60 bg-stone-200/10"
+                style={{
+                  left: ga.gridX * CELL,
+                  top: ga.gridY * CELL,
+                  width: ga.gridWidth * CELL,
+                  height: ga.gridHeight * CELL,
+                }}
+                aria-label={t('garden.historicalGhostAreaAria', { name: ga.name })}
+              />
+            ))}
+
             <GridMapAreaButtons
               areas={areas}
               cell={CELL}
               areaIdsWithPlantings={areaIdsWithPlantings}
+              areaColorById={areaColorById}
+              areaBadgeById={areaBadgeById}
+              areaOverlayBadgesById={areaOverlayBadgesById}
               selectedAreaId={selectedAreaId}
               effectiveTool={effectiveTool}
               readOnly={readOnly}

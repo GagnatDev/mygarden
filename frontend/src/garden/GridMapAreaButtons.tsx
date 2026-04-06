@@ -2,10 +2,22 @@ import { memo } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { Area } from '../api/gardens';
 
+export interface AreaBadge {
+  text: string;
+  /** Tailwind background class, e.g. "bg-amber-500". */
+  toneClass: string;
+}
+
 export interface GridMapAreaButtonsProps {
   areas: Area[];
   cell: number;
   areaIdsWithPlantings?: ReadonlySet<string>;
+  /** Optional per-area background color override (e.g. layer coloring). */
+  areaColorById?: Readonly<Record<string, string>>;
+  /** Optional per-area badge (e.g. status / plan-vs-actual). */
+  areaBadgeById?: Readonly<Record<string, AreaBadge>>;
+  /** Optional per-area overlay badges (e.g. historical plant names). */
+  areaOverlayBadgesById?: Readonly<Record<string, string[]>>;
   selectedAreaId: string | null;
   effectiveTool: 'select' | 'pan' | 'move';
   readOnly: boolean;
@@ -22,6 +34,9 @@ export const GridMapAreaButtons = memo(function GridMapAreaButtons({
   areas,
   cell,
   areaIdsWithPlantings,
+  areaColorById,
+  areaBadgeById,
+  areaOverlayBadgesById,
   selectedAreaId,
   effectiveTool,
   readOnly,
@@ -38,6 +53,9 @@ export const GridMapAreaButtons = memo(function GridMapAreaButtons({
         const selected = a.id === selectedAreaId;
         const hasPlantings = areaIdsWithPlantings?.has(a.id) ?? false;
         const dragging = a.id === draggingAreaId;
+        const overlayColor = areaColorById?.[a.id];
+        const badge = areaBadgeById?.[a.id];
+        const overlayBadges = areaOverlayBadgesById?.[a.id] ?? [];
         return (
           <button
             key={a.id}
@@ -50,7 +68,7 @@ export const GridMapAreaButtons = memo(function GridMapAreaButtons({
               top: a.gridY * cell,
               width: a.gridWidth * cell,
               height: a.gridHeight * cell,
-              backgroundColor: a.color,
+              backgroundColor: overlayColor ?? a.color,
               opacity: dragging ? 0.35 : 1,
               pointerEvents: effectiveTool === 'pan' || readOnly ? 'none' : 'auto',
             }}
@@ -87,9 +105,39 @@ export const GridMapAreaButtons = memo(function GridMapAreaButtons({
                 aria-hidden
               />
             ) : null}
+            {badge ? (
+              <span
+                className={`pointer-events-none absolute left-0.5 top-0.5 z-20 rounded px-1 py-0.5 text-[9px] font-semibold leading-none text-white/95 ring-1 ring-white/70 ${badge.toneClass}`}
+                data-testid={`map-area-badge-${a.id}`}
+                aria-hidden
+              >
+                {badge.text}
+              </span>
+            ) : null}
             <span className="line-clamp-3 break-words px-0.5 drop-shadow-sm">
               <span className="block font-semibold">{a.name}</span>
             </span>
+            {overlayBadges.length > 0 ? (
+              <span
+                className="pointer-events-none absolute bottom-0.5 left-0.5 right-0.5 z-20 flex flex-wrap justify-center gap-0.5"
+                data-testid={`map-area-overlay-badges-${a.id}`}
+                aria-hidden
+              >
+                {overlayBadges.slice(0, 4).map((txt) => (
+                  <span
+                    key={txt}
+                    className="max-w-full truncate rounded bg-white/20 px-1 py-0.5 text-[9px] font-semibold leading-none text-white/95 ring-1 ring-white/30 backdrop-blur"
+                  >
+                    {txt}
+                  </span>
+                ))}
+                {overlayBadges.length > 4 ? (
+                  <span className="rounded bg-white/20 px-1 py-0.5 text-[9px] font-semibold leading-none text-white/95 ring-1 ring-white/30">
+                    +{overlayBadges.length - 4}
+                  </span>
+                ) : null}
+              </span>
+            ) : null}
           </button>
         );
       })}

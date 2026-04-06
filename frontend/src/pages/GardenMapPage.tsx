@@ -1,13 +1,23 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import type { Area } from '../api/gardens';
-import { deleteGarden, listAreas, patchArea } from '../api/gardens';
+import type { Area, Season } from '../api/gardens';
+import { deleteGarden, listAreas, listSeasons, patchArea } from '../api/gardens';
+import type { ActivityLog } from '../api/logs';
+import { listLogs } from '../api/logs';
 import { listPlantings } from '../api/plantings';
+import type { SeasonSnapshot } from '../api/seasons';
+import { getSeasonSnapshot } from '../api/seasons';
 import { AreaDetailPanel } from '../garden/AreaDetailPanel';
 import { CreateAreaDialog } from '../garden/CreateAreaDialog';
 import { GardenCreateForm } from '../garden/GardenCreateForm';
 import { useGardenContext } from '../garden/garden-context';
-import { GridMapEditor, type GridSelection, type MapTool } from '../garden/GridMapEditor';
+import {
+  GridMapEditor,
+  type GridSelection,
+  type MapLayer,
+  type MapTool,
+} from '../garden/GridMapEditor';
+import { deriveAreaStatus, derivePlanVsActual } from '../garden/layer-helpers';
 import { useActiveSeason } from '../garden/useActiveSeason';
 import { QuickLogModal } from '../planning/QuickLogModal';
 
@@ -20,11 +30,16 @@ export function GardenMapPage() {
   const [selectedAreaId, setSelectedAreaId] = useState<string | null>(null);
   const [pendingSelection, setPendingSelection] = useState<GridSelection | null>(null);
   const [tool, setTool] = useState<MapTool>('select');
+  const [layer, setLayer] = useState<MapLayer>('area-type');
   const [deleteGardenConfirm, setDeleteGardenConfirm] = useState(false);
   const [deleteGardenBusy, setDeleteGardenBusy] = useState(false);
   const [deleteGardenError, setDeleteGardenError] = useState<string | null>(null);
   const { seasonId } = useActiveSeason(selectedGarden?.id ?? null);
   const [mapPlantings, setMapPlantings] = useState<Awaited<ReturnType<typeof listPlantings>>>([]);
+  const [mapLogs, setMapLogs] = useState<ActivityLog[]>([]);
+  const [seasons, setSeasons] = useState<Season[]>([]);
+  const [comparisonSeasonId, setComparisonSeasonId] = useState<string | null>(null);
+  const [comparisonSnap, setComparisonSnap] = useState<SeasonSnapshot | null>(null);
   const [quickLogOpen, setQuickLogOpen] = useState(false);
   const [mapMoveError, setMapMoveError] = useState<string | null>(null);
 
@@ -35,6 +50,16 @@ export function GardenMapPage() {
       setMapPlantings(list);
     } catch {
       setMapPlantings([]);
+    }
+  }, [selectedGarden, seasonId]);
+
+  const refreshMapLogs = useCallback(async () => {
+    if (!selectedGarden || !seasonId) return;
+    try {
+      const list = await listLogs(selectedGarden.id, seasonId);
+      setMapLogs(list);
+    } catch {
+      setMapLogs([]);
     }
   }, [selectedGarden, seasonId]);
 
@@ -74,6 +99,10 @@ export function GardenMapPage() {
       setAreas([]);
       setSelectedAreaId(null);
       setMapPlantings([]);
+      setMapLogs([]);
+      setSeasons([]);
+      setComparisonSeasonId(null);
+      setComparisonSnap(null);
       setMapMoveError(null);
       return;
     }
@@ -84,10 +113,52 @@ export function GardenMapPage() {
   useEffect(() => {
     if (!selectedGarden || !seasonId) {
       setMapPlantings([]);
+      setMapLogs([]);
       return;
     }
     void refreshMapPlantings();
+    void refreshMapLogs();
   }, [selectedGarden, seasonId, refreshMapPlantings]);
+
+  useEffect(() => {
+    if (!selectedGarden) return;
+    let cancelled = false;
+    void listSeasons(selectedGarden.id)
+      .then((list) => {
+        if (cancelled) return;
+        setSeasons(list);
+        setComparisonSeasonId((cur) => {
+          if (cur && list.some((s) => s.id === cur)) return cur;
+          const firstArchived = list.find((s) => !s.isActive);
+          const active = list.find((s) => s.isActive);
+          return (firstArchived ?? active ?? list[0])?.id ?? null;
+        });
+      })
+      .catch(() => {
+        if (!cancelled) setSeasons([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedGarden]);
+
+  useEffect(() => {
+    if (!selectedGarden || layer !== 'historical' || !comparisonSeasonId) {
+      setComparisonSnap(null);
+      return;
+    }
+    let cancelled = false;
+    void getSeasonSnapshot(selectedGarden.id, comparisonSeasonId)
+      .then((snap) => {
+        if (!cancelled) setComparisonSnap(snap);
+      })
+      .catch(() => {
+        if (!cancelled) setComparisonSnap(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedGarden, layer, comparisonSeasonId]);
 
   useEffect(() => {
     if (selectedAreaId && !areas.some((a) => a.id === selectedAreaId)) {
@@ -101,6 +172,103 @@ export function GardenMapPage() {
     () => new Set(mapPlantings.map((p) => p.areaId)),
     [mapPlantings],
   );
+
+  const layerComputed = useMemo(() => {
+    const areaColorById: Record<string, string> = {};
+    const areaBadgeById: Record<string, { text: string; toneClass: string }> = {};
+    const areaOverlayBadgesById: Record<string, string[]> = {};
+    const legendItems: Array<{ label: string; color: string }> = [];
+    const historicalGhostAreas: Array<{
+      id: string;
+      name: string;
+      gridX: number;
+      gridY: number;
+      gridWidth: number;
+      gridHeight: number;
+    }> = [];
+
+    if (layer === 'status') {
+      const palette: Record<
+        ReturnType<typeof deriveAreaStatus>,
+        { color: string; toneClass: string; label: string }
+      > = {
+        'not-started': { color: '#94a3b8', toneClass: 'bg-slate-500', label: t('garden.status.notStarted') },
+        sown: { color: '#3b82f6', toneClass: 'bg-blue-600', label: t('garden.status.sown') },
+        planted: { color: '#f59e0b', toneClass: 'bg-amber-500', label: t('garden.status.planted') },
+        harvested: { color: '#10b981', toneClass: 'bg-emerald-600', label: t('garden.status.harvested') },
+      };
+      for (const a of areas) {
+        const st = deriveAreaStatus(a.id, mapPlantings, mapLogs);
+        const p = palette[st];
+        areaColorById[a.id] = p.color;
+        areaBadgeById[a.id] = { text: p.label, toneClass: p.toneClass };
+      }
+      legendItems.push(
+        { label: palette['not-started'].label, color: palette['not-started'].color },
+        { label: palette.sown.label, color: palette.sown.color },
+        { label: palette.planted.label, color: palette.planted.color },
+        { label: palette.harvested.label, color: palette.harvested.color },
+      );
+    }
+
+    if (layer === 'plan-vs-actual') {
+      const palette: Record<
+        ReturnType<typeof derivePlanVsActual>,
+        { color: string; toneClass: string; label: string }
+      > = {
+        complete: { color: '#10b981', toneClass: 'bg-emerald-600', label: t('garden.planActual.complete') },
+        partial: { color: '#f59e0b', toneClass: 'bg-amber-500', label: t('garden.planActual.partial') },
+        'not-started': { color: '#94a3b8', toneClass: 'bg-slate-500', label: t('garden.planActual.notStarted') },
+        unplanned: { color: '#ef4444', toneClass: 'bg-red-600', label: t('garden.planActual.unplanned') },
+      };
+      for (const a of areas) {
+        const match = derivePlanVsActual(a.id, mapPlantings, mapLogs);
+        const p = palette[match];
+        areaColorById[a.id] = p.color;
+        areaBadgeById[a.id] = { text: p.label, toneClass: p.toneClass };
+      }
+      legendItems.push(
+        { label: palette.complete.label, color: palette.complete.color },
+        { label: palette.partial.label, color: palette.partial.color },
+        { label: palette['not-started'].label, color: palette['not-started'].color },
+        { label: palette.unplanned.label, color: palette.unplanned.color },
+      );
+    }
+
+    if (layer === 'historical' && comparisonSnap) {
+      const currentAreaIds = new Set(areas.map((a) => a.id));
+      for (const a of comparisonSnap.areas) {
+        if (!currentAreaIds.has(a.id)) {
+          historicalGhostAreas.push({
+            id: a.id,
+            name: a.name,
+            gridX: a.gridX,
+            gridY: a.gridY,
+            gridWidth: a.gridWidth,
+            gridHeight: a.gridHeight,
+          });
+        }
+      }
+      const byArea = new Map<string, string[]>();
+      for (const p of comparisonSnap.plantings) {
+        const arr = byArea.get(p.areaId) ?? [];
+        arr.push(p.plantName);
+        byArea.set(p.areaId, arr);
+      }
+      for (const [areaId, names] of byArea.entries()) {
+        const uniq = Array.from(new Set(names));
+        areaOverlayBadgesById[areaId] = uniq;
+      }
+    }
+
+    return {
+      areaColorById: Object.keys(areaColorById).length ? areaColorById : undefined,
+      areaBadgeById: Object.keys(areaBadgeById).length ? areaBadgeById : undefined,
+      areaOverlayBadgesById: Object.keys(areaOverlayBadgesById).length ? areaOverlayBadgesById : undefined,
+      legendItems: legendItems.length ? legendItems : undefined,
+      historicalGhostAreas: historicalGhostAreas.length ? historicalGhostAreas : undefined,
+    };
+  }, [layer, areas, mapPlantings, mapLogs, comparisonSnap, t]);
 
   const plantingsForSelectedArea = useMemo(() => {
     if (!selectedAreaId) return [];
@@ -252,6 +420,32 @@ export function GardenMapPage() {
               garden={selectedGarden}
               areas={areas}
               areaIdsWithPlantings={areaIdsWithPlantings}
+              layer={layer}
+              onLayerChange={setLayer}
+              areaColorById={layerComputed.areaColorById}
+              areaBadgeById={layerComputed.areaBadgeById}
+              areaOverlayBadgesById={layerComputed.areaOverlayBadgesById}
+              legendItems={layerComputed.legendItems}
+              historicalGhostAreas={layerComputed.historicalGhostAreas}
+              toolbarAddon={
+                layer === 'historical' ? (
+                  <label className="flex items-center gap-2 text-sm font-medium text-stone-700">
+                    <span className="sr-only">{t('garden.historicalSeason')}</span>
+                    <select
+                      data-testid="map-historical-season"
+                      className="rounded-lg border border-stone-200 bg-white px-2 py-1.5 text-sm font-normal text-stone-700"
+                      value={comparisonSeasonId ?? ''}
+                      onChange={(e) => setComparisonSeasonId(e.target.value || null)}
+                    >
+                      {seasons.map((s) => (
+                        <option key={s.id} value={s.id}>
+                          {s.name}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                ) : null
+              }
               selectedAreaId={selectedAreaId}
               onSelectArea={setSelectedAreaId}
               onSelectionComplete={setPendingSelection}

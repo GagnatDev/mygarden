@@ -42,6 +42,15 @@ async function testI18n() {
             toolSelect: 'Select',
             toolMove: 'Move',
             toolPan: 'Pan',
+            mapLayer: 'Layer',
+            layers: {
+              areaType: 'Area type',
+              status: 'Status',
+              planVsActual: 'Plan vs actual',
+              historical: 'Historical',
+            },
+            legend: 'Legend',
+            historicalGhostAreaAria: 'Historical area {{name}}',
             zoomIn: 'Zoom in',
             zoomOut: 'Zoom out',
             gridAriaLabel: 'Grid {{width}} by {{height}}',
@@ -343,5 +352,60 @@ describe('GridMapEditor', () => {
 
     const verticalGuides = screen.getAllByTestId('map-alignment-guide-vertical');
     expect(verticalGuides.some((el) => el.getAttribute('data-grid-line') === '2')).toBe(true);
+  });
+
+  it('renders per-layer badge/color overrides and shows legend for non-default layers', async () => {
+    const i18nInstance = await testI18n();
+    render(
+      <I18nextProvider i18n={i18nInstance}>
+        <GridMapEditor
+          garden={garden}
+          areas={[area]}
+          selectedAreaId={null}
+          onSelectArea={vi.fn()}
+          onSelectionComplete={vi.fn()}
+          tool="select"
+          onToolChange={vi.fn()}
+          layer="status"
+          areaColorById={{ a1: '#00ff00' }}
+          areaBadgeById={{ a1: { text: 'Sown', toneClass: 'bg-blue-600' } }}
+          legendItems={[
+            { label: 'Sown', color: '#00ff00' },
+            { label: 'Harvested', color: '#ff00ff' },
+          ]}
+        />
+      </I18nextProvider>,
+    );
+
+    expect(screen.getByTestId('map-layer-legend')).toBeInTheDocument();
+    expect(screen.getByTestId('map-area-badge-a1')).toHaveTextContent('Sown');
+
+    const bed = screen.getByRole('button', { name: /^bed$/i });
+    expect(bed).toHaveStyle({ backgroundColor: '#00ff00' });
+  });
+
+  it('historical layer can render ghost areas and per-area overlay badges', async () => {
+    const i18nInstance = await testI18n();
+    render(
+      <I18nextProvider i18n={i18nInstance}>
+        <GridMapEditor
+          garden={garden}
+          areas={[area]}
+          selectedAreaId={null}
+          onSelectArea={vi.fn()}
+          onSelectionComplete={vi.fn()}
+          tool="select"
+          onToolChange={vi.fn()}
+          layer="historical"
+          historicalGhostAreas={[
+            { id: 'old-a', name: 'Old bed', gridX: 2, gridY: 1, gridWidth: 1, gridHeight: 1 },
+          ]}
+          areaOverlayBadgesById={{ a1: ['Tomato', 'Carrot'] }}
+        />
+      </I18nextProvider>,
+    );
+
+    expect(screen.getAllByTestId('map-historical-ghost-area')).toHaveLength(1);
+    expect(screen.getByTestId('map-area-overlay-badges-a1')).toHaveTextContent('Tomato');
   });
 });

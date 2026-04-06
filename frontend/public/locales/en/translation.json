@@ -54,6 +54,28 @@
     "toolSelect": "Select",
     "toolMove": "Move",
     "toolPan": "Pan",
+    "mapLayer": "Map layer",
+    "layers": {
+      "areaType": "Area type",
+      "planVsActual": "Plan vs. actual",
+      "status": "Status",
+      "historical": "Historical"
+    },
+    "legend": "Legend",
+    "historicalGhostAreaAria": "Historical area {{name}}",
+    "historicalSeason": "Comparison season",
+    "status": {
+      "notStarted": "Not started",
+      "sown": "Sown",
+      "planted": "Planted",
+      "harvested": "Harvested"
+    },
+    "planActual": {
+      "complete": "Complete",
+      "partial": "Partial",
+      "notStarted": "Not started",
+      "unplanned": "Unplanned"
+    },
     "moveAreaFailed": "Could not move the area. Check that it stays inside the grid and does not overlap another area.",
     "zoomIn": "Zoom in",
     "zoomOut": "Zoom out",
