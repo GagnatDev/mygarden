@@ -44,7 +44,16 @@ export class GardenBackgroundService {
       });
     }
 
-    await this.storage.putObject(newKey, buffer, mimeType);
+    try {
+      await this.storage.putObject(newKey, buffer, mimeType);
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      throw new HttpError(
+        502,
+        `Could not store image in object storage: ${msg}`,
+        'Bad Gateway',
+      );
+    }
 
     const updated = await this.gardenRepo.update(gardenId, { backgroundImageKey: newKey });
     if (!updated) {

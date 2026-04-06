@@ -25,7 +25,12 @@ export const problemDetailsHandler: ErrorRequestHandler = (err, _req, res, next)
     err instanceof HttpError
       ? (err.type ?? 'about:blank')
       : 'https://httpstatus.es/500';
-  const detail = status >= 500 ? 'An unexpected error occurred.' : err.message;
+  const detail =
+    err instanceof HttpError
+      ? err.message
+      : status >= 500
+        ? 'An unexpected error occurred.'
+        : err.message;
 
   res.status(status).type('application/problem+json').json({
     type,
