@@ -154,7 +154,18 @@ export function GridMapEditor({
   const [preview, setPreview] = useState<GridSelection | null>(null);
   const moveRef = useRef<MoveDragState | null>(null);
   const [move, setMove] = useState<MoveDragState | null>(null);
+  /** While move tool is active: last area finished via pointer (nudge target + outline); not synced to parent. */
+  const [moveNudgeAreaId, setMoveNudgeAreaId] = useState<string | null>(null);
   const [poly, setPoly] = useState<Array<{ x: number; y: number }> | null>(null);
+
+  useEffect(() => {
+    if (effectiveTool !== 'move') {
+      setMoveNudgeAreaId(null);
+    }
+  }, [effectiveTool]);
+
+  const areaOutlineId =
+    effectiveTool === 'move' ? moveNudgeAreaId ?? selectedAreaId : selectedAreaId;
 
   const gw = garden.gridWidth;
   const gh = garden.gridHeight;
@@ -286,7 +297,7 @@ export function GridMapEditor({
   }, []);
 
   useEffect(() => {
-    if (readOnly || !selectedAreaId || !onMoveArea) return;
+    if (readOnly || !areaOutlineId || !onMoveArea) return;
     const onKey = (e: KeyboardEvent) => {
       if (moveRef.current) return;
       const el = e.target as HTMLElement | null;
@@ -309,7 +320,7 @@ export function GridMapEditor({
         default:
           return;
       }
-      const area = areas.find((a) => a.id === selectedAreaId);
+      const area = areas.find((a) => a.id === areaOutlineId);
       if (!area) return;
       e.preventDefault();
       const rect = {
@@ -323,7 +334,7 @@ export function GridMapEditor({
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [readOnly, selectedAreaId, areas, gw, gh, onMoveArea]);
+  }, [readOnly, areaOutlineId, areas, gw, gh, onMoveArea]);
 
   const onPointerDown = (e: React.PointerEvent) => {
     if (typeof e.button === 'number' && e.button !== 0) return;
@@ -433,7 +444,7 @@ export function GridMapEditor({
     const valid = isValidMovePosition(ms.areaId, rect, areas, gw, gh);
     const dragPx = Math.hypot(clientX - ms.startClientX, clientY - ms.startClientY);
     if (dragPx < 6) {
-      onSelectArea(ms.areaId);
+      setMoveNudgeAreaId(ms.areaId);
       return;
     }
     if (
@@ -441,13 +452,11 @@ export function GridMapEditor({
       onMoveArea &&
       (ms.curGridX !== ms.origGridX || ms.curGridY !== ms.origGridY)
     ) {
-      // Select on release (not on drag start) to avoid opening the detail panel mid-drag on touch.
-      onSelectArea(ms.areaId);
+      setMoveNudgeAreaId(ms.areaId);
       onMoveArea(ms.areaId, ms.curGridX, ms.curGridY);
       return;
     }
-    // Invalid move or unchanged position: still select on release so keyboard nudges/editing is easy.
-    onSelectArea(ms.areaId);
+    setMoveNudgeAreaId(ms.areaId);
   };
 
   const onPointerUp = (e: React.PointerEvent) => {
@@ -728,7 +737,7 @@ export function GridMapEditor({
               areaColorById={areaColorById}
               areaBadgeById={areaBadgeById}
               areaOverlayBadgesById={areaOverlayBadgesById}
-              selectedAreaId={selectedAreaId}
+              selectedAreaId={areaOutlineId}
               effectiveTool={effectiveToolForAreas}
               readOnly={readOnly}
               draggingAreaId={move?.areaId ?? null}

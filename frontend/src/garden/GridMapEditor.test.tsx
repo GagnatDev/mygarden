@@ -186,6 +186,7 @@ describe('GridMapEditor', () => {
 
   it('move mode shows ghost and preview, calls onMoveArea with snapped grid coords', async () => {
     const onMoveArea = vi.fn();
+    const onSelectArea = vi.fn();
     const i18nInstance = await testI18n();
     render(
       <I18nextProvider i18n={i18nInstance}>
@@ -193,7 +194,7 @@ describe('GridMapEditor', () => {
           garden={garden}
           areas={[area]}
           selectedAreaId={null}
-          onSelectArea={vi.fn()}
+          onSelectArea={onSelectArea}
           onSelectionComplete={vi.fn()}
           onMoveArea={onMoveArea}
           tool="move"
@@ -237,6 +238,7 @@ describe('GridMapEditor', () => {
       buttons: 0,
     });
     expect(onMoveArea).toHaveBeenCalledWith('a1', 2, 0);
+    expect(onSelectArea).not.toHaveBeenCalled();
   });
 
   it('move mode shows red preview when position overlaps another area', async () => {

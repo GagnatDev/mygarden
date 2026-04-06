@@ -166,6 +166,12 @@ export function GardenMapPage() {
     }
   }, [areas, selectedAreaId]);
 
+  useEffect(() => {
+    if (tool !== 'select') {
+      setSelectedAreaId(null);
+    }
+  }, [tool]);
+
   const selectedArea = areas.find((a) => a.id === selectedAreaId) ?? null;
 
   const areaIdsWithPlantings = useMemo(
@@ -455,7 +461,7 @@ export function GardenMapPage() {
             />
           )}
         </div>
-        {selectedArea && seasonId && tool !== 'move' ? (
+        {selectedArea && seasonId && tool === 'select' ? (
           <AreaDetailPanel
             gardenId={selectedGarden.id}
             seasonId={seasonId}
