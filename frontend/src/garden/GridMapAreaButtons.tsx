@@ -7,9 +7,15 @@ export interface GridMapAreaButtonsProps {
   cell: number;
   areaIdsWithPlantings?: ReadonlySet<string>;
   selectedAreaId: string | null;
-  effectiveTool: 'select' | 'pan';
+  effectiveTool: 'select' | 'pan' | 'move';
   readOnly: boolean;
+  /** While an area is being repositioned, dim its button (ghost shows the original slot). */
+  draggingAreaId?: string | null;
   onSelectArea: (id: string | null) => void;
+  /** Start drag-to-move (move tool); caller should set pointer capture on the map surface. */
+  onBeginAreaMove?: (e: React.PointerEvent, area: Area) => void;
+  /** Touch fallback for browsers without reliable pointer events. */
+  onBeginAreaMoveTouch?: (clientX: number, clientY: number, area: Area) => void;
 }
 
 export const GridMapAreaButtons = memo(function GridMapAreaButtons({
@@ -19,7 +25,10 @@ export const GridMapAreaButtons = memo(function GridMapAreaButtons({
   selectedAreaId,
   effectiveTool,
   readOnly,
+  draggingAreaId = null,
   onSelectArea,
+  onBeginAreaMove,
+  onBeginAreaMoveTouch,
 }: GridMapAreaButtonsProps) {
   const { t } = useTranslation();
 
@@ -28,6 +37,7 @@ export const GridMapAreaButtons = memo(function GridMapAreaButtons({
       {areas.map((a) => {
         const selected = a.id === selectedAreaId;
         const hasPlantings = areaIdsWithPlantings?.has(a.id) ?? false;
+        const dragging = a.id === draggingAreaId;
         return (
           <button
             key={a.id}
@@ -41,9 +51,24 @@ export const GridMapAreaButtons = memo(function GridMapAreaButtons({
               width: a.gridWidth * cell,
               height: a.gridHeight * cell,
               backgroundColor: a.color,
+              opacity: dragging ? 0.35 : 1,
               pointerEvents: effectiveTool === 'pan' || readOnly ? 'none' : 'auto',
             }}
-            onPointerDown={(ev) => ev.stopPropagation()}
+            onPointerDown={(ev) => {
+              ev.stopPropagation();
+              if (!readOnly && effectiveTool === 'move' && onBeginAreaMove) {
+                ev.preventDefault();
+                onBeginAreaMove(ev, a);
+              }
+            }}
+            onTouchStart={(ev) => {
+              ev.stopPropagation();
+              if (readOnly || effectiveTool !== 'move' || !onBeginAreaMoveTouch) return;
+              const touch = ev.touches[0];
+              if (!touch) return;
+              ev.preventDefault();
+              onBeginAreaMoveTouch(touch.clientX, touch.clientY, a);
+            }}
             onClick={(ev) => {
               if (readOnly || effectiveTool !== 'select') return;
               ev.stopPropagation();

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { Area } from '../api/gardens';
-import { deleteGarden, listAreas } from '../api/gardens';
+import { deleteGarden, listAreas, patchArea } from '../api/gardens';
 import { listPlantings } from '../api/plantings';
 import { AreaDetailPanel } from '../garden/AreaDetailPanel';
 import { CreateAreaDialog } from '../garden/CreateAreaDialog';
@@ -26,6 +26,7 @@ export function GardenMapPage() {
   const { seasonId } = useActiveSeason(selectedGarden?.id ?? null);
   const [mapPlantings, setMapPlantings] = useState<Awaited<ReturnType<typeof listPlantings>>>([]);
   const [quickLogOpen, setQuickLogOpen] = useState(false);
+  const [mapMoveError, setMapMoveError] = useState<string | null>(null);
 
   const refreshMapPlantings = useCallback(async () => {
     if (!selectedGarden || !seasonId) return;
@@ -37,25 +38,46 @@ export function GardenMapPage() {
     }
   }, [selectedGarden, seasonId]);
 
-  const loadAreas = useCallback(async (gardenId: string) => {
-    setAreasLoading(true);
+  const loadAreas = useCallback(async (gardenId: string, opts?: { soft?: boolean }) => {
+    const soft = opts?.soft === true;
+    if (!soft) {
+      setAreasLoading(true);
+    }
     try {
       const list = await listAreas(gardenId);
       setAreas(list);
     } catch {
       setAreas([]);
     } finally {
-      setAreasLoading(false);
+      if (!soft) {
+        setAreasLoading(false);
+      }
     }
   }, []);
+
+  const handleMoveArea = useCallback(
+    async (areaId: string, gridX: number, gridY: number) => {
+      if (!selectedGarden) return;
+      setMapMoveError(null);
+      try {
+        await patchArea(selectedGarden.id, areaId, { gridX, gridY });
+        await loadAreas(selectedGarden.id, { soft: true });
+      } catch (e) {
+        setMapMoveError(e instanceof Error ? e.message : t('garden.moveAreaFailed'));
+      }
+    },
+    [selectedGarden, loadAreas, t],
+  );
 
   useEffect(() => {
     if (!selectedGarden) {
       setAreas([]);
       setSelectedAreaId(null);
       setMapPlantings([]);
+      setMapMoveError(null);
       return;
     }
+    setMapMoveError(null);
     void loadAreas(selectedGarden.id);
   }, [selectedGarden, loadAreas]);
 
@@ -218,6 +240,11 @@ export function GardenMapPage() {
 
       <div className="mt-6 flex min-h-0 flex-1 flex-col gap-4 md:flex-row md:items-stretch">
         <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+          {mapMoveError ? (
+            <p className="mb-2 text-sm text-red-600" role="alert">
+              {mapMoveError}
+            </p>
+          ) : null}
           {areasLoading ? (
             <p className="text-stone-600">{t('auth.loading')}</p>
           ) : (
@@ -228,12 +255,13 @@ export function GardenMapPage() {
               selectedAreaId={selectedAreaId}
               onSelectArea={setSelectedAreaId}
               onSelectionComplete={setPendingSelection}
+              onMoveArea={handleMoveArea}
               tool={tool}
               onToolChange={setTool}
             />
           )}
         </div>
-        {selectedArea && seasonId ? (
+        {selectedArea && seasonId && tool !== 'move' ? (
           <AreaDetailPanel
             gardenId={selectedGarden.id}
             seasonId={seasonId}
@@ -241,7 +269,7 @@ export function GardenMapPage() {
             plantings={plantingsForSelectedArea}
             onClose={() => setSelectedAreaId(null)}
             onChanged={async () => {
-              await loadAreas(selectedGarden.id);
+              await loadAreas(selectedGarden.id, { soft: true });
               await refreshMapPlantings();
             }}
           />
@@ -253,7 +281,7 @@ export function GardenMapPage() {
           gardenId={selectedGarden.id}
           selection={pendingSelection}
           onClose={() => setPendingSelection(null)}
-          onCreated={async () => loadAreas(selectedGarden.id)}
+          onCreated={async () => loadAreas(selectedGarden.id, { soft: true })}
         />
       ) : null}
 

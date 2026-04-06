@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { Area, Garden } from '../api/gardens';
+import { computeAlignmentGuides } from './alignment-guides';
 import { GridMapAreaButtons } from './GridMapAreaButtons';
 import { GridMapCellLayer } from './GridMapCellLayer';
+import { isValidMovePosition } from './grid-rect';
 
 /** CSS pixels per grid cell (world space). Exported for tests. */
 export const CELL = 28;
@@ -36,7 +38,23 @@ function normalizeRect(
   return { gridX: x0, gridY: y0, gridWidth, gridHeight };
 }
 
-export type MapTool = 'select' | 'pan';
+export type MapTool = 'select' | 'pan' | 'move';
+
+interface MoveDragState {
+  areaId: string;
+  origGridX: number;
+  origGridY: number;
+  grabDx: number;
+  grabDy: number;
+  w: number;
+  h: number;
+  curGridX: number;
+  curGridY: number;
+  startClientX: number;
+  startClientY: number;
+  lastClientX: number;
+  lastClientY: number;
+}
 
 export interface GridMapEditorProps {
   garden: Garden;
@@ -46,6 +64,8 @@ export interface GridMapEditorProps {
   selectedAreaId: string | null;
   onSelectArea: (id: string | null) => void;
   onSelectionComplete: (sel: GridSelection) => void;
+  /** Reposition an existing area (grid top-left); parent persists via API. */
+  onMoveArea?: (areaId: string, gridX: number, gridY: number) => void;
   tool: MapTool;
   onToolChange: (t: MapTool) => void;
   /** When true, map is view-only (pan/zoom only, no new selections or area clicks). */
@@ -59,6 +79,7 @@ export function GridMapEditor({
   selectedAreaId,
   onSelectArea,
   onSelectionComplete,
+  onMoveArea,
   tool,
   onToolChange,
   readOnly = false,
@@ -83,6 +104,8 @@ export function GridMapEditor({
   >(null);
   const pinchRef = useRef<{ dist: number; scale: number } | null>(null);
   const [preview, setPreview] = useState<GridSelection | null>(null);
+  const moveRef = useRef<MoveDragState | null>(null);
+  const [move, setMove] = useState<MoveDragState | null>(null);
 
   const gw = garden.gridWidth;
   const gh = garden.gridHeight;
@@ -98,18 +121,70 @@ export function GridMapEditor({
       const y = (clientY - box.top) / view.scale;
       const gx = Math.floor(x / CELL);
       const gy = Math.floor(y / CELL);
+      if (!Number.isFinite(gx) || !Number.isFinite(gy)) return null;
       if (gx < 0 || gy < 0 || gx >= gw || gy >= gh) return null;
       return { gx, gy };
     },
     [gw, gh, view.scale],
   );
 
+  const setMoveBoth = useCallback((next: MoveDragState | null) => {
+    moveRef.current = next;
+    setMove(next);
+  }, []);
+
+  const beginAreaMoveAt = useCallback(
+    (area: Area, clientX: number, clientY: number, pointerId?: number) => {
+      if (!onMoveArea) return;
+      const world = worldRef.current;
+      if (!world) return;
+      const g = clientToGrid(clientX, clientY);
+      if (!g) return;
+      if (typeof pointerId === 'number') {
+        world.setPointerCapture?.(pointerId);
+      }
+      const next: MoveDragState = {
+        areaId: area.id,
+        origGridX: area.gridX,
+        origGridY: area.gridY,
+        grabDx: g.gx - area.gridX,
+        grabDy: g.gy - area.gridY,
+        w: area.gridWidth,
+        h: area.gridHeight,
+        curGridX: area.gridX,
+        curGridY: area.gridY,
+        startClientX: clientX,
+        startClientY: clientY,
+        lastClientX: clientX,
+        lastClientY: clientY,
+      };
+      setMoveBoth(next);
+    },
+    [clientToGrid, onMoveArea, setMoveBoth],
+  );
+
+  const beginAreaMove = useCallback(
+    (e: React.PointerEvent, area: Area) => {
+      if (typeof e.button === 'number' && e.button !== 0) return;
+      e.preventDefault();
+      beginAreaMoveAt(area, e.clientX, e.clientY, e.pointerId);
+    },
+    [beginAreaMoveAt],
+  );
+
+  const beginAreaMoveTouch = useCallback(
+    (clientX: number, clientY: number, area: Area) => {
+      beginAreaMoveAt(area, clientX, clientY);
+    },
+    [beginAreaMoveAt],
+  );
+
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
-    const onWheel = (e: WheelEvent) => {
-      e.preventDefault();
-      const factor = Math.exp(-e.deltaY * 0.001);
+    const onWheel = (wheelEvent: WheelEvent) => {
+      wheelEvent.preventDefault();
+      const factor = Math.exp(-wheelEvent.deltaY * 0.001);
       setView((v) => {
         const nextScale = clamp(v.scale * factor, 0.35, 4);
         return { ...v, scale: nextScale };
@@ -119,13 +194,58 @@ export function GridMapEditor({
     return () => el.removeEventListener('wheel', onWheel);
   }, []);
 
+  useEffect(() => {
+    if (readOnly || !selectedAreaId || !onMoveArea) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (moveRef.current) return;
+      const el = e.target as HTMLElement | null;
+      if (el?.closest('input, textarea, select, [contenteditable="true"]')) return;
+      let dx = 0;
+      let dy = 0;
+      switch (e.key) {
+        case 'ArrowLeft':
+          dx = -1;
+          break;
+        case 'ArrowRight':
+          dx = 1;
+          break;
+        case 'ArrowUp':
+          dy = -1;
+          break;
+        case 'ArrowDown':
+          dy = 1;
+          break;
+        default:
+          return;
+      }
+      const area = areas.find((a) => a.id === selectedAreaId);
+      if (!area) return;
+      e.preventDefault();
+      const rect = {
+        gridX: area.gridX + dx,
+        gridY: area.gridY + dy,
+        gridWidth: area.gridWidth,
+        gridHeight: area.gridHeight,
+      };
+      if (!isValidMovePosition(area.id, rect, areas, gw, gh)) return;
+      onMoveArea(area.id, rect.gridX, rect.gridY);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [readOnly, selectedAreaId, areas, gw, gh, onMoveArea]);
+
   const onPointerDown = (e: React.PointerEvent) => {
-    if (e.button !== 0) return;
-    (e.target as HTMLElement).setPointerCapture?.(e.pointerId);
+    if (typeof e.button === 'number' && e.button !== 0) return;
+    if (moveRef.current) return;
     if (effectiveTool === 'pan') {
+      (e.target as HTMLElement).setPointerCapture?.(e.pointerId);
       dragRef.current = { kind: 'pan', x: e.clientX, y: e.clientY };
       return;
     }
+    if (effectiveTool === 'move') {
+      return;
+    }
+    (e.target as HTMLElement).setPointerCapture?.(e.pointerId);
     const g = clientToGrid(e.clientX, e.clientY);
     if (!g) return;
     dragRef.current = {
@@ -141,6 +261,17 @@ export function GridMapEditor({
   };
 
   const onPointerMove = (e: React.PointerEvent) => {
+    const ms = moveRef.current;
+    if (ms) {
+      const g = clientToGrid(e.clientX, e.clientY);
+      if (!g) return;
+      const nx = clamp(g.gx - ms.grabDx, 0, gw - ms.w);
+      const ny = clamp(g.gy - ms.grabDy, 0, gh - ms.h);
+      const next = { ...ms, curGridX: nx, curGridY: ny, lastClientX: e.clientX, lastClientY: e.clientY };
+      moveRef.current = next;
+      setMove(next);
+      return;
+    }
     const d = dragRef.current;
     if (!d) return;
     if (d.kind === 'pan') {
@@ -150,10 +281,10 @@ export function GridMapEditor({
       setView((v) => ({ ...v, tx: v.tx + dx, ty: v.ty + dy }));
       return;
     }
-    const g = clientToGrid(e.clientX, e.clientY);
-    if (!g) return;
-    dragRef.current = { ...d, bx: g.gx, by: g.gy };
-    setPreview(normalizeRect(d.ax, d.ay, g.gx, g.gy, gw, gh));
+    const gridPos = clientToGrid(e.clientX, e.clientY);
+    if (!gridPos) return;
+    dragRef.current = { ...d, bx: gridPos.gx, by: gridPos.gy };
+    setPreview(normalizeRect(d.ax, d.ay, gridPos.gx, gridPos.gy, gw, gh));
   };
 
   const endDrag = (e: React.PointerEvent) => {
@@ -170,11 +301,53 @@ export function GridMapEditor({
     }
   };
 
+  const finishMoveAt = (pointerId: number | undefined, clientX: number, clientY: number) => {
+    const ms = moveRef.current;
+    if (!ms) return;
+    setMoveBoth(null);
+    try {
+      if (typeof pointerId === 'number') {
+        worldRef.current?.releasePointerCapture(pointerId);
+      }
+    } catch {
+      /* ignore */
+    }
+    const rect = {
+      gridX: ms.curGridX,
+      gridY: ms.curGridY,
+      gridWidth: ms.w,
+      gridHeight: ms.h,
+    };
+    const valid = isValidMovePosition(ms.areaId, rect, areas, gw, gh);
+    const dragPx = Math.hypot(clientX - ms.startClientX, clientY - ms.startClientY);
+    if (dragPx < 6) {
+      onSelectArea(ms.areaId);
+      return;
+    }
+    if (
+      valid &&
+      onMoveArea &&
+      (ms.curGridX !== ms.origGridX || ms.curGridY !== ms.origGridY)
+    ) {
+      // Select on release (not on drag start) to avoid opening the detail panel mid-drag on touch.
+      onSelectArea(ms.areaId);
+      onMoveArea(ms.areaId, ms.curGridX, ms.curGridY);
+      return;
+    }
+    // Invalid move or unchanged position: still select on release so keyboard nudges/editing is easy.
+    onSelectArea(ms.areaId);
+  };
+
   const onPointerUp = (e: React.PointerEvent) => {
+    const finishingMove = moveRef.current !== null;
     try {
       (e.target as HTMLElement).releasePointerCapture?.(e.pointerId);
     } catch {
       /* ignore */
+    }
+    if (finishingMove) {
+      finishMoveAt(e.pointerId, e.clientX, e.clientY);
+      return;
     }
     const d = dragRef.current;
     if (d?.kind === 'pan') {
@@ -185,6 +358,8 @@ export function GridMapEditor({
   };
 
   const onPointerCancel = () => {
+    moveRef.current = null;
+    setMove(null);
     dragRef.current = null;
     setPreview(null);
   };
@@ -198,6 +373,19 @@ export function GridMapEditor({
   };
 
   const onTouchMove = (e: React.TouchEvent) => {
+    if (e.touches.length === 1 && moveRef.current) {
+      e.preventDefault();
+      const touch = e.touches[0]!;
+      const ms = moveRef.current;
+      const g = clientToGrid(touch.clientX, touch.clientY);
+      if (!g) return;
+      const nx = clamp(g.gx - ms.grabDx, 0, gw - ms.w);
+      const ny = clamp(g.gy - ms.grabDy, 0, gh - ms.h);
+      const next = { ...ms, curGridX: nx, curGridY: ny, lastClientX: touch.clientX, lastClientY: touch.clientY };
+      moveRef.current = next;
+      setMove(next);
+      return;
+    }
     if (e.touches.length === 2 && pinchRef.current) {
       e.preventDefault();
       const [a, b] = [e.touches[0]!, e.touches[1]!];
@@ -208,9 +396,41 @@ export function GridMapEditor({
     }
   };
 
-  const onTouchEnd = () => {
+  const onTouchEnd = (e: React.TouchEvent) => {
+    if (moveRef.current && e.touches.length === 0) {
+      const ms = moveRef.current;
+      finishMoveAt(undefined, ms.lastClientX, ms.lastClientY);
+      return;
+    }
     pinchRef.current = null;
   };
+
+  const movingArea = move
+    ? areas.find((a) => a.id === move.areaId)
+    : undefined;
+  const moveRect = move
+    ? {
+        gridX: move.curGridX,
+        gridY: move.curGridY,
+        gridWidth: move.w,
+        gridHeight: move.h,
+      }
+    : null;
+  const moveValid =
+    move && moveRect
+      ? isValidMovePosition(move.areaId, moveRect, areas, gw, gh)
+      : false;
+  const otherRects =
+    move && moveRect
+      ? areas.filter((a) => a.id !== move.areaId).map((a) => ({
+          gridX: a.gridX,
+          gridY: a.gridY,
+          gridWidth: a.gridWidth,
+          gridHeight: a.gridHeight,
+        }))
+      : [];
+  const guides =
+    move && moveRect ? computeAlignmentGuides(moveRect, otherRects) : null;
 
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-2">
@@ -225,6 +445,16 @@ export function GridMapEditor({
               onClick={() => onToolChange('select')}
             >
               {t('garden.toolSelect')}
+            </button>
+            <button
+              type="button"
+              className={`rounded-md px-3 py-1.5 font-medium ${
+                tool === 'move' ? 'bg-emerald-100 text-emerald-900' : 'text-stone-600'
+              }`}
+              onClick={() => onToolChange('move')}
+              disabled={!onMoveArea}
+            >
+              {t('garden.toolMove')}
             </button>
             <button
               type="button"
@@ -294,8 +524,73 @@ export function GridMapEditor({
               selectedAreaId={selectedAreaId}
               effectiveTool={effectiveTool}
               readOnly={readOnly}
+              draggingAreaId={move?.areaId ?? null}
               onSelectArea={onSelectArea}
+              onBeginAreaMove={onMoveArea ? beginAreaMove : undefined}
+              onBeginAreaMoveTouch={onMoveArea ? beginAreaMoveTouch : undefined}
             />
+
+            {move && movingArea ? (
+              <div
+                data-testid="map-move-ghost"
+                className="pointer-events-none absolute box-border border-2 border-dashed border-white/80 bg-white/25"
+                style={{
+                  left: move.origGridX * CELL,
+                  top: move.origGridY * CELL,
+                  width: move.w * CELL,
+                  height: move.h * CELL,
+                  backgroundColor: `${movingArea.color}99`,
+                }}
+              />
+            ) : null}
+
+            {move && movingArea ? (
+              <div
+                data-testid="map-move-preview"
+                className={`pointer-events-none absolute box-border border-2 ${
+                  moveValid ? 'border-emerald-600' : 'border-red-600'
+                } bg-black/10`}
+                style={{
+                  left: move.curGridX * CELL,
+                  top: move.curGridY * CELL,
+                  width: move.w * CELL,
+                  height: move.h * CELL,
+                }}
+              />
+            ) : null}
+
+            {guides
+              ? guides.vertical.map((x) => (
+                  <div
+                    key={`gv-${x}`}
+                    data-testid="map-alignment-guide-vertical"
+                    data-grid-line={x}
+                    className="pointer-events-none absolute bg-rose-500/80"
+                    style={{
+                      left: x * CELL,
+                      top: 0,
+                      width: 1,
+                      height: worldH,
+                    }}
+                  />
+                ))
+              : null}
+            {guides
+              ? guides.horizontal.map((y) => (
+                  <div
+                    key={`gh-${y}`}
+                    data-testid="map-alignment-guide-horizontal"
+                    data-grid-line={y}
+                    className="pointer-events-none absolute bg-rose-500/80"
+                    style={{
+                      left: 0,
+                      top: y * CELL,
+                      width: worldW,
+                      height: 1,
+                    }}
+                  />
+                ))
+              : null}
 
             {preview && (
               <div

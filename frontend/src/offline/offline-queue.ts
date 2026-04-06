@@ -55,6 +55,8 @@ export async function enqueueMutation(entry: Omit<QueuedMutation, 'id'> & { id?:
 export async function listQueuedMutations(): Promise<QueuedMutation[]> {
   const db = await getDb();
   const all = await db.getAll(STORE);
+  // Ensure FIFO replay regardless of IndexedDB key ordering.
+  all.sort((a, b) => a.createdAt - b.createdAt);
   return all.map((r) => ({ id: r.id, path: r.path, method: r.method, body: r.body }));
 }
 

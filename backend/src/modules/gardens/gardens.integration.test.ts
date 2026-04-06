@@ -191,8 +191,42 @@ describe('Gardens, areas, seasons API (integration)', () => {
       .expect(200);
     expect(patched.body.name).toBe('Raised 1');
 
+    const a2 = await request(app)
+      .post(`/api/v1/gardens/${gardenId}/areas`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        name: 'Bed 2',
+        type: 'raised_bed',
+        color: '#228B22',
+        gridX: 5,
+        gridY: 0,
+        gridWidth: 2,
+        gridHeight: 2,
+      })
+      .expect(201);
+    const area2Id = a2.body.id as string;
+
+    await request(app)
+      .patch(`/api/v1/gardens/${gardenId}/areas/${areaId}`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ gridX: 4, gridY: 0 })
+      .expect(409);
+
+    const moved = await request(app)
+      .patch(`/api/v1/gardens/${gardenId}/areas/${areaId}`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ gridX: 6, gridY: 6 })
+      .expect(200);
+    expect(moved.body.gridX).toBe(6);
+    expect(moved.body.gridY).toBe(6);
+
     await request(app)
       .delete(`/api/v1/gardens/${gardenId}/areas/${areaId}`)
+      .set('Authorization', `Bearer ${token}`)
+      .expect(204);
+
+    await request(app)
+      .delete(`/api/v1/gardens/${gardenId}/areas/${area2Id}`)
       .set('Authorization', `Bearer ${token}`)
       .expect(204);
 
