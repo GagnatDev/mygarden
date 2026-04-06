@@ -1,8 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { Area, Garden } from '../api/gardens';
+import { GridMapAreaButtons } from './GridMapAreaButtons';
+import { GridMapCellLayer } from './GridMapCellLayer';
 
-const CELL = 28;
+/** CSS pixels per grid cell (world space). Exported for tests. */
+export const CELL = 28;
 
 export interface GridSelection {
   gridX: number;
@@ -282,65 +285,17 @@ export function GridMapEditor({
             onPointerUp={onPointerUp}
             onPointerCancel={onPointerCancel}
           >
-            {Array.from({ length: gh }, (_, y) =>
-              Array.from({ length: gw }, (_, x) => (
-                <div
-                  key={`${x}-${y}`}
-                  data-cell={`${x}-${y}`}
-                  className="absolute box-border border border-stone-200/80 bg-stone-50/50"
-                  style={{
-                    left: x * CELL,
-                    top: y * CELL,
-                    width: CELL,
-                    height: CELL,
-                  }}
-                />
-              )),
-            )}
+            <GridMapCellLayer worldW={worldW} worldH={worldH} cell={CELL} />
 
-            {areas.map((a) => {
-              const selected = a.id === selectedAreaId;
-              const hasPlantings = areaIdsWithPlantings?.has(a.id) ?? false;
-              return (
-                <button
-                  key={a.id}
-                  type="button"
-                  className={`absolute box-border flex items-center justify-center p-0.5 text-center text-[10px] font-medium leading-tight text-white shadow-sm transition-[outline] ${
-                    selected ? 'outline outline-2 outline-emerald-600 outline-offset-[-2px] z-10' : 'z-[1]'
-                  }`}
-                  style={{
-                    left: a.gridX * CELL,
-                    top: a.gridY * CELL,
-                    width: a.gridWidth * CELL,
-                    height: a.gridHeight * CELL,
-                    backgroundColor: a.color,
-                    pointerEvents: effectiveTool === 'pan' || readOnly ? 'none' : 'auto',
-                  }}
-                  onPointerDown={(ev) => ev.stopPropagation()}
-                  onClick={(ev) => {
-                    if (readOnly || effectiveTool !== 'select') return;
-                    ev.stopPropagation();
-                    onSelectArea(a.id);
-                  }}
-                  aria-label={
-                    hasPlantings
-                      ? `${a.name} (${t('garden.hasPlantingsHint')})`
-                      : a.name
-                  }
-                >
-                  {hasPlantings ? (
-                    <span
-                      className="pointer-events-none absolute right-0.5 top-0.5 z-20 h-2 w-2 rounded-full bg-emerald-300 ring-2 ring-white/90"
-                      data-testid={`map-area-planting-indicator-${a.id}`}
-                      aria-hidden
-                    />
-                  ) : null}
-                  <span className="line-clamp-3 break-words px-0.5 drop-shadow-sm">
-                    <span className="block font-semibold">{a.name}</span>
-                  </span>
-                </button>
-              );
-            })}
+            <GridMapAreaButtons
+              areas={areas}
+              cell={CELL}
+              areaIdsWithPlantings={areaIdsWithPlantings}
+              selectedAreaId={selectedAreaId}
+              effectiveTool={effectiveTool}
+              readOnly={readOnly}
+              onSelectArea={onSelectArea}
+            />
 
             {preview && (
               <div

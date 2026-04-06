@@ -76,9 +76,41 @@ describe('GridMapEditor', () => {
     );
 
     const map = screen.getByTestId('grid-map');
-    expect(map.querySelectorAll('[data-cell]')).toHaveLength(12);
+    expect(map.querySelectorAll('[data-testid="grid-map-cell-layer"]')).toHaveLength(1);
+    expect(map.querySelectorAll('[data-cell]')).toHaveLength(0);
     expect(screen.getByRole('grid', { name: /grid 4 by 3/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /^bed$/i })).toBeInTheDocument();
+  });
+
+  it('uses one cell layer for large grids instead of one DOM node per cell', async () => {
+    const onSelectArea = vi.fn();
+    const i18nInstance = await testI18n();
+    const bigGarden: Garden = {
+      ...garden,
+      gridWidth: 200,
+      gridHeight: 200,
+    };
+
+    render(
+      <I18nextProvider i18n={i18nInstance}>
+        <GridMapEditor
+          garden={bigGarden}
+          areas={[]}
+          selectedAreaId={null}
+          onSelectArea={onSelectArea}
+          onSelectionComplete={vi.fn()}
+          tool="select"
+          onToolChange={vi.fn()}
+        />
+      </I18nextProvider>,
+    );
+
+    const map = screen.getByTestId('grid-map');
+    expect(map.querySelectorAll('[data-testid="grid-map-cell-layer"]')).toHaveLength(1);
+    expect(map.querySelectorAll('[data-cell]')).toHaveLength(0);
+    const layer = screen.getByTestId('grid-map-cell-layer');
+    expect(layer).toHaveStyle({ width: '5600px', height: '5600px' });
+    expect(layer).toHaveStyle({ backgroundSize: '28px 28px' });
   });
 
   it('selects an area when its label is clicked in select mode', async () => {
