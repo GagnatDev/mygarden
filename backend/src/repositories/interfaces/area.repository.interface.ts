@@ -1,4 +1,4 @@
-import type { Area, AreaType } from '../../domain/area.js';
+import type { Area, AreaShape, AreaType } from '../../domain/area.js';
 
 export interface CreateAreaInput {
   gardenId: string;
@@ -9,6 +9,7 @@ export interface CreateAreaInput {
   gridY: number;
   gridWidth: number;
   gridHeight: number;
+  shape?: AreaShape;
 }
 
 export interface IAreaRepository {
@@ -18,7 +19,10 @@ export interface IAreaRepository {
   update(
     id: string,
     patch: Partial<
-      Pick<Area, 'name' | 'type' | 'color' | 'gridX' | 'gridY' | 'gridWidth' | 'gridHeight'>
+      Pick<
+        Area,
+        'name' | 'type' | 'color' | 'gridX' | 'gridY' | 'gridWidth' | 'gridHeight' | 'shape'
+      >
     >,
   ): Promise<Area | null>;
   delete(id: string): Promise<boolean>;

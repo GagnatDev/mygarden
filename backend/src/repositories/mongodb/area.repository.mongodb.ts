@@ -15,6 +15,7 @@ function toArea(doc: AreaDoc): Area {
     gridY: doc.gridY,
     gridWidth: doc.gridWidth,
     gridHeight: doc.gridHeight,
+    shape: doc.shape ?? undefined,
     createdAt: doc.createdAt,
     updatedAt: doc.updatedAt,
   };
@@ -33,6 +34,7 @@ export class AreaRepositoryMongo implements IAreaRepository {
       gridY: input.gridY,
       gridWidth: input.gridWidth,
       gridHeight: input.gridHeight,
+      shape: input.shape,
     });
     return toArea(doc.toObject() as AreaDoc);
   }
@@ -51,7 +53,7 @@ export class AreaRepositoryMongo implements IAreaRepository {
   async update(
     id: string,
     patch: Partial<
-      Pick<Area, 'name' | 'type' | 'color' | 'gridX' | 'gridY' | 'gridWidth' | 'gridHeight'>
+      Pick<Area, 'name' | 'type' | 'color' | 'gridX' | 'gridY' | 'gridWidth' | 'gridHeight' | 'shape'>
     >,
   ): Promise<Area | null> {
     const doc = await AreaModel.findByIdAndUpdate(id, { $set: patch }, { new: true, runValidators: true }).lean();

@@ -1,10 +1,16 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { Area, Garden } from '../api/gardens';
+import type { AreaShape } from '../api/gardens';
 import { computeAlignmentGuides } from './alignment-guides';
-import { GridMapAreaButtons } from './GridMapAreaButtons';
-import { GridMapCellLayer } from './GridMapCellLayer';
+import { GridMapAreasSvg } from './GridMapAreasSvg';
+import { GridMapSvgGridLayer } from './GridMapSvgGridLayer';
 import { isValidMovePosition } from './grid-rect';
+import {
+  polygonPointsPx,
+  polygonVerticesToGridBBox,
+  translateVertices,
+} from './polygon-helpers';
 
 /** CSS pixels per grid cell (world space). Exported for tests. */
 export const CELL = 28;
@@ -15,6 +21,8 @@ export interface GridSelection {
   gridWidth: number;
   gridHeight: number;
 }
+
+export type AreaDraftSelection = GridSelection & { shape?: AreaShape };
 
 function clamp(n: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, n));
@@ -38,7 +46,7 @@ function normalizeRect(
   return { gridX: x0, gridY: y0, gridWidth, gridHeight };
 }
 
-export type MapTool = 'select' | 'pan' | 'move';
+export type MapTool = 'select' | 'pan' | 'move' | 'draw-polygon';
 export type MapLayer = 'area-type' | 'plan-vs-actual' | 'status' | 'historical';
 
 export interface MapLegendItem {
@@ -95,7 +103,7 @@ export interface GridMapEditorProps {
   toolbarAddon?: React.ReactNode;
   selectedAreaId: string | null;
   onSelectArea: (id: string | null) => void;
-  onSelectionComplete: (sel: GridSelection) => void;
+  onSelectionComplete: (sel: AreaDraftSelection) => void;
   /** Reposition an existing area (grid top-left); parent persists via API. */
   onMoveArea?: (areaId: string, gridX: number, gridY: number) => void;
   tool: MapTool;
@@ -127,7 +135,7 @@ export function GridMapEditor({
   const { t } = useTranslation();
   const effectiveTool: MapTool = readOnly ? 'pan' : tool;
   const containerRef = useRef<HTMLDivElement>(null);
-  const worldRef = useRef<HTMLDivElement>(null);
+  const worldRef = useRef<SVGSVGElement>(null);
   const [view, setView] = useState({ tx: 0, ty: 0, scale: 1 });
   const dragRef = useRef<
     | { kind: 'pan'; x: number; y: number }
@@ -146,6 +154,7 @@ export function GridMapEditor({
   const [preview, setPreview] = useState<GridSelection | null>(null);
   const moveRef = useRef<MoveDragState | null>(null);
   const [move, setMove] = useState<MoveDragState | null>(null);
+  const [poly, setPoly] = useState<Array<{ x: number; y: number }> | null>(null);
 
   const gw = garden.gridWidth;
   const gh = garden.gridHeight;
@@ -167,6 +176,53 @@ export function GridMapEditor({
     },
     [gw, gh, view.scale],
   );
+
+  const clientToWorld = useCallback(
+    (clientX: number, clientY: number): { x: number; y: number } | null => {
+      const el = worldRef.current;
+      const box = el?.getBoundingClientRect();
+      if (!box) return null;
+      const x = (clientX - box.left) / view.scale;
+      const y = (clientY - box.top) / view.scale;
+      if (!Number.isFinite(x) || !Number.isFinite(y)) return null;
+      if (x < 0 || y < 0 || x > worldW || y > worldH) return null;
+      return { x, y };
+    },
+    [view.scale, worldW, worldH],
+  );
+
+  const polygonDraft = poly;
+  const polygonPreviewPointsPx = useMemo(() => {
+    if (!polygonDraft || polygonDraft.length === 0) return '';
+    return polygonPointsPx(polygonDraft, CELL);
+  }, [polygonDraft]);
+
+  const polygonBBox = useMemo(
+    () => (polygonDraft && polygonDraft.length >= 3 ? polygonVerticesToGridBBox(polygonDraft) : null),
+    [polygonDraft],
+  );
+
+  const completePolygonDraft = useCallback(
+    (draft: Array<{ x: number; y: number }>) => {
+      const bbox = polygonVerticesToGridBBox(draft);
+      if (!bbox) return;
+      onSelectionComplete({
+        ...bbox,
+        shape: { kind: 'polygon', vertices: draft },
+      });
+      setPoly(null);
+    },
+    [onSelectionComplete],
+  );
+
+  /** Tap within this many SVG pixels of the first vertex closes the polygon (touch-friendly). */
+  const POLYGON_CLOSE_RADIUS_PX = 18;
+
+  useEffect(() => {
+    if (readOnly || effectiveTool !== 'draw-polygon') {
+      setPoly(null);
+    }
+  }, [readOnly, effectiveTool]);
 
   const setMoveBoth = useCallback((next: MoveDragState | null) => {
     moveRef.current = next;
@@ -285,6 +341,27 @@ export function GridMapEditor({
     if (effectiveTool === 'move') {
       return;
     }
+    if (effectiveTool === 'draw-polygon') {
+      e.preventDefault();
+      const w = clientToWorld(e.clientX, e.clientY);
+      if (!w) return;
+      const vx = w.x / CELL;
+      const vy = w.y / CELL;
+      if (!Number.isFinite(vx) || !Number.isFinite(vy)) return;
+      setPoly((prev) => {
+        const draft = prev ?? [];
+        if (draft.length >= 3) {
+          const first = draft[0]!;
+          const dist = Math.hypot(w.x - first.x * CELL, w.y - first.y * CELL);
+          if (dist < POLYGON_CLOSE_RADIUS_PX) {
+            queueMicrotask(() => completePolygonDraft(draft));
+            return null;
+          }
+        }
+        return [...draft, { x: vx, y: vy }];
+      });
+      return;
+    }
     (e.target as HTMLElement).setPointerCapture?.(e.pointerId);
     const g = clientToGrid(e.clientX, e.clientY);
     if (!g) return;
@@ -397,11 +474,20 @@ export function GridMapEditor({
     endDrag(e);
   };
 
+  const onDoubleClick = (e: React.MouseEvent) => {
+    if (readOnly) return;
+    if (effectiveTool !== 'draw-polygon') return;
+    if (!polygonDraft || polygonDraft.length < 3) return;
+    e.preventDefault();
+    completePolygonDraft(polygonDraft);
+  };
+
   const onPointerCancel = () => {
     moveRef.current = null;
     setMove(null);
     dragRef.current = null;
     setPreview(null);
+    setPoly(null);
   };
 
   const onTouchStart = (e: React.TouchEvent) => {
@@ -448,6 +534,8 @@ export function GridMapEditor({
   const movingArea = move
     ? areas.find((a) => a.id === move.areaId)
     : undefined;
+  const effectiveToolForAreas: 'select' | 'pan' | 'move' =
+    effectiveTool === 'draw-polygon' ? 'pan' : effectiveTool;
   const moveRect = move
     ? {
         gridX: move.curGridX,
@@ -489,6 +577,15 @@ export function GridMapEditor({
             <button
               type="button"
               className={`rounded-md px-3 py-1.5 font-medium ${
+                tool === 'draw-polygon' ? 'bg-emerald-100 text-emerald-900' : 'text-stone-600'
+              }`}
+              onClick={() => onToolChange('draw-polygon')}
+            >
+              {t('garden.toolDrawPolygon')}
+            </button>
+            <button
+              type="button"
+              className={`rounded-md px-3 py-1.5 font-medium ${
                 tool === 'move' ? 'bg-emerald-100 text-emerald-900' : 'text-stone-600'
               }`}
               onClick={() => onToolChange('move')}
@@ -504,6 +601,31 @@ export function GridMapEditor({
               onClick={() => onToolChange('pan')}
             >
               {t('garden.toolPan')}
+            </button>
+          </div>
+        ) : null}
+        {!readOnly && tool === 'draw-polygon' && polygonDraft && polygonDraft.length > 0 ? (
+          <div
+            className="flex rounded-lg border border-stone-200 bg-white p-0.5 text-sm"
+            data-testid="map-polygon-draft-actions"
+          >
+            {polygonDraft.length >= 3 ? (
+              <button
+                type="button"
+                data-testid="map-polygon-finish"
+                className="rounded-md bg-emerald-700 px-3 py-1.5 font-medium text-white"
+                onClick={() => completePolygonDraft(polygonDraft)}
+              >
+                {t('garden.polygonFinish')}
+              </button>
+            ) : null}
+            <button
+              type="button"
+              data-testid="map-polygon-clear"
+              className="rounded-md px-3 py-1.5 font-medium text-stone-600"
+              onClick={() => setPoly(null)}
+            >
+              {t('garden.polygonClear')}
             </button>
           </div>
         ) : null}
@@ -570,10 +692,12 @@ export function GridMapEditor({
             transformOrigin: 'center center',
           }}
         >
-          <div
+          <svg
             ref={worldRef}
-            className="relative bg-white shadow-sm"
-            style={{ width: worldW, height: worldH }}
+            className="bg-white shadow-sm"
+            width={worldW}
+            height={worldH}
+            viewBox={`0 0 ${worldW} ${worldH}`}
             role="grid"
             aria-label={t('garden.gridAriaLabel', { width: gw, height: gh })}
             data-testid="grid-map"
@@ -581,25 +705,28 @@ export function GridMapEditor({
             onPointerMove={onPointerMove}
             onPointerUp={onPointerUp}
             onPointerCancel={onPointerCancel}
+            onDoubleClick={onDoubleClick}
           >
-            <GridMapCellLayer worldW={worldW} worldH={worldH} cell={CELL} />
+            <GridMapSvgGridLayer worldW={worldW} worldH={worldH} cell={CELL} />
 
             {historicalGhostAreas?.map((ga) => (
-              <div
+              <rect
                 key={ga.id}
                 data-testid="map-historical-ghost-area"
-                className="pointer-events-none absolute box-border border-2 border-dashed border-stone-700/60 bg-stone-200/10"
-                style={{
-                  left: ga.gridX * CELL,
-                  top: ga.gridY * CELL,
-                  width: ga.gridWidth * CELL,
-                  height: ga.gridHeight * CELL,
-                }}
+                x={ga.gridX * CELL}
+                y={ga.gridY * CELL}
+                width={ga.gridWidth * CELL}
+                height={ga.gridHeight * CELL}
+                fill="rgba(231,229,228,0.1)"
+                stroke="rgba(68,64,60,0.6)"
+                strokeWidth={2}
+                strokeDasharray="6 4"
+                pointerEvents="none"
                 aria-label={t('garden.historicalGhostAreaAria', { name: ga.name })}
               />
             ))}
 
-            <GridMapAreaButtons
+            <GridMapAreasSvg
               areas={areas}
               cell={CELL}
               areaIdsWithPlantings={areaIdsWithPlantings}
@@ -607,7 +734,7 @@ export function GridMapEditor({
               areaBadgeById={areaBadgeById}
               areaOverlayBadgesById={areaOverlayBadgesById}
               selectedAreaId={selectedAreaId}
-              effectiveTool={effectiveTool}
+              effectiveTool={effectiveToolForAreas}
               readOnly={readOnly}
               draggingAreaId={move?.areaId ?? null}
               onSelectArea={onSelectArea}
@@ -616,79 +743,134 @@ export function GridMapEditor({
             />
 
             {move && movingArea ? (
-              <div
-                data-testid="map-move-ghost"
-                className="pointer-events-none absolute box-border border-2 border-dashed border-white/80 bg-white/25"
-                style={{
-                  left: move.origGridX * CELL,
-                  top: move.origGridY * CELL,
-                  width: move.w * CELL,
-                  height: move.h * CELL,
-                  backgroundColor: `${movingArea.color}99`,
-                }}
-              />
+              movingArea.shape?.kind === 'polygon' ? (
+                <polygon
+                  data-testid="map-move-ghost"
+                  points={polygonPointsPx(movingArea.shape.vertices, CELL)}
+                  fill={`${movingArea.color}99`}
+                  stroke="rgba(255,255,255,0.8)"
+                  strokeWidth={2}
+                  strokeDasharray="6 4"
+                  pointerEvents="none"
+                />
+              ) : (
+                <rect
+                  data-testid="map-move-ghost"
+                  x={move.origGridX * CELL}
+                  y={move.origGridY * CELL}
+                  width={move.w * CELL}
+                  height={move.h * CELL}
+                  fill={`${movingArea.color}99`}
+                  stroke="rgba(255,255,255,0.8)"
+                  strokeWidth={2}
+                  strokeDasharray="6 4"
+                  pointerEvents="none"
+                />
+              )
             ) : null}
 
             {move && movingArea ? (
-              <div
-                data-testid="map-move-preview"
-                className={`pointer-events-none absolute box-border border-2 ${
-                  moveValid ? 'border-emerald-600' : 'border-red-600'
-                } bg-black/10`}
-                style={{
-                  left: move.curGridX * CELL,
-                  top: move.curGridY * CELL,
-                  width: move.w * CELL,
-                  height: move.h * CELL,
-                }}
-              />
+              movingArea.shape?.kind === 'polygon' ? (
+                <polygon
+                  data-testid="map-move-preview"
+                  data-valid={moveValid ? 'true' : 'false'}
+                  points={polygonPointsPx(
+                    translateVertices(movingArea.shape.vertices, move.curGridX - move.origGridX, move.curGridY - move.origGridY),
+                    CELL,
+                  )}
+                  fill="rgba(0,0,0,0.08)"
+                  stroke={moveValid ? '#059669' : '#dc2626'}
+                  strokeWidth={2}
+                  pointerEvents="none"
+                />
+              ) : (
+                <rect
+                  data-testid="map-move-preview"
+                  data-valid={moveValid ? 'true' : 'false'}
+                  x={move.curGridX * CELL}
+                  y={move.curGridY * CELL}
+                  width={move.w * CELL}
+                  height={move.h * CELL}
+                  fill="rgba(0,0,0,0.08)"
+                  stroke={moveValid ? '#059669' : '#dc2626'}
+                  strokeWidth={2}
+                  pointerEvents="none"
+                />
+              )
             ) : null}
 
             {guides
               ? guides.vertical.map((x) => (
-                  <div
+                  <line
                     key={`gv-${x}`}
                     data-testid="map-alignment-guide-vertical"
                     data-grid-line={x}
-                    className="pointer-events-none absolute bg-rose-500/80"
-                    style={{
-                      left: x * CELL,
-                      top: 0,
-                      width: 1,
-                      height: worldH,
-                    }}
+                    x1={x * CELL}
+                    y1={0}
+                    x2={x * CELL}
+                    y2={worldH}
+                    stroke="rgba(244,63,94,0.8)"
+                    strokeWidth={1}
+                    pointerEvents="none"
                   />
                 ))
               : null}
             {guides
               ? guides.horizontal.map((y) => (
-                  <div
+                  <line
                     key={`gh-${y}`}
                     data-testid="map-alignment-guide-horizontal"
                     data-grid-line={y}
-                    className="pointer-events-none absolute bg-rose-500/80"
-                    style={{
-                      left: 0,
-                      top: y * CELL,
-                      width: worldW,
-                      height: 1,
-                    }}
+                    x1={0}
+                    y1={y * CELL}
+                    x2={worldW}
+                    y2={y * CELL}
+                    stroke="rgba(244,63,94,0.8)"
+                    strokeWidth={1}
+                    pointerEvents="none"
                   />
                 ))
               : null}
 
             {preview && (
-              <div
-                className="pointer-events-none absolute border-2 border-dashed border-emerald-600 bg-emerald-400/20"
-                style={{
-                  left: preview.gridX * CELL,
-                  top: preview.gridY * CELL,
-                  width: preview.gridWidth * CELL,
-                  height: preview.gridHeight * CELL,
-                }}
+              <rect
+                data-testid="map-selection-preview"
+                x={preview.gridX * CELL}
+                y={preview.gridY * CELL}
+                width={preview.gridWidth * CELL}
+                height={preview.gridHeight * CELL}
+                fill="rgba(52,211,153,0.2)"
+                stroke="#059669"
+                strokeWidth={2}
+                strokeDasharray="6 4"
+                pointerEvents="none"
               />
             )}
-          </div>
+
+            {effectiveTool === 'draw-polygon' && polygonDraft && polygonDraft.length > 0 ? (
+              <g data-testid="map-polygon-draft" pointerEvents="none">
+                <polyline
+                  points={polygonPreviewPointsPx}
+                  fill="none"
+                  stroke="#059669"
+                  strokeWidth={2}
+                  strokeDasharray="6 4"
+                />
+                {polygonDraft.map((p, idx) => (
+                  <circle
+                    key={`${idx}-${p.x}-${p.y}`}
+                    cx={p.x * CELL}
+                    cy={p.y * CELL}
+                    r={idx === 0 && polygonDraft.length >= 3 ? 7 : 4}
+                    fill={idx === 0 && polygonDraft.length >= 3 ? '#10b981' : '#34d399'}
+                    stroke="rgba(255,255,255,0.9)"
+                    strokeWidth={2}
+                    data-testid={idx === 0 ? 'map-polygon-first-vertex' : undefined}
+                  />
+                ))}
+              </g>
+            ) : null}
+          </svg>
         </div>
       </div>
     </div>

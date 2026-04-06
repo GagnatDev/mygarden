@@ -20,9 +20,11 @@ describe('AreaRepository (integration)', () => {
       gridY: 0,
       gridWidth: 2,
       gridHeight: 3,
+      shape: { kind: 'polygon', vertices: [{ x: 0, y: 0 }, { x: 2, y: 0 }, { x: 2, y: 3 }] },
     });
     const list = await repo.findByGardenId(gardenId);
     expect(list).toHaveLength(1);
+    expect(list[0]?.shape?.kind).toBe('polygon');
 
     const u = await repo.update(a.id, { name: 'Bed A' });
     expect(u?.name).toBe('Bed A');
@@ -39,6 +41,7 @@ describe('AreaRepository (integration)', () => {
       gridY: 0,
       gridWidth: 1,
       gridHeight: 1,
+      shape: { kind: 'rectangle' },
     });
     expect(await repo.deleteByGardenId(gardenId)).toBe(1);
   });

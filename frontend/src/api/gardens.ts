@@ -29,9 +29,15 @@ export interface Area {
   gridY: number;
   gridWidth: number;
   gridHeight: number;
+  shape?: AreaShape;
   createdAt: string;
   updatedAt: string;
 }
+
+export type AreaShape =
+  | { kind: 'rectangle' }
+  | { kind: 'polygon'; vertices: Array<{ x: number; y: number }> }
+  | { kind: 'path'; d: string };
 
 export interface Season {
   id: string;
@@ -110,6 +116,7 @@ export async function createArea(
     gridY: number;
     gridWidth: number;
     gridHeight: number;
+    shape?: AreaShape;
   },
 ): Promise<Area> {
   const res = await apiFetch(`/gardens/${gardenId}/areas`, {
@@ -131,6 +138,7 @@ export async function patchArea(
     gridY: number;
     gridWidth: number;
     gridHeight: number;
+    shape: AreaShape;
   }>,
 ): Promise<Area> {
   const res = await apiFetch(`/gardens/${gardenId}/areas/${areaId}`, {

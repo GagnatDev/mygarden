@@ -2,13 +2,13 @@ import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { AreaType } from '../api/gardens';
 import { createArea } from '../api/gardens';
-import type { GridSelection } from './GridMapEditor';
+import type { AreaDraftSelection } from './GridMapEditor';
 
 const TYPES: AreaType[] = ['raised_bed', 'open_bed', 'tree_zone', 'path', 'lawn', 'other'];
 
 export interface CreateAreaDialogProps {
   gardenId: string;
-  selection: GridSelection;
+  selection: AreaDraftSelection;
   onClose: () => void;
   onCreated: () => Promise<void>;
 }
@@ -38,6 +38,7 @@ export function CreateAreaDialog({ gardenId, selection, onClose, onCreated }: Cr
         gridY: selection.gridY,
         gridWidth: selection.gridWidth,
         gridHeight: selection.gridHeight,
+        shape: selection.shape,
       });
       await onCreated();
       onClose();

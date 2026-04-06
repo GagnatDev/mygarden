@@ -13,7 +13,7 @@ import { GardenCreateForm } from '../garden/GardenCreateForm';
 import { useGardenContext } from '../garden/garden-context';
 import {
   GridMapEditor,
-  type GridSelection,
+  type AreaDraftSelection,
   type MapLayer,
   type MapTool,
 } from '../garden/GridMapEditor';
@@ -28,7 +28,7 @@ export function GardenMapPage() {
   const [areas, setAreas] = useState<Area[]>([]);
   const [areasLoading, setAreasLoading] = useState(false);
   const [selectedAreaId, setSelectedAreaId] = useState<string | null>(null);
-  const [pendingSelection, setPendingSelection] = useState<GridSelection | null>(null);
+  const [pendingSelection, setPendingSelection] = useState<AreaDraftSelection | null>(null);
   const [tool, setTool] = useState<MapTool>('select');
   const [layer, setLayer] = useState<MapLayer>('area-type');
   const [deleteGardenConfirm, setDeleteGardenConfirm] = useState(false);

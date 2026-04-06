@@ -1,6 +1,18 @@
 import mongoose from 'mongoose';
 import { AREA_TYPES } from '../../domain/area.js';
 
+const shapeSchema = new mongoose.Schema(
+  {
+    kind: { type: String, enum: ['rectangle', 'polygon', 'path'], required: true },
+    vertices: {
+      type: [{ x: { type: Number, required: true }, y: { type: Number, required: true } }],
+      required: false,
+    },
+    d: { type: String, required: false, trim: true },
+  },
+  { _id: false },
+);
+
 const areaSchema = new mongoose.Schema(
   {
     _id: { type: String, required: true },
@@ -12,6 +24,7 @@ const areaSchema = new mongoose.Schema(
     gridY: { type: Number, required: true, min: 0 },
     gridWidth: { type: Number, required: true, min: 1 },
     gridHeight: { type: Number, required: true, min: 1 },
+    shape: { type: shapeSchema, required: false },
   },
   {
     _id: false,
