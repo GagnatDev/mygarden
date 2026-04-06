@@ -197,11 +197,6 @@ export function GridMapEditor({
     return polygonPointsPx(polygonDraft, CELL);
   }, [polygonDraft]);
 
-  const polygonBBox = useMemo(
-    () => (polygonDraft && polygonDraft.length >= 3 ? polygonVerticesToGridBBox(polygonDraft) : null),
-    [polygonDraft],
-  );
-
   const completePolygonDraft = useCallback(
     (draft: Array<{ x: number; y: number }>) => {
       const bbox = polygonVerticesToGridBBox(draft);

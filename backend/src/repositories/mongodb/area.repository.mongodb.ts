@@ -1,8 +1,23 @@
 import { v4 as uuidv4 } from 'uuid';
-import type { Area, AreaType } from '../../domain/area.js';
+import type { Area, AreaShape, AreaType } from '../../domain/area.js';
 import type { CreateAreaInput, IAreaRepository } from '../interfaces/area.repository.interface.js';
 import type { AreaDoc } from './area.schema.js';
 import { AreaModel } from './area.schema.js';
+
+function docShapeToAreaShape(raw: AreaDoc['shape']): AreaShape | undefined {
+  if (raw == null) return undefined;
+  if (raw.kind === 'rectangle') return { kind: 'rectangle' };
+  if (raw.kind === 'polygon') {
+    const verts = raw.vertices;
+    if (!verts?.length) return undefined;
+    return { kind: 'polygon', vertices: verts.map((v) => ({ x: v.x, y: v.y })) };
+  }
+  if (raw.kind === 'path') {
+    if (typeof raw.d !== 'string' || raw.d.length === 0) return undefined;
+    return { kind: 'path', d: raw.d };
+  }
+  return undefined;
+}
 
 function toArea(doc: AreaDoc): Area {
   return {
@@ -15,7 +30,7 @@ function toArea(doc: AreaDoc): Area {
     gridY: doc.gridY,
     gridWidth: doc.gridWidth,
     gridHeight: doc.gridHeight,
-    shape: doc.shape ?? undefined,
+    shape: docShapeToAreaShape(doc.shape),
     createdAt: doc.createdAt,
     updatedAt: doc.updatedAt,
   };
