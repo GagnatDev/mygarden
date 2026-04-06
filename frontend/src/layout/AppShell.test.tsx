@@ -66,6 +66,61 @@ describe('AppShell', () => {
     });
   }
 
+  /** Tailwind `md` breakpoint; supports firing `change` when toggling desktop. */
+  function stubDynamicMdBreakpoint() {
+    let desktop = false;
+    const listeners = new Set<(e: { matches: boolean }) => void>();
+
+    function notify() {
+      const ev = { matches: desktop };
+      listeners.forEach((cb) => cb(ev));
+    }
+
+    vi.spyOn(window, 'matchMedia').mockImplementation((query) => {
+      const q = String(query);
+      if (q.includes('min-width') && q.includes('768')) {
+        return {
+          get matches() {
+            return desktop;
+          },
+          media: q,
+          onchange: null,
+          addListener: vi.fn(),
+          removeListener: vi.fn(),
+          addEventListener: vi.fn((type: string, listener: unknown) => {
+            if (type === 'change' && typeof listener === 'function') {
+              listeners.add(listener as (e: { matches: boolean }) => void);
+            }
+          }),
+          removeEventListener: vi.fn((type: string, listener: unknown) => {
+            if (type === 'change' && typeof listener === 'function') {
+              listeners.delete(listener as (e: { matches: boolean }) => void);
+            }
+          }),
+          dispatchEvent: vi.fn(),
+        } as MediaQueryList;
+      }
+      return {
+        matches: false,
+        media: q,
+        onchange: null,
+        addListener: vi.fn(),
+        removeListener: vi.fn(),
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+        dispatchEvent: vi.fn(),
+      } as MediaQueryList;
+    });
+
+    return {
+      setDesktop(next: boolean) {
+        if (desktop === next) return;
+        desktop = next;
+        notify();
+      },
+    };
+  }
+
   it('renders navigation labels and user display name', async () => {
     fetchMock
       .mockResolvedValueOnce(
@@ -170,5 +225,61 @@ describe('AppShell', () => {
     await waitFor(() => {
       expect(screen.queryByTestId('mobile-nav-drawer')).not.toBeInTheDocument();
     });
+  });
+
+  it('clears mobile drawer and body scroll lock when viewport crosses md breakpoint', async () => {
+    const viewport = stubDynamicMdBreakpoint();
+    fetchMock
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ accessToken: 'a' }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        }),
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            id: 'u1',
+            email: 'ada@example.com',
+            displayName: 'Ada Lovelace',
+            language: 'en',
+            createdAt: '2020-01-01T00:00:00.000Z',
+            updatedAt: '2020-01-01T00:00:00.000Z',
+          }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } },
+        ),
+      );
+
+    const i18nInstance = await testI18n();
+    render(
+      <I18nextProvider i18n={i18nInstance}>
+        <MemoryRouter initialEntries={['/']}>
+          <AuthProvider>
+            <Routes>
+              <Route element={<AppShell />}>
+                <Route path="/" element={<div>child</div>} />
+              </Route>
+            </Routes>
+          </AuthProvider>
+        </MemoryRouter>
+      </I18nextProvider>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId('user-display-name-mobile')).toHaveTextContent('Ada Lovelace');
+    });
+
+    fireEvent.click(screen.getByTestId('mobile-menu-toggle'));
+    await waitFor(() => {
+      expect(screen.getByTestId('mobile-nav-drawer')).toBeInTheDocument();
+    });
+    expect(document.body.style.overflow).toBe('hidden');
+
+    viewport.setDesktop(true);
+
+    await waitFor(() => {
+      expect(screen.queryByTestId('mobile-nav-drawer')).not.toBeInTheDocument();
+    });
+    expect(document.body.style.overflow).not.toBe('hidden');
   });
 });

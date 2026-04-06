@@ -75,6 +75,16 @@ export function AppShell() {
   }, [location.pathname]);
 
   useEffect(() => {
+    const mql = window.matchMedia('(min-width: 768px)');
+    const onViewportChange = () => {
+      if (mql.matches) setMobileNavOpen(false);
+    };
+    onViewportChange();
+    mql.addEventListener('change', onViewportChange);
+    return () => mql.removeEventListener('change', onViewportChange);
+  }, []);
+
+  useEffect(() => {
     if (!mobileNavOpen) return;
     const prevOverflow = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
