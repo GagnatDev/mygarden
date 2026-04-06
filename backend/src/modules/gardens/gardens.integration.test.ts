@@ -85,6 +85,42 @@ describe('Gardens, areas, seasons API (integration)', () => {
     expect(activeCount).toBe(1);
   });
 
+  it('rejects create garden when cellSizeMeters is out of range or not in 0.1 m steps', async () => {
+    const { token } = await registerWithToken(app, env, 'CellSize');
+
+    await request(app)
+      .post('/api/v1/gardens')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ name: 'A', gridWidth: 10, gridHeight: 10, cellSizeMeters: 0.09 })
+      .expect(400);
+
+    await request(app)
+      .post('/api/v1/gardens')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ name: 'B', gridWidth: 10, gridHeight: 10, cellSizeMeters: 1.01 })
+      .expect(400);
+
+    await request(app)
+      .post('/api/v1/gardens')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ name: 'C', gridWidth: 10, gridHeight: 10, cellSizeMeters: 0.123 })
+      .expect(400);
+
+    const okMin = await request(app)
+      .post('/api/v1/gardens')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ name: 'D', gridWidth: 10, gridHeight: 10, cellSizeMeters: 0.1 })
+      .expect(201);
+    expect(okMin.body.cellSizeMeters).toBe(0.1);
+
+    const okMax = await request(app)
+      .post('/api/v1/gardens')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ name: 'E', gridWidth: 10, gridHeight: 10, cellSizeMeters: 1 })
+      .expect(201);
+    expect(okMax.body.cellSizeMeters).toBe(1);
+  });
+
   it('rejects non-member access to garden routes', async () => {
     const { token: a } = await registerWithToken(app, env, 'A');
     const { token: b } = await registerWithToken(app, env, 'B');
