@@ -109,7 +109,12 @@
     "deleteGardenWarning": "Dette sletter hagen permanent, med alle områder, sesonger og tilhørende data. Dette kan ikke angres.",
     "deleteGardenConfirmButton": "Ja, slett hagen",
     "hasPlantingsHint": "har plantinger",
-    "plantingsThisSeason": "Plantinger (denne sesongen)"
+    "plantingsThisSeason": "Plantinger (denne sesongen)",
+    "backgroundUpload": "Kartbilde",
+    "backgroundRemove": "Fjern bilde",
+    "backgroundOpacity": "Bildegjennomsikt",
+    "backgroundUploading": "Laster opp…",
+    "backgroundUploadFailed": "Kunne ikke oppdatere kartbildet."
   },
   "planning": {
     "profilesHint": "Lagre planter du ofte dyrker, og velg dem når du planlegger bed.",

@@ -8,6 +8,7 @@ import type { IGardenRepository } from '../../repositories/interfaces/garden.rep
 import type { IPlantingRepository } from '../../repositories/interfaces/planting.repository.interface.js';
 import type { ISeasonRepository } from '../../repositories/interfaces/season.repository.interface.js';
 import type { ITaskRepository } from '../../repositories/interfaces/task.repository.interface.js';
+import type { IFileStorageService } from '../../services/file-storage/file-storage.interface.js';
 
 export interface CreateGardenDto {
   name: string;
@@ -26,6 +27,7 @@ export class GardenService {
     private readonly taskRepo: ITaskRepository,
     private readonly activityLogRepo: IActivityLogRepository,
     private readonly noteRepo: INoteRepository,
+    private readonly fileStorage: IFileStorageService,
   ) {}
 
   async listForUser(userId: string): Promise<Garden[]> {
@@ -94,6 +96,12 @@ export class GardenService {
     }
     if (m.role !== 'owner') {
       throw new HttpError(403, 'Only the garden owner can delete the garden', 'Forbidden');
+    }
+    const garden = await this.gardenRepo.findById(gardenId);
+    if (garden?.backgroundImageKey) {
+      await this.fileStorage.deleteObject(garden.backgroundImageKey).catch(() => {
+        /* best-effort */
+      });
     }
     await this.noteRepo.deleteByGardenId(gardenId);
     await this.activityLogRepo.deleteByGardenId(gardenId);

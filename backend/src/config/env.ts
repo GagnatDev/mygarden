@@ -17,6 +17,31 @@ const envSchema = z.object({
     .or(z.literal(''))
     .transform((v) => (v && v.length > 0 ? v.toLowerCase() : undefined)),
   BCRYPT_ROUNDS: z.coerce.number().int().min(10).max(14).default(12),
+  S3_ENDPOINT: z
+    .string()
+    .optional()
+    .or(z.literal(''))
+    .transform((v) => (v && v.length > 0 ? v : undefined)),
+  S3_REGION: z
+    .string()
+    .optional()
+    .or(z.literal(''))
+    .transform((v) => (v && v.length > 0 ? v : undefined)),
+  S3_BUCKET: z
+    .string()
+    .optional()
+    .or(z.literal(''))
+    .transform((v) => (v && v.length > 0 ? v : undefined)),
+  S3_ACCESS_KEY_ID: z
+    .string()
+    .optional()
+    .or(z.literal(''))
+    .transform((v) => (v && v.length > 0 ? v : undefined)),
+  S3_SECRET_ACCESS_KEY: z
+    .string()
+    .optional()
+    .or(z.literal(''))
+    .transform((v) => (v && v.length > 0 ? v : undefined)),
 });
 
 export type Env = z.infer<typeof envSchema>;

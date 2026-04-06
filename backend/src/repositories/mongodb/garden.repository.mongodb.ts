@@ -12,6 +12,7 @@ function toGarden(doc: GardenDoc): Garden {
     gridHeight: doc.gridHeight,
     cellSizeMeters: doc.cellSizeMeters,
     createdBy: doc.createdBy,
+    backgroundImageKey: doc.backgroundImageKey ?? null,
     createdAt: doc.createdAt,
     updatedAt: doc.updatedAt,
   };
@@ -45,7 +46,9 @@ export class GardenRepositoryMongo implements IGardenRepository {
 
   async update(
     id: string,
-    patch: Partial<Pick<Garden, 'name' | 'gridWidth' | 'gridHeight' | 'cellSizeMeters'>>,
+    patch: Partial<
+      Pick<Garden, 'name' | 'gridWidth' | 'gridHeight' | 'cellSizeMeters' | 'backgroundImageKey'>
+    >,
   ): Promise<Garden | null> {
     const doc = await GardenModel.findByIdAndUpdate(id, { $set: patch }, { new: true, runValidators: true }).lean();
     if (!doc) return null;

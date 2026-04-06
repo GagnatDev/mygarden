@@ -1,6 +1,7 @@
 import { ActivityLogService } from '../modules/activity-logs/activity-log.service.js';
 import { AreaService } from '../modules/areas/area.service.js';
 import { AuthService } from '../modules/auth/auth.service.js';
+import { GardenBackgroundService } from '../modules/gardens/garden-background.service.js';
 import { GardenService } from '../modules/gardens/garden.service.js';
 import { NoteService } from '../modules/notes/note.service.js';
 import { PlantProfileService } from '../modules/plant-profiles/plant-profile.service.js';
@@ -29,7 +30,13 @@ import { PlantingRepositoryMongo } from '../repositories/mongodb/planting.reposi
 import { SeasonRepositoryMongo } from '../repositories/mongodb/season.repository.mongodb.js';
 import { TaskRepositoryMongo } from '../repositories/mongodb/task.repository.mongodb.js';
 import { UserRepositoryMongo } from '../repositories/mongodb/user.repository.mongodb.js';
+import { createFileStorageFromEnv } from './object-storage.js';
 import type { Env } from './env.js';
+import type { IFileStorageService } from '../services/file-storage/file-storage.interface.js';
+
+export interface ContainerBuildOptions {
+  fileStorage?: IFileStorageService;
+}
 
 export interface AppContainer {
   env: Env;
@@ -45,6 +52,7 @@ export interface AppContainer {
   activityLogRepo: IActivityLogRepository;
   noteRepo: INoteRepository;
   authService: AuthService;
+  gardenBackgroundService: GardenBackgroundService;
   gardenService: GardenService;
   areaService: AreaService;
   seasonService: SeasonService;
@@ -55,7 +63,8 @@ export interface AppContainer {
   noteService: NoteService;
 }
 
-export function buildContainer(env: Env): AppContainer {
+export function buildContainer(env: Env, options?: ContainerBuildOptions): AppContainer {
+  const fileStorage = options?.fileStorage ?? createFileStorageFromEnv(env);
   const userRepo = new UserRepositoryMongo();
   const allowedEmailRepo = new AllowedEmailRepositoryMongo();
   const gardenRepo = new GardenRepositoryMongo();
@@ -68,6 +77,7 @@ export function buildContainer(env: Env): AppContainer {
   const activityLogRepo = new ActivityLogRepositoryMongo();
   const noteRepo = new NoteRepositoryMongo();
   const authService = new AuthService(env, userRepo, allowedEmailRepo);
+  const gardenBackgroundService = new GardenBackgroundService(gardenRepo, fileStorage);
   const gardenService = new GardenService(
     gardenRepo,
     membershipRepo,
@@ -77,6 +87,7 @@ export function buildContainer(env: Env): AppContainer {
     taskRepo,
     activityLogRepo,
     noteRepo,
+    fileStorage,
   );
   const areaService = new AreaService(areaRepo, gardenRepo);
   const seasonService = new SeasonService(
@@ -111,6 +122,7 @@ export function buildContainer(env: Env): AppContainer {
     activityLogRepo,
     noteRepo,
     authService,
+    gardenBackgroundService,
     gardenService,
     areaService,
     seasonService,

@@ -14,7 +14,9 @@ export interface IGardenRepository {
   findByIds(ids: string[]): Promise<Garden[]>;
   update(
     id: string,
-    patch: Partial<Pick<Garden, 'name' | 'gridWidth' | 'gridHeight' | 'cellSizeMeters'>>,
+    patch: Partial<
+      Pick<Garden, 'name' | 'gridWidth' | 'gridHeight' | 'cellSizeMeters' | 'backgroundImageKey'>
+    >,
   ): Promise<Garden | null>;
   delete(id: string): Promise<boolean>;
 }

@@ -122,7 +122,10 @@ export async function apiFetch(
 
   const body = init.body;
   if (body !== undefined && body !== null && !headers.has('Content-Type')) {
-    headers.set('Content-Type', 'application/json');
+    const isFormData = typeof FormData !== 'undefined' && body instanceof FormData;
+    if (!isFormData) {
+      headers.set('Content-Type', 'application/json');
+    }
   }
 
   let res = await fetch(url, { ...init, headers, credentials: 'include' });
@@ -143,7 +146,10 @@ export async function apiFetch(
         retryHeaders.set('Authorization', `Bearer ${t}`);
       }
       if (body !== undefined && body !== null && !retryHeaders.has('Content-Type')) {
-        retryHeaders.set('Content-Type', 'application/json');
+        const isFormData = typeof FormData !== 'undefined' && body instanceof FormData;
+        if (!isFormData) {
+          retryHeaders.set('Content-Type', 'application/json');
+        }
       }
       res = await fetch(url, { ...init, headers: retryHeaders, credentials: 'include' });
     }

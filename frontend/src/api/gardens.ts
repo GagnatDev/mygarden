@@ -17,6 +17,8 @@ export interface Garden {
   createdBy: string;
   createdAt: string;
   updatedAt: string;
+  /** Path under API base when a tracing image exists; fetch with Bearer auth (e.g. blob URL for SVG). */
+  backgroundImageUrl: string | null;
 }
 
 export interface Area {
@@ -98,6 +100,23 @@ export async function patchGarden(
 export async function deleteGarden(gardenId: string): Promise<void> {
   const res = await apiFetch(`/gardens/${gardenId}`, { method: 'DELETE' });
   await throwUnlessOk(res);
+}
+
+export async function uploadGardenBackgroundImage(gardenId: string, file: File): Promise<Garden> {
+  const fd = new FormData();
+  fd.append('file', file);
+  const res = await apiFetch(`/gardens/${gardenId}/background-image`, {
+    method: 'PUT',
+    body: fd,
+  });
+  await throwUnlessOk(res);
+  return (await res.json()) as Garden;
+}
+
+export async function deleteGardenBackgroundImage(gardenId: string): Promise<Garden> {
+  const res = await apiFetch(`/gardens/${gardenId}/background-image`, { method: 'DELETE' });
+  await throwUnlessOk(res);
+  return (await res.json()) as Garden;
 }
 
 export async function listAreas(gardenId: string): Promise<Area[]> {

@@ -109,7 +109,12 @@
     "deleteGardenWarning": "This permanently removes the garden, all areas, seasons, and related data. This cannot be undone.",
     "deleteGardenConfirmButton": "Yes, delete garden",
     "hasPlantingsHint": "has plantings",
-    "plantingsThisSeason": "Plantings (this season)"
+    "plantingsThisSeason": "Plantings (this season)",
+    "backgroundUpload": "Map photo",
+    "backgroundRemove": "Remove photo",
+    "backgroundOpacity": "Photo opacity",
+    "backgroundUploading": "Uploading…",
+    "backgroundUploadFailed": "Could not update the map photo."
   },
   "planning": {
     "profilesHint": "Save plants you grow often, then pick them when planning beds.",
