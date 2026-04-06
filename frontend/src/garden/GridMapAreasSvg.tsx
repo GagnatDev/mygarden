@@ -69,8 +69,9 @@ export const GridMapAreasSvg = memo<GridMapAreasSvgProps>(function GridMapAreasS
         const y = a.gridY * cell;
         const w = a.gridWidth * cell;
         const h = a.gridHeight * cell;
-        const isPolygon = a.shape?.kind === 'polygon';
-        const polygonPts = isPolygon ? polygonPointsPx(a.shape.vertices, cell) : '';
+        const polygonShape = a.shape?.kind === 'polygon' ? a.shape : undefined;
+        const isPolygon = polygonShape !== undefined;
+        const polygonPts = polygonShape ? polygonPointsPx(polygonShape.vertices, cell) : '';
         const ariaLabel = hasPlantings ? `${a.name} (${t('garden.hasPlantingsHint')})` : a.name;
 
         const pointerEvents: React.SVGAttributes<SVGGElement>['pointerEvents'] =
