@@ -1,5 +1,6 @@
+import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { NavLink, Outlet, useNavigate } from 'react-router-dom';
+import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/useAuth';
 import { LanguageSwitcher } from '../components/LanguageSwitcher';
 import { OfflineIndicator } from '../components/OfflineIndicator';
@@ -21,10 +22,85 @@ function navClassName({ isActive }: { isActive: boolean }): string {
   ].join(' ');
 }
 
+function mobileDrawerNavClassName({ isActive }: { isActive: boolean }): string {
+  return [
+    'flex w-full items-center rounded-lg px-3 py-3 text-sm font-medium transition-colors',
+    isActive ? 'bg-emerald-100 text-emerald-900' : 'text-stone-600 hover:bg-stone-100',
+  ].join(' ');
+}
+
+function MenuGlyph({ open }: { open: boolean }) {
+  if (open) {
+    return (
+      <svg
+        width="24"
+        height="24"
+        viewBox="0 0 24 24"
+        aria-hidden
+        className="text-stone-800"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+      >
+        <path d="M6 6l12 12M18 6L6 18" />
+      </svg>
+    );
+  }
+  return (
+    <svg
+      width="24"
+      height="24"
+      viewBox="0 0 24 24"
+      aria-hidden
+      className="text-stone-800"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+    >
+      <path d="M4 7h16M4 12h16M4 17h16" />
+    </svg>
+  );
+}
+
 export function AppShell() {
   const { t } = useTranslation();
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
+
+  useEffect(() => {
+    setMobileNavOpen(false);
+  }, [location.pathname]);
+
+  useEffect(() => {
+    const mql = window.matchMedia('(min-width: 768px)');
+    const onViewportChange = () => {
+      if (mql.matches) setMobileNavOpen(false);
+    };
+    onViewportChange();
+    mql.addEventListener('change', onViewportChange);
+    return () => mql.removeEventListener('change', onViewportChange);
+  }, []);
+
+  useEffect(() => {
+    if (!mobileNavOpen) return;
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = prevOverflow;
+    };
+  }, [mobileNavOpen]);
+
+  useEffect(() => {
+    if (!mobileNavOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setMobileNavOpen(false);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [mobileNavOpen]);
 
   async function handleLogout() {
     await logout();
@@ -61,9 +137,20 @@ export function AppShell() {
         </div>
       </aside>
 
-      <div className="flex min-h-0 min-w-0 flex-1 flex-col pb-20 md:pb-0">
-        <header className="flex items-center justify-between gap-3 border-b border-stone-200 bg-white px-4 py-3 md:hidden">
-          <div className="min-w-0">
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+        <header className="flex items-center gap-2 border-b border-stone-200 bg-white px-3 py-3 md:hidden">
+          <button
+            type="button"
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-stone-200 bg-white text-stone-800 hover:bg-stone-50"
+            aria-expanded={mobileNavOpen}
+            aria-controls="mobile-nav-drawer"
+            aria-label={mobileNavOpen ? t('nav.closeMenu') : t('nav.openMenu')}
+            onClick={() => setMobileNavOpen((o) => !o)}
+            data-testid="mobile-menu-toggle"
+          >
+            <MenuGlyph open={mobileNavOpen} />
+          </button>
+          <div className="min-w-0 flex-1">
             <p className="font-semibold">{t('app.title')}</p>
             <p className="truncate text-xs text-stone-500" data-testid="user-display-name-mobile">
               {user?.displayName}
@@ -86,25 +173,51 @@ export function AppShell() {
         </main>
       </div>
 
-      <nav
-        className="fixed bottom-0 left-0 right-0 z-10 flex justify-around border-t border-stone-200 bg-white px-1 py-2 md:hidden"
-        aria-label={t('nav.main')}
-      >
-        {APP_NAV.map((item) => (
-          <NavLink
-            key={item.to}
-            to={item.to}
-            end={item.end}
-            className={({ isActive }) =>
-              `flex min-w-0 flex-1 flex-col items-center rounded-md px-1 py-1 text-[10px] font-medium ${
-                isActive ? 'text-emerald-800' : 'text-stone-500'
-              }`
-            }
+      {mobileNavOpen ? (
+        <div className="fixed inset-0 z-40 md:hidden">
+          <button
+            type="button"
+            className="absolute inset-0 bg-stone-900/40"
+            aria-label={t('nav.closeMenu')}
+            onClick={() => setMobileNavOpen(false)}
+            data-testid="mobile-nav-backdrop"
+          />
+          <div
+            id="mobile-nav-drawer"
+            role="dialog"
+            aria-modal="true"
+            aria-label={t('nav.main')}
+            data-testid="mobile-nav-drawer"
+            className="absolute inset-y-0 left-0 z-50 flex w-full max-w-sm flex-col border-r border-stone-200 bg-white shadow-xl"
           >
-            <span className="truncate text-center">{t(item.key)}</span>
-          </NavLink>
-        ))}
-      </nav>
+            <div className="flex items-center justify-between border-b border-stone-100 px-4 py-3">
+              <p className="text-lg font-semibold tracking-tight">{t('app.title')}</p>
+              <button
+                type="button"
+                className="flex h-10 w-10 items-center justify-center rounded-lg border border-stone-200 hover:bg-stone-50"
+                aria-label={t('nav.closeMenu')}
+                onClick={() => setMobileNavOpen(false)}
+                data-testid="mobile-nav-drawer-close"
+              >
+                <MenuGlyph open />
+              </button>
+            </div>
+            <nav className="flex flex-1 flex-col gap-1 overflow-y-auto p-3" aria-label={t('nav.main')}>
+              {APP_NAV.map((item) => (
+                <NavLink
+                  key={item.to}
+                  to={item.to}
+                  end={item.end}
+                  className={mobileDrawerNavClassName}
+                  onClick={() => setMobileNavOpen(false)}
+                >
+                  {t(item.key)}
+                </NavLink>
+              ))}
+            </nav>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }
