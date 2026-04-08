@@ -13,11 +13,14 @@ interface OfflineDB extends DBSchema {
       method: string;
       body: string | null;
       createdAt: number;
+      /** Monotonic per-tab; breaks ties when two enqueues share the same millisecond. */
+      enqueueSeq?: number;
     };
   };
 }
 
 let dbPromise: Promise<IDBPDatabase<OfflineDB>> | null = null;
+let enqueueSeq = 0;
 
 function getDb(): Promise<IDBPDatabase<OfflineDB>> {
   if (!dbPromise) {
@@ -48,6 +51,7 @@ export async function enqueueMutation(entry: Omit<QueuedMutation, 'id'> & { id?:
     method: entry.method,
     body: entry.body,
     createdAt: Date.now(),
+    enqueueSeq: enqueueSeq++,
   });
   return id;
 }
@@ -56,7 +60,10 @@ export async function listQueuedMutations(): Promise<QueuedMutation[]> {
   const db = await getDb();
   const all = await db.getAll(STORE);
   // Ensure FIFO replay regardless of IndexedDB key ordering.
-  all.sort((a, b) => a.createdAt - b.createdAt);
+  all.sort((a, b) => {
+    if (a.createdAt !== b.createdAt) return a.createdAt - b.createdAt;
+    return (a.enqueueSeq ?? 0) - (b.enqueueSeq ?? 0);
+  });
   return all.map((r) => ({ id: r.id, path: r.path, method: r.method, body: r.body }));
 }
 

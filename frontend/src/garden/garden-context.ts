@@ -8,7 +8,8 @@ export interface GardenContextValue {
   selectedGardenId: string | null;
   selectedGarden: Garden | null;
   setSelectedGardenId: (id: string | null) => void;
-  refreshGardens: () => Promise<void>;
+  /** When `soft`, updates the garden list without toggling the global loading state. */
+  refreshGardens: (opts?: { soft?: boolean }) => Promise<void>;
 }
 
 export const GardenContext = createContext<GardenContextValue | null>(null);

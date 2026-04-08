@@ -397,7 +397,7 @@ push to main
 - `JWT_REFRESH_SECRET` — secret for refresh tokens
 - `S3_ENDPOINT` — Scaleway Object Storage endpoint
 - `S3_BUCKET` — bucket name
-- `S3_ACCESS_KEY` / `S3_SECRET_KEY` — Object Storage credentials
+- `S3_ACCESS_KEY_ID` / `S3_SECRET_ACCESS_KEY` — Object Storage credentials
 - `NODE_ENV` — `production`
 - `PORT` — `8080` (Scaleway default)
 

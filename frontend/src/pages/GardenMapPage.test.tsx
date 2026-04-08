@@ -88,6 +88,7 @@ const garden = {
   createdBy: 'u1',
   createdAt: '',
   updatedAt: '',
+  backgroundImageUrl: null as string | null,
 };
 
 const area: Area = {

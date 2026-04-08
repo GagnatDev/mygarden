@@ -424,6 +424,7 @@ export function GardenMapPage() {
           ) : (
             <GridMapEditor
               garden={selectedGarden}
+              onGardenBackgroundChanged={() => void refreshGardens({ soft: true })}
               areas={areas}
               areaIdsWithPlantings={areaIdsWithPlantings}
               layer={layer}

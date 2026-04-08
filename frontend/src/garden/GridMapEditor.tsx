@@ -1,6 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import type { Area, Garden } from '../api/gardens';
+import {
+  deleteGardenBackgroundImage,
+  uploadGardenBackgroundImage,
+  type Area,
+  type Garden,
+} from '../api/gardens';
+import { apiFetch } from '../api/client';
 import type { AreaShape } from '../api/gardens';
 import { computeAlignmentGuides } from './alignment-guides';
 import { GridMapAreasSvg } from './GridMapAreasSvg';
@@ -110,6 +116,8 @@ export interface GridMapEditorProps {
   onToolChange: (t: MapTool) => void;
   /** When true, map is view-only (pan/zoom only, no new selections or area clicks). */
   readOnly?: boolean;
+  /** Called after a successful background upload or remove (e.g. refresh garden list). */
+  onGardenBackgroundChanged?: () => void | Promise<void>;
 }
 
 export function GridMapEditor({
@@ -131,8 +139,10 @@ export function GridMapEditor({
   tool,
   onToolChange,
   readOnly = false,
+  onGardenBackgroundChanged,
 }: GridMapEditorProps) {
   const { t } = useTranslation();
+  const backgroundImageUrl = garden.backgroundImageUrl ?? null;
   const effectiveTool: MapTool = readOnly ? 'pan' : tool;
   const containerRef = useRef<HTMLDivElement>(null);
   const worldRef = useRef<SVGSVGElement>(null);
@@ -157,6 +167,120 @@ export function GridMapEditor({
   /** While move tool is active: last area finished via pointer (nudge target + outline); not synced to parent. */
   const [moveNudgeAreaId, setMoveNudgeAreaId] = useState<string | null>(null);
   const [poly, setPoly] = useState<Array<{ x: number; y: number }> | null>(null);
+
+  const bgStorageKey = `mygarden.mapBgOpacity.${garden.id}`;
+  const [bgOpacityPct, setBgOpacityPct] = useState(50);
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(bgStorageKey);
+      if (raw == null) {
+        setBgOpacityPct(50);
+        return;
+      }
+      const n = Number(raw);
+      setBgOpacityPct(!Number.isFinite(n) ? 50 : Math.min(100, Math.max(0, n)));
+    } catch {
+      setBgOpacityPct(50);
+    }
+  }, [bgStorageKey]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(bgStorageKey, String(bgOpacityPct));
+    } catch {
+      /* ignore */
+    }
+  }, [bgStorageKey, bgOpacityPct]);
+
+  const [bgObjectUrl, setBgObjectUrl] = useState<string | null>(null);
+  const [bgActionBusy, setBgActionBusy] = useState(false);
+  const [bgActionError, setBgActionError] = useState<string | null>(null);
+  const bgFileInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (!backgroundImageUrl) {
+      setBgObjectUrl((prev) => {
+        if (prev) URL.revokeObjectURL(prev);
+        return null;
+      });
+      return;
+    }
+
+    let cancelled = false;
+    let createdUrl: string | null = null;
+
+    void (async () => {
+      try {
+        const res = await apiFetch(backgroundImageUrl);
+        if (!res.ok) {
+          if (!cancelled) {
+            setBgObjectUrl((prev) => {
+              if (prev) URL.revokeObjectURL(prev);
+              return null;
+            });
+          }
+          return;
+        }
+        const blob = await res.blob();
+        createdUrl = URL.createObjectURL(blob);
+        if (!cancelled) {
+          setBgObjectUrl((prev) => {
+            if (prev) URL.revokeObjectURL(prev);
+            return createdUrl;
+          });
+        } else if (createdUrl) {
+          URL.revokeObjectURL(createdUrl);
+        }
+      } catch {
+        if (!cancelled) {
+          setBgObjectUrl((prev) => {
+            if (prev) URL.revokeObjectURL(prev);
+            return null;
+          });
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+      setBgObjectUrl((prev) => {
+        if (prev) URL.revokeObjectURL(prev);
+        return null;
+      });
+    };
+  }, [backgroundImageUrl, garden.updatedAt]);
+
+  const onBackgroundFileSelected = useCallback(
+    async (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      e.target.value = '';
+      if (!file) return;
+      setBgActionBusy(true);
+      setBgActionError(null);
+      try {
+        await uploadGardenBackgroundImage(garden.id, file);
+        await onGardenBackgroundChanged?.();
+      } catch (err) {
+        setBgActionError(err instanceof Error ? err.message : t('garden.backgroundUploadFailed'));
+      } finally {
+        setBgActionBusy(false);
+      }
+    },
+    [garden.id, onGardenBackgroundChanged, t],
+  );
+
+  const onRemoveBackground = useCallback(async () => {
+    setBgActionBusy(true);
+    setBgActionError(null);
+    try {
+      await deleteGardenBackgroundImage(garden.id);
+      await onGardenBackgroundChanged?.();
+    } catch (err) {
+      setBgActionError(err instanceof Error ? err.message : t('garden.backgroundUploadFailed'));
+    } finally {
+      setBgActionBusy(false);
+    }
+  }, [garden.id, onGardenBackgroundChanged, t]);
 
   useEffect(() => {
     if (effectiveTool !== 'move') {
@@ -648,6 +772,57 @@ export function GridMapEditor({
           </select>
         </label>
         {toolbarAddon ? <div className="flex items-center gap-2">{toolbarAddon}</div> : null}
+        {!readOnly ? (
+          <div className="flex flex-wrap items-center gap-2 rounded-lg border border-stone-200 bg-white px-2 py-1.5 text-sm">
+            <input
+              ref={bgFileInputRef}
+              type="file"
+              accept="image/jpeg,image/png,image/webp"
+              className="sr-only"
+              data-testid="map-background-file-input"
+              onChange={onBackgroundFileSelected}
+            />
+            <button
+              type="button"
+              data-testid="map-background-upload"
+              disabled={bgActionBusy}
+              className="rounded-md px-2 py-1 font-medium text-stone-700 hover:bg-stone-50 disabled:opacity-50"
+              onClick={() => bgFileInputRef.current?.click()}
+            >
+              {bgActionBusy ? t('garden.backgroundUploading') : t('garden.backgroundUpload')}
+            </button>
+            {backgroundImageUrl ? (
+              <button
+                type="button"
+                data-testid="map-background-remove"
+                disabled={bgActionBusy}
+                className="rounded-md px-2 py-1 font-medium text-red-800 hover:bg-red-50 disabled:opacity-50"
+                onClick={() => void onRemoveBackground()}
+              >
+                {t('garden.backgroundRemove')}
+              </button>
+            ) : null}
+            {bgActionError ? (
+              <span className="text-xs text-red-600" role="alert">
+                {bgActionError}
+              </span>
+            ) : null}
+          </div>
+        ) : null}
+        {backgroundImageUrl ? (
+          <label className="flex items-center gap-2 text-sm text-stone-700">
+            <span className="font-medium">{t('garden.backgroundOpacity')}</span>
+            <input
+              data-testid="map-background-opacity"
+              type="range"
+              min={0}
+              max={100}
+              value={bgOpacityPct}
+              onChange={(e) => setBgOpacityPct(Number(e.target.value))}
+            />
+            <span className="tabular-nums text-stone-600">{bgOpacityPct}%</span>
+          </label>
+        ) : null}
         <div className="flex items-center gap-1">
           <button
             type="button"
@@ -711,6 +886,19 @@ export function GridMapEditor({
             onPointerCancel={onPointerCancel}
             onDoubleClick={onDoubleClick}
           >
+            {bgObjectUrl ? (
+              <image
+                data-testid="map-background-image"
+                href={bgObjectUrl}
+                x={0}
+                y={0}
+                width={worldW}
+                height={worldH}
+                preserveAspectRatio="xMidYMid slice"
+                opacity={bgOpacityPct / 100}
+                pointerEvents="none"
+              />
+            ) : null}
             <GridMapSvgGridLayer worldW={worldW} worldH={worldH} cell={CELL} />
 
             {historicalGhostAreas?.map((ga) => (

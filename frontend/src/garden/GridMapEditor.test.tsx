@@ -1,9 +1,15 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import i18n from 'i18next';
 import { I18nextProvider, initReactI18next } from 'react-i18next';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Area, Garden } from '../api/gardens';
 import { CELL, GridMapEditor } from './GridMapEditor';
+
+const { apiFetchMock } = vi.hoisted(() => ({ apiFetchMock: vi.fn() }));
+
+vi.mock('../api/client', () => ({
+  apiFetch: (path: string, init?: RequestInit) => apiFetchMock(path, init),
+}));
 
 const garden: Garden = {
   id: 'g1',
@@ -14,6 +20,7 @@ const garden: Garden = {
   createdBy: 'u1',
   createdAt: '2020-01-01T00:00:00.000Z',
   updatedAt: '2020-01-01T00:00:00.000Z',
+  backgroundImageUrl: null,
 };
 
 const area: Area = {
@@ -58,6 +65,11 @@ async function testI18n() {
             zoomOut: 'Zoom out',
             gridAriaLabel: 'Grid {{width}} by {{height}}',
             hasPlantingsHint: 'has plantings',
+            backgroundUpload: 'Upload',
+            backgroundRemove: 'Remove',
+            backgroundOpacity: 'Opacity',
+            backgroundUploading: 'Uploading',
+            backgroundUploadFailed: 'Failed',
           },
         },
       },
@@ -66,6 +78,14 @@ async function testI18n() {
   });
   return instance;
 }
+
+beforeEach(() => {
+  apiFetchMock.mockReset();
+});
+
+afterEach(() => {
+  localStorage.clear();
+});
 
 function mockGridMapBoundingRect(map: HTMLElement, gw: number, gh: number) {
   const w = gw * CELL;
@@ -508,5 +528,68 @@ describe('GridMapEditor', () => {
     );
     expect(screen.getByTestId('map-area-polygon-a1')).toBeInTheDocument();
     expect(screen.getByTestId('map-area-a1')).toHaveAttribute('data-area-shape', 'polygon');
+  });
+
+  it('renders svg background image under the grid when url loads', async () => {
+    const pngB64 =
+      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
+    const bytes = Uint8Array.from(atob(pngB64), (ch) => ch.charCodeAt(0));
+    apiFetchMock.mockResolvedValue(
+      new Response(bytes, { status: 200, headers: { 'Content-Type': 'image/png' } }),
+    );
+    const onSelectArea = vi.fn();
+    const i18nInstance = await testI18n();
+    render(
+      <I18nextProvider i18n={i18nInstance}>
+        <GridMapEditor
+          garden={{ ...garden, backgroundImageUrl: '/gardens/g1/background-image' }}
+          areas={[area]}
+          selectedAreaId={null}
+          onSelectArea={onSelectArea}
+          onSelectionComplete={vi.fn()}
+          tool="select"
+          onToolChange={vi.fn()}
+        />
+      </I18nextProvider>,
+    );
+    await waitFor(() => {
+      expect(apiFetchMock.mock.calls.some((c) => c[0] === '/gardens/g1/background-image')).toBe(true);
+    });
+    await waitFor(() => {
+      expect(screen.getByTestId('map-background-image')).toBeInTheDocument();
+    });
+    const img = screen.getByTestId('map-background-image');
+    expect(img).toHaveAttribute('width', String(garden.gridWidth * CELL));
+    expect(img).toHaveAttribute('height', String(garden.gridHeight * CELL));
+    expect(img).toHaveAttribute('preserveAspectRatio', 'xMidYMid slice');
+    expect(apiFetchMock.mock.calls.some((c) => c[0] === '/gardens/g1/background-image')).toBe(true);
+  });
+
+  it('opacity slider updates rendered opacity and persists to localStorage', async () => {
+    apiFetchMock.mockResolvedValue(
+      new Response(new Uint8Array([1, 2, 3]), {
+        status: 200,
+        headers: { 'Content-Type': 'image/png' },
+      }),
+    );
+    const i18nInstance = await testI18n();
+    render(
+      <I18nextProvider i18n={i18nInstance}>
+        <GridMapEditor
+          garden={{ ...garden, backgroundImageUrl: '/gardens/g1/background-image' }}
+          areas={[area]}
+          selectedAreaId={null}
+          onSelectArea={vi.fn()}
+          onSelectionComplete={vi.fn()}
+          tool="select"
+          onToolChange={vi.fn()}
+        />
+      </I18nextProvider>,
+    );
+    const slider = await waitFor(() => screen.getByTestId('map-background-opacity'));
+    fireEvent.change(slider, { target: { value: '30' } });
+    const img = screen.getByTestId('map-background-image');
+    expect(img.getAttribute('opacity')).toBe('0.3');
+    expect(localStorage.getItem('mygarden.mapBgOpacity.g1')).toBe('30');
   });
 });

@@ -74,6 +74,7 @@ describe('GardenCreateForm', () => {
           createdBy: 'u1',
           createdAt: '2020-01-01T00:00:00.000Z',
           updatedAt: '2020-01-01T00:00:00.000Z',
+          backgroundImageUrl: null,
         }),
         { status: 201, headers: { 'Content-Type': 'application/json' } },
       ),

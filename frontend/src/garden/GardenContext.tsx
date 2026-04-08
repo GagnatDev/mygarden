@@ -16,8 +16,11 @@ export function GardenProvider({ children }: { children: ReactNode }) {
     }
   });
 
-  const refreshGardens = useCallback(async () => {
-    setLoading(true);
+  const refreshGardens = useCallback(async (opts?: { soft?: boolean }) => {
+    const soft = opts?.soft === true;
+    if (!soft) {
+      setLoading(true);
+    }
     setError(null);
     try {
       const list = await listGardens();
@@ -36,9 +39,13 @@ export function GardenProvider({ children }: { children: ReactNode }) {
         return next;
       });
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to load gardens');
+      if (!soft) {
+        setError(e instanceof Error ? e.message : 'Failed to load gardens');
+      }
     } finally {
-      setLoading(false);
+      if (!soft) {
+        setLoading(false);
+      }
     }
   }, []);
 
