@@ -13,7 +13,7 @@ export function createFileStorageFromEnv(env: Env): IFileStorageService {
     return new NoopFileStorageService();
   }
   const client = new S3Client({
-    region: env.S3_REGION ?? 'us-east-1',
+    region: env.S3_REGION ?? 'fr-par',
     ...(env.S3_ENDPOINT
       ? { endpoint: env.S3_ENDPOINT, forcePathStyle: true as const }
       : {}),

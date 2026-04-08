@@ -24,8 +24,8 @@ Object Storage keys below are injected by the Scaleway deploy workflow for futur
 |----------|--------|
 | `S3_ENDPOINT` | Scaleway Object Storage endpoint URL. |
 | `S3_BUCKET` | Bucket name. |
-| `S3_ACCESS_KEY` | API access key. |
-| `S3_SECRET_KEY` | API secret key. |
+| `S3_ACCESS_KEY_ID` | API access key ID. |
+| `S3_SECRET_ACCESS_KEY` | API secret access key. |
 
 ## GitHub Actions — Scaleway deploy
 
@@ -52,8 +52,8 @@ GitHub secret names use an `APP_` prefix; the workflow maps them to container en
 | `APP_ADMIN_EMAIL` | `ADMIN_EMAIL` |
 | `APP_S3_ENDPOINT` | `S3_ENDPOINT` |
 | `APP_S3_BUCKET` | `S3_BUCKET` |
-| `APP_S3_ACCESS_KEY` | `S3_ACCESS_KEY` |
-| `APP_S3_SECRET_KEY` | `S3_SECRET_KEY` |
+| `APP_S3_ACCESS_KEY_ID` | `S3_ACCESS_KEY_ID` |
+| `APP_S3_SECRET_ACCESS_KEY` | `S3_SECRET_ACCESS_KEY` |
 
 Uses [GagnatDev/scaleway-gh-action](https://github.com/GagnatDev/scaleway-gh-action): `registry-login` and `container-manage`.
 

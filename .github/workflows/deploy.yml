@@ -65,6 +65,7 @@ jobs:
               {"key":"ADMIN_EMAIL","value":"${{ secrets.APP_ADMIN_EMAIL }}"},
               {"key":"S3_ENDPOINT","value":"${{ secrets.APP_S3_ENDPOINT }}"},
               {"key":"S3_BUCKET","value":"${{ secrets.APP_S3_BUCKET }}"},
-              {"key":"S3_ACCESS_KEY","value":"${{ secrets.APP_S3_ACCESS_KEY }}"},
-              {"key":"S3_SECRET_KEY","value":"${{ secrets.APP_S3_SECRET_KEY }}"}
+              {"key":"S3_REGION","value":"${{ secrets.APP_S3_REGION }}"},
+              {"key":"S3_ACCESS_KEY_ID","value":"${{ secrets.APP_S3_ACCESS_KEY_ID }}"},
+              {"key":"S3_SECRET_ACCESS_KEY","value":"${{ secrets.APP_S3_SECRET_ACCESS_KEY }}"}
             ]
