@@ -9,9 +9,11 @@
     "lint": "pnpm -r run lint",
     "typecheck": "pnpm -r run typecheck",
     "test": "pnpm -r run test",
-    "build": "pnpm -r run build"
+    "build": "pnpm -r run build",
+    "dev:local": "bash scripts/dev-local.sh"
   },
   "devDependencies": {
+    "concurrently": "^9.1.2",
     "@eslint/js": "^9.21.0",
     "eslint": "^9.21.0",
     "eslint-plugin-react-hooks": "^5.1.0",
