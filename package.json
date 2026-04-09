@@ -10,7 +10,8 @@
     "typecheck": "pnpm -r run typecheck",
     "test": "pnpm -r run test",
     "build": "pnpm -r run build",
-    "dev:local": "bash scripts/dev-local.sh"
+    "dev:local": "bash scripts/dev-local.sh",
+    "db:clean": "docker compose down -v --remove-orphans && docker compose -f docker-compose.dev.yml down -v --remove-orphans"
   },
   "devDependencies": {
     "concurrently": "^9.1.2",
