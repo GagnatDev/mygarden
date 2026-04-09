@@ -17,6 +17,11 @@ import {
   polygonVerticesToGridBBox,
   translateVertices,
 } from './polygon-helpers';
+import {
+  MAX_MAP_SCALE,
+  MIN_MAP_SCALE,
+  zoomToFocal,
+} from './view-helpers';
 
 /** CSS pixels per grid cell (world space). Exported for tests. */
 export const CELL = 28;
@@ -160,7 +165,22 @@ export function GridMapEditor({
       }
     | null
   >(null);
-  const pinchRef = useRef<{ dist: number; scale: number } | null>(null);
+  const pinchRef = useRef<{
+    dist: number;
+    scale: number;
+    containerRect: {
+      left: number;
+      top: number;
+      width: number;
+      height: number;
+    };
+  } | null>(null);
+  const wheelAccumRef = useRef<{
+    factor: number;
+    focalX: number;
+    focalY: number;
+  } | null>(null);
+  const wheelRafRef = useRef<number | null>(null);
   const [preview, setPreview] = useState<GridSelection | null>(null);
   const moveRef = useRef<MoveDragState | null>(null);
   const [move, setMove] = useState<MoveDragState | null>(null);
@@ -408,16 +428,48 @@ export function GridMapEditor({
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
+
+    const flushWheel = () => {
+      wheelRafRef.current = null;
+      const acc = wheelAccumRef.current;
+      wheelAccumRef.current = null;
+      if (!acc) return;
+      const r = el.getBoundingClientRect();
+      const containerRect = {
+        left: r.left,
+        top: r.top,
+        width: r.width,
+        height: r.height,
+      };
+      setView((v) => {
+        const nextScale = clamp(v.scale * acc.factor, MIN_MAP_SCALE, MAX_MAP_SCALE);
+        return zoomToFocal(v, containerRect, acc.focalX, acc.focalY, nextScale);
+      });
+    };
+
     const onWheel = (wheelEvent: WheelEvent) => {
       wheelEvent.preventDefault();
       const factor = Math.exp(-wheelEvent.deltaY * 0.001);
-      setView((v) => {
-        const nextScale = clamp(v.scale * factor, 0.35, 4);
-        return { ...v, scale: nextScale };
-      });
+      const prev = wheelAccumRef.current;
+      wheelAccumRef.current = {
+        factor: (prev?.factor ?? 1) * factor,
+        focalX: wheelEvent.clientX,
+        focalY: wheelEvent.clientY,
+      };
+      if (wheelRafRef.current == null) {
+        wheelRafRef.current = requestAnimationFrame(flushWheel);
+      }
     };
+
     el.addEventListener('wheel', onWheel, { passive: false });
-    return () => el.removeEventListener('wheel', onWheel);
+    return () => {
+      el.removeEventListener('wheel', onWheel);
+      if (wheelRafRef.current != null) {
+        cancelAnimationFrame(wheelRafRef.current);
+        wheelRafRef.current = null;
+      }
+      wheelAccumRef.current = null;
+    };
   }, []);
 
   useEffect(() => {
@@ -620,9 +672,21 @@ export function GridMapEditor({
 
   const onTouchStart = (e: React.TouchEvent) => {
     if (e.touches.length === 2) {
+      const containerEl = containerRef.current;
+      if (!containerEl) return;
       const [a, b] = [e.touches[0]!, e.touches[1]!];
       const dist = Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY);
-      pinchRef.current = { dist, scale: view.scale };
+      const r = containerEl.getBoundingClientRect();
+      pinchRef.current = {
+        dist,
+        scale: view.scale,
+        containerRect: {
+          left: r.left,
+          top: r.top,
+          width: r.width,
+          height: r.height,
+        },
+      };
     }
   };
 
@@ -645,8 +709,15 @@ export function GridMapEditor({
       const [a, b] = [e.touches[0]!, e.touches[1]!];
       const dist = Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY);
       const ratio = dist / pinchRef.current.dist;
-      const next = clamp(pinchRef.current.scale * ratio, 0.35, 4);
-      setView((v) => ({ ...v, scale: next }));
+      const nextScale = clamp(
+        pinchRef.current.scale * ratio,
+        MIN_MAP_SCALE,
+        MAX_MAP_SCALE,
+      );
+      const midX = (a.clientX + b.clientX) / 2;
+      const midY = (a.clientY + b.clientY) / 2;
+      const { containerRect } = pinchRef.current;
+      setView((v) => zoomToFocal(v, containerRect, midX, midY, nextScale));
     }
   };
 
@@ -827,7 +898,12 @@ export function GridMapEditor({
           <button
             type="button"
             className="rounded-lg border border-stone-200 px-2 py-1 text-sm"
-            onClick={() => setView((v) => ({ ...v, scale: clamp(v.scale / 1.15, 0.35, 4) }))}
+            onClick={() =>
+              setView((v) => ({
+                ...v,
+                scale: clamp(v.scale / 1.15, MIN_MAP_SCALE, MAX_MAP_SCALE),
+              }))
+            }
             aria-label={t('garden.zoomOut')}
           >
             −
@@ -835,7 +911,12 @@ export function GridMapEditor({
           <button
             type="button"
             className="rounded-lg border border-stone-200 px-2 py-1 text-sm"
-            onClick={() => setView((v) => ({ ...v, scale: clamp(v.scale * 1.15, 0.35, 4) }))}
+            onClick={() =>
+              setView((v) => ({
+                ...v,
+                scale: clamp(v.scale * 1.15, MIN_MAP_SCALE, MAX_MAP_SCALE),
+              }))
+            }
             aria-label={t('garden.zoomIn')}
           >
             +
