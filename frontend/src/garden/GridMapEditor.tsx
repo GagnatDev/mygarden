@@ -175,12 +175,15 @@ export function GridMapEditor({
       height: number;
     };
   } | null>(null);
-  const wheelAccumRef = useRef<{
-    factor: number;
-    focalX: number;
-    focalY: number;
-  } | null>(null);
+  type WheelAccum =
+    | { kind: 'zoom'; factor: number; focalX: number; focalY: number }
+    | { kind: 'pan'; dx: number; dy: number };
+  const wheelAccumRef = useRef<WheelAccum | null>(null);
   const wheelRafRef = useRef<number | null>(null);
+  const spaceHeldRef = useRef(false);
+  const [spaceHeld, setSpaceHeld] = useState(false);
+  /** True while pointer is down for a pan that started with Space held (for grab/grabbing cursor). */
+  const [spacePanPointerDown, setSpacePanPointerDown] = useState(false);
   const [preview, setPreview] = useState<GridSelection | null>(null);
   const moveRef = useRef<MoveDragState | null>(null);
   const [move, setMove] = useState<MoveDragState | null>(null);
@@ -429,11 +432,14 @@ export function GridMapEditor({
     const el = containerRef.current;
     if (!el) return;
 
-    const flushWheel = () => {
-      wheelRafRef.current = null;
+    const applyWheelAccum = () => {
       const acc = wheelAccumRef.current;
       wheelAccumRef.current = null;
       if (!acc) return;
+      if (acc.kind === 'pan') {
+        setView((v) => ({ ...v, tx: v.tx + acc.dx, ty: v.ty + acc.dy }));
+        return;
+      }
       const r = el.getBoundingClientRect();
       const containerRect = {
         left: r.left,
@@ -447,15 +453,52 @@ export function GridMapEditor({
       });
     };
 
+    const flushWheel = () => {
+      wheelRafRef.current = null;
+      applyWheelAccum();
+    };
+
     const onWheel = (wheelEvent: WheelEvent) => {
+      if (wheelEvent.ctrlKey || wheelEvent.metaKey) return;
       wheelEvent.preventDefault();
-      const factor = Math.exp(-wheelEvent.deltaY * 0.001);
+
+      let next: WheelAccum;
+      if (wheelEvent.shiftKey) {
+        const dx = wheelEvent.deltaX + wheelEvent.deltaY;
+        next = { kind: 'pan', dx, dy: 0 };
+      } else if (wheelEvent.altKey) {
+        next = { kind: 'pan', dx: 0, dy: wheelEvent.deltaY };
+      } else {
+        const factor = Math.exp(-wheelEvent.deltaY * 0.001);
+        next = {
+          kind: 'zoom',
+          factor,
+          focalX: wheelEvent.clientX,
+          focalY: wheelEvent.clientY,
+        };
+      }
+
       const prev = wheelAccumRef.current;
-      wheelAccumRef.current = {
-        factor: (prev?.factor ?? 1) * factor,
-        focalX: wheelEvent.clientX,
-        focalY: wheelEvent.clientY,
-      };
+      if (prev && prev.kind !== next.kind) {
+        applyWheelAccum();
+      }
+
+      const merged = wheelAccumRef.current;
+      if (next.kind === 'pan') {
+        wheelAccumRef.current = {
+          kind: 'pan',
+          dx: (merged?.kind === 'pan' ? merged.dx : 0) + next.dx,
+          dy: (merged?.kind === 'pan' ? merged.dy : 0) + next.dy,
+        };
+      } else {
+        wheelAccumRef.current = {
+          kind: 'zoom',
+          factor: (merged?.kind === 'zoom' ? merged.factor : 1) * next.factor,
+          focalX: next.focalX,
+          focalY: next.focalY,
+        };
+      }
+
       if (wheelRafRef.current == null) {
         wheelRafRef.current = requestAnimationFrame(flushWheel);
       }
@@ -469,6 +512,39 @@ export function GridMapEditor({
         wheelRafRef.current = null;
       }
       wheelAccumRef.current = null;
+    };
+  }, []);
+
+  const isSpacePanTargetIgnored = (target: EventTarget | null) => {
+    const el = target as HTMLElement | null;
+    return Boolean(el?.closest('input, textarea, select, [contenteditable="true"]'));
+  };
+
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.code !== 'Space') return;
+      if (isSpacePanTargetIgnored(e.target)) return;
+      if (e.repeat) return;
+      e.preventDefault();
+      spaceHeldRef.current = true;
+      setSpaceHeld(true);
+    };
+    const onKeyUp = (e: KeyboardEvent) => {
+      if (e.code !== 'Space') return;
+      spaceHeldRef.current = false;
+      setSpaceHeld(false);
+    };
+    const onBlur = () => {
+      spaceHeldRef.current = false;
+      setSpaceHeld(false);
+    };
+    window.addEventListener('keydown', onKeyDown);
+    window.addEventListener('keyup', onKeyUp);
+    window.addEventListener('blur', onBlur);
+    return () => {
+      window.removeEventListener('keydown', onKeyDown);
+      window.removeEventListener('keyup', onKeyUp);
+      window.removeEventListener('blur', onBlur);
     };
   }, []);
 
@@ -518,6 +594,13 @@ export function GridMapEditor({
     if (effectiveTool === 'pan') {
       (e.target as HTMLElement).setPointerCapture?.(e.pointerId);
       dragRef.current = { kind: 'pan', x: e.clientX, y: e.clientY };
+      return;
+    }
+    if (spaceHeldRef.current) {
+      e.preventDefault();
+      (e.target as HTMLElement).setPointerCapture?.(e.pointerId);
+      dragRef.current = { kind: 'pan', x: e.clientX, y: e.clientY };
+      setSpacePanPointerDown(true);
       return;
     }
     if (effectiveTool === 'move') {
@@ -649,6 +732,7 @@ export function GridMapEditor({
     const d = dragRef.current;
     if (d?.kind === 'pan') {
       dragRef.current = null;
+      setSpacePanPointerDown(false);
       return;
     }
     endDrag(e);
@@ -666,6 +750,7 @@ export function GridMapEditor({
     moveRef.current = null;
     setMove(null);
     dragRef.current = null;
+    setSpacePanPointerDown(false);
     setPreview(null);
     setPoly(null);
   };
@@ -946,6 +1031,7 @@ export function GridMapEditor({
         style={{ touchAction: 'none' }}
       >
         <div
+          data-testid="grid-map-viewport"
           className="absolute left-1/2 top-1/2"
           style={{
             transform: `translate(calc(-50% + ${view.tx}px), calc(-50% + ${view.ty}px)) scale(${view.scale})`,
@@ -955,6 +1041,9 @@ export function GridMapEditor({
           <svg
             ref={worldRef}
             className="bg-white shadow-sm"
+            style={{
+              cursor: spacePanPointerDown ? 'grabbing' : spaceHeld ? 'grab' : undefined,
+            }}
             width={worldW}
             height={worldH}
             viewBox={`0 0 ${worldW} ${worldH}`}

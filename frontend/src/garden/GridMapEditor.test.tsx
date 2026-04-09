@@ -87,6 +87,21 @@ afterEach(() => {
   localStorage.clear();
 });
 
+function parseMapViewportTransform(viewport: HTMLElement): { tx: number; ty: number; scale: number } {
+  const t = viewport.style.transform;
+  const m = t.match(
+    /translate\(calc\(-50% \+ ([-\d.]+)px\), calc\(-50% \+ ([-\d.]+)px\)\) scale\(([-\d.]+)\)/,
+  );
+  if (!m) throw new Error(`Could not parse transform: ${t}`);
+  return { tx: Number(m[1]), ty: Number(m[2]), scale: Number(m[3]) };
+}
+
+async function flushMapWheelRaf() {
+  await new Promise<void>((resolve) => {
+    requestAnimationFrame(() => resolve());
+  });
+}
+
 function mockGridMapBoundingRect(map: HTMLElement, gw: number, gh: number) {
   const w = gw * CELL;
   const h = gh * CELL;
@@ -591,5 +606,264 @@ describe('GridMapEditor', () => {
     const img = screen.getByTestId('map-background-image');
     expect(img.getAttribute('opacity')).toBe('0.3');
     expect(localStorage.getItem('mygarden.mapBgOpacity.g1')).toBe('30');
+  });
+
+  it('Space+drag pans in select mode without starting a selection preview', async () => {
+    const i18nInstance = await testI18n();
+    render(
+      <I18nextProvider i18n={i18nInstance}>
+        <GridMapEditor
+          garden={garden}
+          areas={[]}
+          selectedAreaId={null}
+          onSelectArea={vi.fn()}
+          onSelectionComplete={vi.fn()}
+          tool="select"
+          onToolChange={vi.fn()}
+        />
+      </I18nextProvider>,
+    );
+
+    const map = screen.getByTestId('grid-map');
+    const viewport = screen.getByTestId('grid-map-viewport');
+    mockGridMapBoundingRect(map, garden.gridWidth, garden.gridHeight);
+
+    fireEvent.keyDown(document.body, { code: 'Space', key: ' ' });
+    expect(map).toHaveStyle({ cursor: 'grab' });
+
+    const before = parseMapViewportTransform(viewport);
+    fireEvent.pointerDown(map, {
+      clientX: 40,
+      clientY: 40,
+      pointerId: 1,
+      pointerType: 'mouse',
+      button: 0,
+      buttons: 1,
+    });
+    expect(map).toHaveStyle({ cursor: 'grabbing' });
+
+    fireEvent.pointerMove(map, {
+      clientX: 40 + 30,
+      clientY: 40 + 20,
+      pointerId: 1,
+      pointerType: 'mouse',
+      buttons: 1,
+    });
+    const after = parseMapViewportTransform(viewport);
+    expect(after.tx).toBeCloseTo(before.tx + 30, 5);
+    expect(after.ty).toBeCloseTo(before.ty + 20, 5);
+    expect(after.scale).toBe(before.scale);
+    expect(screen.queryByTestId('map-selection-preview')).toBeNull();
+
+    fireEvent.pointerUp(map, {
+      clientX: 40 + 30,
+      clientY: 40 + 20,
+      pointerId: 1,
+      pointerType: 'mouse',
+      button: 0,
+      buttons: 0,
+    });
+    fireEvent.keyUp(document.body, { code: 'Space', key: ' ' });
+  });
+
+  it('Space+drag during polygon draw pans without adding vertices', async () => {
+    const onSelectionComplete = vi.fn();
+    const i18nInstance = await testI18n();
+    render(
+      <I18nextProvider i18n={i18nInstance}>
+        <GridMapEditor
+          garden={garden}
+          areas={[]}
+          selectedAreaId={null}
+          onSelectArea={vi.fn()}
+          onSelectionComplete={onSelectionComplete}
+          tool="draw-polygon"
+          onToolChange={vi.fn()}
+        />
+      </I18nextProvider>,
+    );
+
+    const map = screen.getByTestId('grid-map');
+    const viewport = screen.getByTestId('grid-map-viewport');
+    mockGridMapBoundingRect(map, garden.gridWidth, garden.gridHeight);
+
+    fireEvent.pointerDown(map, { clientX: CELL * 0.5, clientY: CELL * 0.5, button: 0, pointerId: 1 });
+    fireEvent.pointerDown(map, { clientX: CELL * 2.5, clientY: CELL * 0.5, button: 0, pointerId: 2 });
+    expect(screen.getByTestId('map-polygon-draft').querySelectorAll('circle')).toHaveLength(2);
+
+    fireEvent.keyDown(document.body, { code: 'Space', key: ' ' });
+    const before = parseMapViewportTransform(viewport);
+    fireEvent.pointerDown(map, {
+      clientX: 10,
+      clientY: 10,
+      pointerId: 3,
+      pointerType: 'mouse',
+      button: 0,
+      buttons: 1,
+    });
+    fireEvent.pointerMove(map, {
+      clientX: 40,
+      clientY: 30,
+      pointerId: 3,
+      pointerType: 'mouse',
+      buttons: 1,
+    });
+    const after = parseMapViewportTransform(viewport);
+    expect(after.tx).not.toBe(before.tx);
+    expect(screen.getByTestId('map-polygon-draft').querySelectorAll('circle')).toHaveLength(2);
+    expect(onSelectionComplete).not.toHaveBeenCalled();
+
+    fireEvent.pointerUp(map, {
+      clientX: 40,
+      clientY: 30,
+      pointerId: 3,
+      pointerType: 'mouse',
+      button: 0,
+      buttons: 0,
+    });
+    fireEvent.keyUp(document.body, { code: 'Space', key: ' ' });
+  });
+
+  it('does not switch an in-progress marquee to Space+pan when Space is pressed mid-drag', async () => {
+    const onSelectionComplete = vi.fn();
+    const i18nInstance = await testI18n();
+    render(
+      <I18nextProvider i18n={i18nInstance}>
+        <GridMapEditor
+          garden={garden}
+          areas={[]}
+          selectedAreaId={null}
+          onSelectArea={vi.fn()}
+          onSelectionComplete={onSelectionComplete}
+          tool="select"
+          onToolChange={vi.fn()}
+        />
+      </I18nextProvider>,
+    );
+
+    const map = screen.getByTestId('grid-map');
+    const viewport = screen.getByTestId('grid-map-viewport');
+    mockGridMapBoundingRect(map, garden.gridWidth, garden.gridHeight);
+
+    const before = parseMapViewportTransform(viewport);
+    fireEvent.pointerDown(map, {
+      clientX: CELL * 0.5,
+      clientY: CELL * 0.5,
+      pointerId: 1,
+      pointerType: 'mouse',
+      button: 0,
+      buttons: 1,
+    });
+    fireEvent.keyDown(document.body, { code: 'Space', key: ' ' });
+    fireEvent.pointerMove(map, {
+      clientX: CELL * 2.5,
+      clientY: CELL * 1.5,
+      pointerId: 1,
+      pointerType: 'mouse',
+      buttons: 1,
+    });
+    expect(parseMapViewportTransform(viewport).tx).toBe(before.tx);
+    expect(parseMapViewportTransform(viewport).ty).toBe(before.ty);
+    expect(screen.getByTestId('map-selection-preview')).toBeInTheDocument();
+
+    fireEvent.pointerUp(map, {
+      clientX: CELL * 2.5,
+      clientY: CELL * 1.5,
+      pointerId: 1,
+      pointerType: 'mouse',
+      button: 0,
+      buttons: 0,
+    });
+    fireEvent.keyUp(document.body, { code: 'Space', key: ' ' });
+    expect(onSelectionComplete).toHaveBeenCalledTimes(1);
+  });
+
+  it('Shift+wheel pans horizontally without changing scale; Alt+wheel pans vertically; plain wheel changes scale', async () => {
+    const i18nInstance = await testI18n();
+    render(
+      <I18nextProvider i18n={i18nInstance}>
+        <GridMapEditor
+          garden={garden}
+          areas={[]}
+          selectedAreaId={null}
+          onSelectArea={vi.fn()}
+          onSelectionComplete={vi.fn()}
+          tool="select"
+          onToolChange={vi.fn()}
+        />
+      </I18nextProvider>,
+    );
+
+    const container = screen.getByTestId('grid-map-container');
+    const viewport = screen.getByTestId('grid-map-viewport');
+    vi.spyOn(container, 'getBoundingClientRect').mockReturnValue({
+      x: 0,
+      y: 0,
+      width: 400,
+      height: 300,
+      top: 0,
+      left: 0,
+      right: 400,
+      bottom: 300,
+      toJSON: () => ({}),
+    } as DOMRect);
+
+    const initial = parseMapViewportTransform(viewport);
+
+    container.dispatchEvent(
+      new WheelEvent('wheel', {
+        bubbles: true,
+        cancelable: true,
+        deltaX: 0,
+        deltaY: 40,
+        clientX: 100,
+        clientY: 100,
+        shiftKey: true,
+      }),
+    );
+    await flushMapWheelRaf();
+    await waitFor(() => {
+      const v = parseMapViewportTransform(viewport);
+      expect(v.scale).toBe(initial.scale);
+      expect(v.tx).not.toBe(initial.tx);
+      expect(v.ty).toBe(initial.ty);
+    });
+    const afterShift = parseMapViewportTransform(viewport);
+
+    container.dispatchEvent(
+      new WheelEvent('wheel', {
+        bubbles: true,
+        cancelable: true,
+        deltaX: 0,
+        deltaY: 35,
+        clientX: 100,
+        clientY: 100,
+        altKey: true,
+      }),
+    );
+    await flushMapWheelRaf();
+    await waitFor(() => {
+      const v = parseMapViewportTransform(viewport);
+      expect(v.scale).toBe(afterShift.scale);
+      expect(v.tx).toBe(afterShift.tx);
+      expect(v.ty).not.toBe(afterShift.ty);
+    });
+    const afterAlt = parseMapViewportTransform(viewport);
+
+    container.dispatchEvent(
+      new WheelEvent('wheel', {
+        bubbles: true,
+        cancelable: true,
+        deltaX: 0,
+        deltaY: -120,
+        clientX: 150,
+        clientY: 120,
+      }),
+    );
+    await flushMapWheelRaf();
+    await waitFor(() => {
+      const v = parseMapViewportTransform(viewport);
+      expect(v.scale).not.toBe(afterAlt.scale);
+    });
   });
 });
