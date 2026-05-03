@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link, Navigate, useParams } from 'react-router-dom';
-import { patchGarden } from '../api/gardens';
+import { deleteGarden, patchGarden } from '../api/gardens';
 import type { Area } from '../api/areas';
 import { deleteArea, listAreas } from '../api/areas';
 import { AreaCreateModal } from '../garden/AreaCreateModal';
@@ -20,6 +20,9 @@ export function GardenAreasPage() {
   const [nameError, setNameError] = useState<string | null>(null);
 
   const [createModalOpen, setCreateModalOpen] = useState(false);
+  const [deleteGardenConfirm, setDeleteGardenConfirm] = useState(false);
+  const [deleteGardenBusy, setDeleteGardenBusy] = useState(false);
+  const [deleteGardenError, setDeleteGardenError] = useState<string | null>(null);
 
   const selectedGarden = gardens.find((g) => g.id === gardenId) ?? null;
 
@@ -70,6 +73,21 @@ export function GardenAreasPage() {
       await loadAreas();
     } catch {
       /* ignore */
+    }
+  }
+
+  async function handleDeleteGarden() {
+    if (!selectedGarden) return;
+    setDeleteGardenBusy(true);
+    setDeleteGardenError(null);
+    try {
+      await deleteGarden(selectedGarden.id);
+      setDeleteGardenConfirm(false);
+      await refreshGardens();
+    } catch (e) {
+      setDeleteGardenError(e instanceof Error ? e.message : t('auth.unknownError'));
+    } finally {
+      setDeleteGardenBusy(false);
     }
   }
 
@@ -144,6 +162,47 @@ export function GardenAreasPage() {
             </div>
           )}
           {nameError ? <p className="mt-2 text-sm text-red-600">{nameError}</p> : null}
+        </div>
+        <div className="flex flex-col gap-3 md:items-end">
+          {deleteGardenError ? (
+            <p className="max-w-md text-sm text-red-600 md:text-right">{deleteGardenError}</p>
+          ) : null}
+          {!deleteGardenConfirm ? (
+            <button
+              type="button"
+              className="self-start rounded-lg border border-red-200 px-3 py-2 text-sm font-medium text-red-800 hover:bg-red-50 md:self-end"
+              onClick={() => {
+                setDeleteGardenConfirm(true);
+                setDeleteGardenError(null);
+              }}
+            >
+              {t('garden.deleteGarden')}
+            </button>
+          ) : (
+            <div className="w-full max-w-md rounded-xl border border-red-200 bg-red-50 p-4 md:text-right">
+              <p className="text-left text-sm text-red-900 md:text-right">{t('garden.deleteGardenWarning')}</p>
+              <div className="mt-3 flex flex-wrap justify-start gap-2 md:justify-end">
+                <button
+                  type="button"
+                  className="rounded-lg border border-stone-200 bg-white px-3 py-2 text-sm font-medium text-stone-700"
+                  onClick={() => {
+                    setDeleteGardenConfirm(false);
+                    setDeleteGardenError(null);
+                  }}
+                >
+                  {t('garden.cancel')}
+                </button>
+                <button
+                  type="button"
+                  disabled={deleteGardenBusy}
+                  className="rounded-lg bg-red-700 px-3 py-2 text-sm font-medium text-white disabled:opacity-60"
+                  onClick={() => void handleDeleteGarden()}
+                >
+                  {deleteGardenBusy ? t('auth.submitting') : t('garden.deleteGardenConfirmButton')}
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 

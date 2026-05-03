@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link, Navigate, useParams } from 'react-router-dom';
 import type { Season } from '../api/gardens';
-import { deleteGarden, listSeasons } from '../api/gardens';
+import { listSeasons } from '../api/gardens';
 import type { Area } from '../api/areas';
 import { getArea } from '../api/areas';
 import type { Element } from '../api/elements';
@@ -37,10 +37,6 @@ export function AreaMapPage() {
   const [pendingSelection, setPendingSelection] = useState<ElementDraftSelection | null>(null);
   const [tool, setTool] = useState<MapTool>('select');
   const [layer, setLayer] = useState<MapLayer>('element-type');
-  const [deleteGardenConfirm, setDeleteGardenConfirm] = useState(false);
-  const [deleteGardenBusy, setDeleteGardenBusy] = useState(false);
-  const [deleteGardenError, setDeleteGardenError] = useState<string | null>(null);
-
   const selectedGarden = useMemo(
     () => gardens.find((g) => g.id === gardenId) ?? null,
     [gardens, gardenId],
@@ -320,23 +316,6 @@ export function AreaMapPage() {
     };
   }, [gardenId, seasonId, elements, mapPlantings]);
 
-  async function handleDeleteGarden() {
-    if (!selectedGarden) return;
-    setDeleteGardenBusy(true);
-    setDeleteGardenError(null);
-    try {
-      await deleteGarden(selectedGarden.id);
-      setDeleteGardenConfirm(false);
-      setSelectedElementId(null);
-      setPendingSelection(null);
-      await refreshGardens();
-    } catch (e) {
-      setDeleteGardenError(e instanceof Error ? e.message : t('auth.unknownError'));
-    } finally {
-      setDeleteGardenBusy(false);
-    }
-  }
-
   if (!gardenId || !areaId) {
     return <Navigate to="/" replace />;
   }
@@ -384,76 +363,33 @@ export function AreaMapPage() {
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <div className="flex shrink-0 flex-col gap-4 md:flex-row md:items-start md:justify-between">
-        <div className="flex flex-1 flex-wrap items-start justify-between gap-3">
-          <div>
-            <nav className="text-sm text-stone-600">
-              <Link to="/" className="hover:underline">
-                {t('nav.home')}
-              </Link>
-              <span className="mx-1">/</span>
-              <Link to={`/gardens/${gardenId}`} className="hover:underline">
-                {selectedGarden.name}
-              </Link>
-              <span className="mx-1">/</span>
-              <span className="font-medium text-stone-900">{area.title}</span>
-            </nav>
-            <h1 className="mt-2 text-2xl font-semibold text-stone-900">{area.title}</h1>
-            {area.description ? <p className="mt-1 text-sm text-stone-600">{area.description}</p> : null}
-            <p className="mt-1 text-sm text-stone-600">{t('garden.mapHint')}</p>
-          </div>
-          {quickLogProps ? (
-            <button
-              type="button"
-              data-testid="map-quick-log"
-              className="shrink-0 rounded-lg bg-stone-800 px-3 py-2 text-sm font-medium text-white"
-              onClick={() => setQuickLogOpen(true)}
-            >
-              {t('planning.quickLog')}
-            </button>
-          ) : null}
+      <div className="flex shrink-0 flex-wrap items-start justify-between gap-3">
+        <div>
+          <nav className="text-sm text-stone-600">
+            <Link to="/" className="hover:underline">
+              {t('nav.home')}
+            </Link>
+            <span className="mx-1">/</span>
+            <Link to={`/gardens/${gardenId}`} className="hover:underline">
+              {selectedGarden.name}
+            </Link>
+            <span className="mx-1">/</span>
+            <span className="font-medium text-stone-900">{area.title}</span>
+          </nav>
+          <h1 className="mt-2 text-2xl font-semibold text-stone-900">{area.title}</h1>
+          {area.description ? <p className="mt-1 text-sm text-stone-600">{area.description}</p> : null}
+          <p className="mt-1 text-sm text-stone-600">{t('garden.mapHint')}</p>
         </div>
-        <div className="flex flex-col gap-3 md:items-end">
-          {deleteGardenError ? (
-            <p className="max-w-md text-sm text-red-600 md:text-right">{deleteGardenError}</p>
-          ) : null}
-          {!deleteGardenConfirm ? (
-            <button
-              type="button"
-              className="self-start rounded-lg border border-red-200 px-3 py-2 text-sm font-medium text-red-800 hover:bg-red-50 md:self-end"
-              onClick={() => {
-                setDeleteGardenConfirm(true);
-                setDeleteGardenError(null);
-              }}
-            >
-              {t('garden.deleteGarden')}
-            </button>
-          ) : (
-            <div className="w-full max-w-md rounded-xl border border-red-200 bg-red-50 p-4 md:text-right">
-              <p className="text-left text-sm text-red-900 md:text-right">{t('garden.deleteGardenWarning')}</p>
-              <div className="mt-3 flex flex-wrap justify-start gap-2 md:justify-end">
-                <button
-                  type="button"
-                  className="rounded-lg border border-stone-200 bg-white px-3 py-2 text-sm font-medium text-stone-700"
-                  onClick={() => {
-                    setDeleteGardenConfirm(false);
-                    setDeleteGardenError(null);
-                  }}
-                >
-                  {t('garden.cancel')}
-                </button>
-                <button
-                  type="button"
-                  disabled={deleteGardenBusy}
-                  className="rounded-lg bg-red-700 px-3 py-2 text-sm font-medium text-white disabled:opacity-60"
-                  onClick={() => void handleDeleteGarden()}
-                >
-                  {deleteGardenBusy ? t('auth.submitting') : t('garden.deleteGardenConfirmButton')}
-                </button>
-              </div>
-            </div>
-          )}
-        </div>
+        {quickLogProps ? (
+          <button
+            type="button"
+            data-testid="map-quick-log"
+            className="shrink-0 rounded-lg bg-stone-800 px-3 py-2 text-sm font-medium text-white"
+            onClick={() => setQuickLogOpen(true)}
+          >
+            {t('planning.quickLog')}
+          </button>
+        ) : null}
       </div>
 
       <div className="mt-6 flex min-h-0 flex-1 flex-col gap-4 md:flex-row md:items-stretch">
