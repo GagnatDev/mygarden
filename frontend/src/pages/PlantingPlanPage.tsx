@@ -301,69 +301,9 @@ export function PlantingPlanPage() {
 
       {error ? <p className="mt-2 text-sm text-red-600">{error}</p> : null}
 
-      {loading ? (
-        <p className="mt-4 text-stone-600">{t('auth.loading')}</p>
-      ) : (
-        <>
-          <section data-testid="indoor-unassigned-section" className="mt-6 space-y-3">
-            <h2 className="text-lg font-semibold text-stone-900">{t('planning.indoorUnassignedSection')}</h2>
-            {indoorUnassigned.length === 0 ? (
-              <p className="text-sm text-stone-500">{t('planning.noIndoorUnassigned')}</p>
-            ) : (
-              <ul className="divide-y divide-stone-100 rounded-xl border border-stone-200 bg-white px-4 text-sm text-stone-700">
-                {indoorUnassigned.map((pl) => (
-                  <PlantingListRow key={pl.id} pl={pl} {...rowProps} />
-                ))}
-              </ul>
-            )}
-          </section>
-
-          <section data-testid="plantings-by-area" className="mt-8 space-y-8">
-            {areas.map((area) => {
-              const els = elementsByAreaId.get(area.id) ?? [];
-              return (
-                <div key={area.id} data-testid={`area-block-${area.id}`} className="space-y-4">
-                  <h2 className="text-lg font-semibold text-stone-900">{area.title}</h2>
-                  {els.length === 0 ? (
-                    <p className="text-sm text-stone-500">{t('planning.noElementsInArea')}</p>
-                  ) : (
-                    els.map((element) => {
-                      const list = byElement.get(element.id) ?? [];
-                      return (
-                        <div
-                          key={element.id}
-                          data-testid={`element-plantings-${element.id}`}
-                          className="rounded-xl border border-stone-200 bg-white p-4"
-                        >
-                          <h3 className="font-semibold text-stone-900">
-                            {element.name}{' '}
-                            <span className="text-sm font-normal text-stone-500">
-                              ({t(`garden.areaTypes.${element.type}`)})
-                            </span>
-                          </h3>
-                          {list.length === 0 ? (
-                            <p className="mt-1 text-sm text-stone-500">{t('planning.noPlantingsInArea')}</p>
-                          ) : (
-                            <ul className="mt-2 divide-y divide-stone-100 text-sm text-stone-700">
-                              {list.map((pl) => (
-                                <PlantingListRow key={pl.id} pl={pl} {...rowProps} />
-                              ))}
-                            </ul>
-                          )}
-                        </div>
-                      );
-                    })
-                  )}
-                </div>
-              );
-            })}
-          </section>
-        </>
-      )}
-
       <form
         data-testid="add-planting-form"
-        className="mt-8 max-w-xl space-y-3 rounded-xl border border-stone-200 bg-white p-4"
+        className="mt-6 max-w-xl space-y-3 rounded-xl border border-stone-200 bg-white p-4"
         onSubmit={(e) => void handleAddPlanting(e)}
       >
         <h2 className="text-sm font-semibold text-stone-800">{t('planning.addPlanting')}</h2>
@@ -505,6 +445,66 @@ export function PlantingPlanPage() {
           {formBusy ? t('auth.submitting') : t('planning.savePlanting')}
         </button>
       </form>
+
+      {loading ? (
+        <p className="mt-4 text-stone-600">{t('auth.loading')}</p>
+      ) : (
+        <>
+          <section data-testid="indoor-unassigned-section" className="mt-6 space-y-3">
+            <h2 className="text-lg font-semibold text-stone-900">{t('planning.indoorUnassignedSection')}</h2>
+            {indoorUnassigned.length === 0 ? (
+              <p className="text-sm text-stone-500">{t('planning.noIndoorUnassigned')}</p>
+            ) : (
+              <ul className="divide-y divide-stone-100 rounded-xl border border-stone-200 bg-white px-4 text-sm text-stone-700">
+                {indoorUnassigned.map((pl) => (
+                  <PlantingListRow key={pl.id} pl={pl} {...rowProps} />
+                ))}
+              </ul>
+            )}
+          </section>
+
+          <section data-testid="plantings-by-area" className="mt-8 space-y-8">
+            {areas.map((area) => {
+              const els = elementsByAreaId.get(area.id) ?? [];
+              return (
+                <div key={area.id} data-testid={`area-block-${area.id}`} className="space-y-4">
+                  <h2 className="text-lg font-semibold text-stone-900">{area.title}</h2>
+                  {els.length === 0 ? (
+                    <p className="text-sm text-stone-500">{t('planning.noElementsInArea')}</p>
+                  ) : (
+                    els.map((element) => {
+                      const list = byElement.get(element.id) ?? [];
+                      return (
+                        <div
+                          key={element.id}
+                          data-testid={`element-plantings-${element.id}`}
+                          className="rounded-xl border border-stone-200 bg-white p-4"
+                        >
+                          <h3 className="font-semibold text-stone-900">
+                            {element.name}{' '}
+                            <span className="text-sm font-normal text-stone-500">
+                              ({t(`garden.areaTypes.${element.type}`)})
+                            </span>
+                          </h3>
+                          {list.length === 0 ? (
+                            <p className="mt-1 text-sm text-stone-500">{t('planning.noPlantingsInArea')}</p>
+                          ) : (
+                            <ul className="mt-2 divide-y divide-stone-100 text-sm text-stone-700">
+                              {list.map((pl) => (
+                                <PlantingListRow key={pl.id} pl={pl} {...rowProps} />
+                              ))}
+                            </ul>
+                          )}
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+              );
+            })}
+          </section>
+        </>
+      )}
 
       <section data-testid="activity-timeline" className="mt-10">
         <h2 className="text-lg font-semibold text-stone-900">{t('planning.activityTimeline')}</h2>
