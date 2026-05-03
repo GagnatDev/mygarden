@@ -195,6 +195,77 @@ describe('Planning: plant profiles, plantings, tasks, logs, notes (integration)'
       .expect(400);
   });
 
+  it('creates indoor planting without elementId or transplantDate', async () => {
+    const { token } = await registerWithToken(app, env, 'IndoorOnly');
+    const { gardenId, seasonId } = await createGardenWithSeasonAndElement(app, token);
+
+    const indoorSow = new Date('2026-03-01T12:00:00.000Z');
+    const res = await request(app)
+      .post(`/api/v1/gardens/${gardenId}/plantings`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        seasonId,
+        plantName: 'Tomato',
+        sowingMethod: 'indoor',
+        indoorSowDate: indoorSow.toISOString(),
+      })
+      .expect(201);
+    expect(res.body.elementId).toBeNull();
+    expect(res.body.transplantDate).toBeNull();
+  });
+
+  it('rejects direct outdoor planting without elementId', async () => {
+    const { token } = await registerWithToken(app, env, 'OutdoorNeedBed');
+    const { gardenId, seasonId } = await createGardenWithSeasonAndElement(app, token);
+
+    await request(app)
+      .post(`/api/v1/gardens/${gardenId}/plantings`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        seasonId,
+        plantName: 'Bean',
+        sowingMethod: 'direct_outdoor',
+        outdoorSowDate: new Date('2026-05-01T12:00:00.000Z').toISOString(),
+      })
+      .expect(400);
+  });
+
+  it('patches indoor planting from unassigned to an element', async () => {
+    const { token } = await registerWithToken(app, env, 'TransplantLater');
+    const { gardenId, seasonId, elementId } = await createGardenWithSeasonAndElement(app, token);
+
+    const indoorSow = new Date('2026-03-01T12:00:00.000Z');
+    const created = await request(app)
+      .post(`/api/v1/gardens/${gardenId}/plantings`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        seasonId,
+        plantName: 'Pepper',
+        sowingMethod: 'indoor',
+        indoorSowDate: indoorSow.toISOString(),
+      })
+      .expect(201);
+    const plantingId = created.body.id as string;
+    expect(created.body.elementId).toBeNull();
+
+    const patched = await request(app)
+      .patch(`/api/v1/gardens/${gardenId}/plantings/${plantingId}`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ elementId })
+      .expect(200);
+    expect(patched.body.elementId).toBe(elementId);
+
+    const tasks = await request(app)
+      .get(`/api/v1/gardens/${gardenId}/tasks?seasonId=${seasonId}`)
+      .set('Authorization', `Bearer ${token}`)
+      .expect(200);
+    const sowIndoor = tasks.body.find(
+      (t: { plantingId: string; autoKind: string }) =>
+        t.plantingId === plantingId && t.autoKind === 'sow_indoor',
+    );
+    expect(sowIndoor.elementId).toBe(elementId);
+  });
+
   it('auto-generates tasks on planting create/update and removes on delete', async () => {
     const { token } = await registerWithToken(app, env, 'Planner');
     const { gardenId, seasonId, elementId } = await createGardenWithSeasonAndElement(app, token);

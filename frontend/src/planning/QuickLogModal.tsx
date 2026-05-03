@@ -22,7 +22,7 @@ export interface QuickLogElementOption {
 export interface QuickLogPlantingOption {
   id: string;
   plantName: string;
-  elementId: string;
+  elementId: string | null;
 }
 
 export function QuickLogModal({

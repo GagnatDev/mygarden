@@ -12,7 +12,7 @@ function toPlanting(doc: PlantingDoc): Planting {
     id: doc._id,
     gardenId: doc.gardenId,
     seasonId: doc.seasonId,
-    elementId: doc.elementId,
+    elementId: doc.elementId ?? null,
     plantProfileId: doc.plantProfileId ?? null,
     plantName: doc.plantName,
     sowingMethod: doc.sowingMethod as SowingMethod,

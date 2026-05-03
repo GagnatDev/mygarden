@@ -6,7 +6,7 @@ const plantingSchema = new mongoose.Schema(
     _id: { type: String, required: true },
     gardenId: { type: String, required: true, index: true },
     seasonId: { type: String, required: true, index: true },
-    elementId: { type: String, required: true },
+    elementId: { type: String, default: null },
     plantProfileId: { type: String, default: null },
     plantName: { type: String, required: true, trim: true },
     sowingMethod: { type: String, enum: [...SOWING_METHODS], required: true },

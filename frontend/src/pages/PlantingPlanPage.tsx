@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState, type Dispatch, type SetStateAction } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { Area } from '../api/areas';
 import { listAreas } from '../api/areas';
@@ -11,7 +11,6 @@ import {
   listPlantings,
   patchPlanting,
   type Planting,
-  type SowingMethod,
 } from '../api/plantings';
 import { listPlantProfiles, type PlantProfile } from '../api/plantProfiles';
 import { useGardenContext } from '../garden/garden-context';
@@ -21,6 +20,89 @@ import { NotesSection } from '../components/NotesSection';
 import { QuickLogModal } from '../planning/QuickLogModal';
 
 type ElementWithArea = Element & { areaTitle: string };
+
+type PlanMode = 'outdoor' | 'indoor';
+
+function PlantingListRow({
+  pl,
+  gardenId,
+  seasonId,
+  elementsWithArea,
+  notesPlantingId,
+  setNotesPlantingId,
+  onMove,
+  onDelete,
+  t,
+}: {
+  pl: Planting;
+  gardenId: string;
+  seasonId: string;
+  elementsWithArea: ElementWithArea[];
+  notesPlantingId: string | null;
+  setNotesPlantingId: Dispatch<SetStateAction<string | null>>;
+  onMove: (plantingId: string, elementId: string) => void;
+  onDelete: (plantingId: string) => void;
+  t: (key: string) => string;
+}) {
+  return (
+    <li
+      data-testid={`planting-row-${pl.id}`}
+      className="flex flex-col gap-2 py-2 sm:flex-row sm:items-center sm:justify-between"
+    >
+      <span>
+        {pl.plantName} · {t(`planning.sowing.${pl.sowingMethod}`)}
+      </span>
+      <div className="flex flex-wrap items-center gap-2">
+        <button
+          type="button"
+          data-testid={`planting-notes-toggle-${pl.id}`}
+          className="rounded border border-stone-200 px-2 py-1 text-xs font-medium text-stone-800 hover:bg-stone-50"
+          onClick={() => setNotesPlantingId((cur) => (cur === pl.id ? null : pl.id))}
+        >
+          {t('notes.title')}
+        </button>
+        <label className="flex items-center gap-1 text-xs text-stone-600">
+          <span>{t('planning.moveToElement')}</span>
+          <select
+            data-testid={`planting-area-select-${pl.id}`}
+            className="max-w-[14rem] rounded border border-stone-300 px-2 py-1 text-sm text-stone-800"
+            value={pl.elementId ?? ''}
+            onChange={(e) => {
+              const v = e.target.value;
+              if (!v) return;
+              onMove(pl.id, v);
+            }}
+          >
+            {!pl.elementId ? <option value="">{t('planning.select')}</option> : null}
+            {elementsWithArea.map((el) => (
+              <option key={el.id} value={el.id}>
+                {el.areaTitle} · {el.name}
+              </option>
+            ))}
+          </select>
+        </label>
+        <button
+          type="button"
+          data-testid={`planting-delete-${pl.id}`}
+          className="rounded border border-red-200 px-2 py-1 text-xs font-medium text-red-800 hover:bg-red-50"
+          onClick={() => void onDelete(pl.id)}
+        >
+          {t('planning.removePlanting')}
+        </button>
+      </div>
+      {notesPlantingId === pl.id ? (
+        <NotesSection
+          className="mt-3 border-stone-200"
+          gardenId={gardenId}
+          seasonId={seasonId}
+          targetType="planting"
+          targetId={pl.id}
+          hideHeading
+        />
+      ) : null}
+    </li>
+  );
+}
 
 export function PlantingPlanPage() {
   const { t } = useTranslation();
@@ -38,11 +120,11 @@ export function PlantingPlanPage() {
   const [error, setError] = useState<string | null>(null);
   const [quickLogOpen, setQuickLogOpen] = useState(false);
 
+  const [planMode, setPlanMode] = useState<PlanMode>('outdoor');
   const [useProfile, setUseProfile] = useState(true);
   const [plantProfileId, setPlantProfileId] = useState('');
   const [adhocName, setAdhocName] = useState('');
   const [elementId, setElementId] = useState('');
-  const [sowingMethod, setSowingMethod] = useState<SowingMethod>('indoor');
   const [indoorSow, setIndoorSow] = useState('');
   const [transplant, setTransplant] = useState('');
   const [outdoorSow, setOutdoorSow] = useState('');
@@ -94,6 +176,11 @@ export function PlantingPlanPage() {
     return m;
   }, [plantings]);
 
+  const indoorUnassigned = useMemo(
+    () => plantings.filter((p) => p.sowingMethod === 'indoor' && p.elementId == null),
+    [plantings],
+  );
+
   const elementsByAreaId = useMemo(() => {
     const m = new Map<string, ElementWithArea[]>();
     for (const el of elementsWithArea) {
@@ -129,27 +216,38 @@ export function PlantingPlanPage() {
 
   async function handleAddPlanting(e: React.FormEvent) {
     e.preventDefault();
-    if (!selectedGarden || !seasonId || !elementId) return;
+    if (!selectedGarden || !seasonId) return;
+    if (planMode === 'outdoor' && !elementId) return;
     setFormBusy(true);
     setError(null);
     try {
-      const body: Parameters<typeof createPlanting>[1] = {
+      const harvestWindowStart = harvestStart
+        ? new Date(`${harvestStart}T12:00:00.000Z`).toISOString()
+        : null;
+      const base = {
         seasonId,
-        elementId,
-        sowingMethod,
-        harvestWindowStart: harvestStart ? new Date(`${harvestStart}T12:00:00.000Z`).toISOString() : null,
+        harvestWindowStart,
+        ...(useProfile && plantProfileId
+          ? { plantProfileId }
+          : { plantName: adhocName.trim() }),
       };
-      if (useProfile && plantProfileId) {
-        body.plantProfileId = plantProfileId;
-      } else {
-        body.plantName = adhocName.trim();
-      }
-      if (sowingMethod === 'indoor') {
-        body.indoorSowDate = new Date(`${indoorSow}T12:00:00.000Z`).toISOString();
-        body.transplantDate = new Date(`${transplant}T12:00:00.000Z`).toISOString();
-      } else {
-        body.outdoorSowDate = new Date(`${outdoorSow}T12:00:00.000Z`).toISOString();
-      }
+      const body: Parameters<typeof createPlanting>[1] =
+        planMode === 'outdoor'
+          ? {
+              ...base,
+              elementId,
+              sowingMethod: 'direct_outdoor',
+              outdoorSowDate: new Date(`${outdoorSow}T12:00:00.000Z`).toISOString(),
+            }
+          : {
+              ...base,
+              elementId: null,
+              sowingMethod: 'indoor',
+              indoorSowDate: new Date(`${indoorSow}T12:00:00.000Z`).toISOString(),
+              ...(transplant.trim()
+                ? { transplantDate: new Date(`${transplant}T12:00:00.000Z`).toISOString() }
+                : {}),
+            };
       await createPlanting(selectedGarden.id, body);
       setAdhocName('');
       await loadAll();
@@ -173,6 +271,17 @@ export function PlantingPlanPage() {
     return <p className="text-stone-600">{t('planning.noSeason')}</p>;
   }
 
+  const rowProps = {
+    gardenId: selectedGarden.id,
+    seasonId,
+    elementsWithArea,
+    notesPlantingId,
+    setNotesPlantingId,
+    onMove: handleMovePlanting,
+    onDelete: handleDeletePlanting,
+    t,
+  };
+
   return (
     <div data-testid="planting-plan-page">
       <div className="flex flex-wrap items-start justify-between gap-4">
@@ -195,99 +304,61 @@ export function PlantingPlanPage() {
       {loading ? (
         <p className="mt-4 text-stone-600">{t('auth.loading')}</p>
       ) : (
-        <section data-testid="plantings-by-area" className="mt-6 space-y-8">
-          {areas.map((area) => {
-            const els = elementsByAreaId.get(area.id) ?? [];
-            return (
-              <div key={area.id} data-testid={`area-block-${area.id}`} className="space-y-4">
-                <h2 className="text-lg font-semibold text-stone-900">{area.title}</h2>
-                {els.length === 0 ? (
-                  <p className="text-sm text-stone-500">{t('planning.noElementsInArea')}</p>
-                ) : (
-                  els.map((element) => {
-                    const list = byElement.get(element.id) ?? [];
-                    return (
-                      <div
-                        key={element.id}
-                        data-testid={`element-plantings-${element.id}`}
-                        className="rounded-xl border border-stone-200 bg-white p-4"
-                      >
-                        <h3 className="font-semibold text-stone-900">
-                          {element.name}{' '}
-                          <span className="text-sm font-normal text-stone-500">
-                            ({t(`garden.areaTypes.${element.type}`)})
-                          </span>
-                        </h3>
-                        {list.length === 0 ? (
-                          <p className="mt-1 text-sm text-stone-500">{t('planning.noPlantingsInArea')}</p>
-                        ) : (
-                          <ul className="mt-2 divide-y divide-stone-100 text-sm text-stone-700">
-                            {list.map((pl) => (
-                              <li
-                                key={pl.id}
-                                data-testid={`planting-row-${pl.id}`}
-                                className="flex flex-col gap-2 py-2 sm:flex-row sm:items-center sm:justify-between"
-                              >
-                                <span>
-                                  {pl.plantName} · {t(`planning.sowing.${pl.sowingMethod}`)}
-                                </span>
-                                <div className="flex flex-wrap items-center gap-2">
-                                  <button
-                                    type="button"
-                                    data-testid={`planting-notes-toggle-${pl.id}`}
-                                    className="rounded border border-stone-200 px-2 py-1 text-xs font-medium text-stone-800 hover:bg-stone-50"
-                                    onClick={() =>
-                                      setNotesPlantingId((cur) => (cur === pl.id ? null : pl.id))
-                                    }
-                                  >
-                                    {t('notes.title')}
-                                  </button>
-                                  <label className="flex items-center gap-1 text-xs text-stone-600">
-                                    <span>{t('planning.moveToElement')}</span>
-                                    <select
-                                      data-testid={`planting-area-select-${pl.id}`}
-                                      className="max-w-[14rem] rounded border border-stone-300 px-2 py-1 text-sm text-stone-800"
-                                      value={pl.elementId ?? ''}
-                                      onChange={(e) => void handleMovePlanting(pl.id, e.target.value)}
-                                    >
-                                      {elementsWithArea.map((el) => (
-                                        <option key={el.id} value={el.id}>
-                                          {el.areaTitle} · {el.name}
-                                        </option>
-                                      ))}
-                                    </select>
-                                  </label>
-                                  <button
-                                    type="button"
-                                    data-testid={`planting-delete-${pl.id}`}
-                                    className="rounded border border-red-200 px-2 py-1 text-xs font-medium text-red-800 hover:bg-red-50"
-                                    onClick={() => void handleDeletePlanting(pl.id)}
-                                  >
-                                    {t('planning.removePlanting')}
-                                  </button>
-                                </div>
-                                {notesPlantingId === pl.id ? (
-                                  <NotesSection
-                                    className="mt-3 border-stone-200"
-                                    gardenId={selectedGarden.id}
-                                    seasonId={seasonId}
-                                    targetType="planting"
-                                    targetId={pl.id}
-                                    hideHeading
-                                  />
-                                ) : null}
-                              </li>
-                            ))}
-                          </ul>
-                        )}
-                      </div>
-                    );
-                  })
-                )}
-              </div>
-            );
-          })}
-        </section>
+        <>
+          <section data-testid="indoor-unassigned-section" className="mt-6 space-y-3">
+            <h2 className="text-lg font-semibold text-stone-900">{t('planning.indoorUnassignedSection')}</h2>
+            {indoorUnassigned.length === 0 ? (
+              <p className="text-sm text-stone-500">{t('planning.noIndoorUnassigned')}</p>
+            ) : (
+              <ul className="divide-y divide-stone-100 rounded-xl border border-stone-200 bg-white px-4 text-sm text-stone-700">
+                {indoorUnassigned.map((pl) => (
+                  <PlantingListRow key={pl.id} pl={pl} {...rowProps} />
+                ))}
+              </ul>
+            )}
+          </section>
+
+          <section data-testid="plantings-by-area" className="mt-8 space-y-8">
+            {areas.map((area) => {
+              const els = elementsByAreaId.get(area.id) ?? [];
+              return (
+                <div key={area.id} data-testid={`area-block-${area.id}`} className="space-y-4">
+                  <h2 className="text-lg font-semibold text-stone-900">{area.title}</h2>
+                  {els.length === 0 ? (
+                    <p className="text-sm text-stone-500">{t('planning.noElementsInArea')}</p>
+                  ) : (
+                    els.map((element) => {
+                      const list = byElement.get(element.id) ?? [];
+                      return (
+                        <div
+                          key={element.id}
+                          data-testid={`element-plantings-${element.id}`}
+                          className="rounded-xl border border-stone-200 bg-white p-4"
+                        >
+                          <h3 className="font-semibold text-stone-900">
+                            {element.name}{' '}
+                            <span className="text-sm font-normal text-stone-500">
+                              ({t(`garden.areaTypes.${element.type}`)})
+                            </span>
+                          </h3>
+                          {list.length === 0 ? (
+                            <p className="mt-1 text-sm text-stone-500">{t('planning.noPlantingsInArea')}</p>
+                          ) : (
+                            <ul className="mt-2 divide-y divide-stone-100 text-sm text-stone-700">
+                              {list.map((pl) => (
+                                <PlantingListRow key={pl.id} pl={pl} {...rowProps} />
+                              ))}
+                            </ul>
+                          )}
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+              );
+            })}
+          </section>
+        </>
       )}
 
       <form
@@ -296,6 +367,36 @@ export function PlantingPlanPage() {
         onSubmit={(e) => void handleAddPlanting(e)}
       >
         <h2 className="text-sm font-semibold text-stone-800">{t('planning.addPlanting')}</h2>
+
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            data-testid="plan-mode-outdoor"
+            aria-pressed={planMode === 'outdoor'}
+            className={`rounded-lg px-3 py-2 text-sm font-medium ${
+              planMode === 'outdoor'
+                ? 'bg-emerald-800 text-white'
+                : 'border border-stone-200 bg-white text-stone-800 hover:bg-stone-50'
+            }`}
+            onClick={() => setPlanMode('outdoor')}
+          >
+            {t('planning.planModeOutdoor')}
+          </button>
+          <button
+            type="button"
+            data-testid="plan-mode-indoor"
+            aria-pressed={planMode === 'indoor'}
+            className={`rounded-lg px-3 py-2 text-sm font-medium ${
+              planMode === 'indoor'
+                ? 'bg-emerald-800 text-white'
+                : 'border border-stone-200 bg-white text-stone-800 hover:bg-stone-50'
+            }`}
+            onClick={() => setPlanMode('indoor')}
+          >
+            {t('planning.planModeIndoor')}
+          </button>
+        </div>
+
         <fieldset className="space-y-2 text-sm">
           <legend className="font-medium text-stone-700">{t('planning.plantSource')}</legend>
           <label className="flex items-center gap-2">
@@ -336,39 +437,30 @@ export function PlantingPlanPage() {
             />
           </label>
         )}
-        <label className="block text-sm font-medium text-stone-700">
-          {t('planning.element')}
-          <select
-            className="mt-1 w-full rounded-lg border border-stone-300 px-3 py-2"
-            value={elementId}
-            onChange={(e) => setElementId(e.target.value)}
-            required
-          >
-            <option value="">{t('planning.select')}</option>
-            {areas.map((area) => (
-              <optgroup key={area.id} label={area.title}>
-                {(elementsByAreaId.get(area.id) ?? []).map((el) => (
-                  <option key={el.id} value={el.id}>
-                    {el.name}
-                  </option>
-                ))}
-              </optgroup>
-            ))}
-          </select>
-        </label>
-        <label className="block text-sm font-medium text-stone-700">
-          {t('planning.sowingMethod')}
-          <select
-            data-testid="sowing-method"
-            className="mt-1 w-full rounded-lg border border-stone-300 px-3 py-2"
-            value={sowingMethod}
-            onChange={(e) => setSowingMethod(e.target.value as SowingMethod)}
-          >
-            <option value="indoor">{t('planning.sowing.indoor')}</option>
-            <option value="direct_outdoor">{t('planning.sowing.direct_outdoor')}</option>
-          </select>
-        </label>
-        {sowingMethod === 'indoor' ? (
+        {planMode === 'outdoor' ? (
+          <label className="block text-sm font-medium text-stone-700">
+            {t('planning.element')}
+            <select
+              data-testid="add-form-element"
+              className="mt-1 w-full rounded-lg border border-stone-300 px-3 py-2"
+              value={elementId}
+              onChange={(e) => setElementId(e.target.value)}
+              required
+            >
+              <option value="">{t('planning.select')}</option>
+              {areas.map((area) => (
+                <optgroup key={area.id} label={area.title}>
+                  {(elementsByAreaId.get(area.id) ?? []).map((el) => (
+                    <option key={el.id} value={el.id}>
+                      {el.name}
+                    </option>
+                  ))}
+                </optgroup>
+              ))}
+            </select>
+          </label>
+        ) : null}
+        {planMode === 'indoor' ? (
           <>
             <label className="block text-sm font-medium text-stone-700">
               {t('planning.indoorSowDate')}
@@ -380,10 +472,10 @@ export function PlantingPlanPage() {
               />
             </label>
             <label className="block text-sm font-medium text-stone-700">
-              {t('planning.transplantDate')}
+              <span>{t('planning.transplantDateOptional')}</span>
               <LocaleDateField
                 testId="transplant-date"
-                required
+                allowClear
                 value={transplant}
                 onChange={setTransplant}
               />
@@ -443,7 +535,7 @@ export function PlantingPlanPage() {
         plantings={plantings.map((p) => ({
           id: p.id,
           plantName: p.plantName,
-          elementId: p.elementId ?? '',
+          elementId: p.elementId,
         }))}
         onLogged={() => void loadAll()}
       />

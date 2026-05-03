@@ -5,7 +5,7 @@ export interface Planting {
   id: string;
   gardenId: string;
   seasonId: string;
-  elementId: string;
+  elementId: string | null;
   plantProfileId: string | null;
   plantName: string;
   sowingMethod: SowingMethod;

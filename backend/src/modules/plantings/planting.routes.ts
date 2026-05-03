@@ -32,7 +32,7 @@ export function createPlantingsRouter(c: AppContainer): Router {
       const gardenId = paramString(req.params.gardenId, 'garden id');
       const planting = await c.plantingService.create(gardenId, req.auth!.id, {
         seasonId: parsed.data.seasonId,
-        elementId: parsed.data.elementId,
+        elementId: parsed.data.elementId ?? null,
         plantProfileId: parsed.data.plantProfileId,
         plantName: parsed.data.plantName,
         sowingMethod: parsed.data.sowingMethod,

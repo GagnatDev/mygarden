@@ -3,10 +3,12 @@ import { SOWING_METHODS } from '../../domain/planting.js';
 
 const dateField = z.union([z.coerce.date(), z.string().datetime()]).transform((v) => new Date(v));
 
+const elementIdField = z.union([z.string().uuid(), z.null()]).optional();
+
 export const createPlantingBodySchema = z
   .object({
     seasonId: z.string().uuid(),
-    elementId: z.string().uuid(),
+    elementId: elementIdField,
     plantProfileId: z.string().uuid().nullish(),
     plantName: z.string().trim().min(1).optional(),
     sowingMethod: z.enum(SOWING_METHODS),
@@ -35,15 +37,15 @@ export const createPlantingBodySchema = z
           path: ['indoorSowDate'],
         });
       }
-      if (!data.transplantDate) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          message: 'transplantDate is required for indoor sowing',
-          path: ['transplantDate'],
-        });
-      }
     }
     if (data.sowingMethod === 'direct_outdoor') {
+      if (data.elementId == null || data.elementId === undefined) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'elementId is required for direct outdoor sowing',
+          path: ['elementId'],
+        });
+      }
       if (!data.outdoorSowDate) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
@@ -55,7 +57,7 @@ export const createPlantingBodySchema = z
   });
 
 export const patchPlantingBodySchema = z.object({
-  elementId: z.string().uuid().optional(),
+  elementId: z.union([z.string().uuid(), z.null()]).optional(),
   plantProfileId: z.string().uuid().nullish(),
   plantName: z.string().trim().min(1).optional(),
   sowingMethod: z.enum(SOWING_METHODS).optional(),

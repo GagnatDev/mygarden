@@ -3,7 +3,7 @@ import type { Planting, SowingMethod } from '../../domain/planting.js';
 export interface CreatePlantingInput {
   gardenId: string;
   seasonId: string;
-  elementId: string;
+  elementId: string | null;
   plantProfileId: string | null;
   plantName: string;
   sowingMethod: SowingMethod;

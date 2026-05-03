@@ -10,16 +10,19 @@ import { replaceAutoTasksForPlanting, removeAllTasksForPlanting } from './planti
 
 function assertPlantingDates(p: {
   sowingMethod: SowingMethod;
+  elementId: string | null;
   indoorSowDate: Date | null;
-  transplantDate: Date | null;
   outdoorSowDate: Date | null;
 }): void {
   if (p.sowingMethod === 'indoor') {
-    if (!p.indoorSowDate || !p.transplantDate) {
-      throw new HttpError(400, 'Indoor sowing requires indoorSowDate and transplantDate', 'Bad Request');
+    if (!p.indoorSowDate) {
+      throw new HttpError(400, 'Indoor sowing requires indoorSowDate', 'Bad Request');
     }
   }
   if (p.sowingMethod === 'direct_outdoor') {
+    if (p.elementId == null) {
+      throw new HttpError(400, 'Direct outdoor sowing requires elementId', 'Bad Request');
+    }
     if (!p.outdoorSowDate) {
       throw new HttpError(400, 'Direct outdoor sowing requires outdoorSowDate', 'Bad Request');
     }
@@ -60,7 +63,7 @@ export class PlantingService {
     userId: string,
     body: {
       seasonId: string;
-      elementId: string;
+      elementId: string | null;
       plantProfileId?: string | null;
       plantName?: string;
       sowingMethod: SowingMethod;
@@ -77,7 +80,9 @@ export class PlantingService {
     if (!season || season.gardenId !== gardenId) {
       throw new HttpError(404, 'Season not found', 'Not Found');
     }
-    await this.assertElementInGarden(gardenId, body.elementId);
+    if (body.elementId != null) {
+      await this.assertElementInGarden(gardenId, body.elementId);
+    }
 
     let plantName = body.plantName?.trim() ?? '';
     const plantProfileId: string | null = body.plantProfileId ?? null;
@@ -94,15 +99,15 @@ export class PlantingService {
 
     assertPlantingDates({
       sowingMethod: body.sowingMethod,
+      elementId: body.elementId,
       indoorSowDate: body.indoorSowDate,
-      transplantDate: body.transplantDate,
       outdoorSowDate: body.outdoorSowDate,
     });
 
     const planting = await this.plantingRepo.create({
       gardenId,
       seasonId: body.seasonId,
-      elementId: body.elementId,
+      elementId: body.elementId ?? null,
       plantProfileId,
       plantName,
       sowingMethod: body.sowingMethod,
@@ -125,7 +130,7 @@ export class PlantingService {
     userId: string,
     plantingId: string,
     patch: Partial<{
-      elementId: string;
+      elementId: string | null;
       plantProfileId: string | null;
       plantName: string;
       sowingMethod: SowingMethod;
@@ -143,8 +148,10 @@ export class PlantingService {
       throw new HttpError(404, 'Planting not found', 'Not Found');
     }
 
-    const nextElementId = patch.elementId ?? current.elementId;
-    await this.assertElementInGarden(gardenId, nextElementId);
+    const nextElementId = patch.elementId !== undefined ? patch.elementId : current.elementId;
+    if (nextElementId != null) {
+      await this.assertElementInGarden(gardenId, nextElementId);
+    }
 
     let plantName = patch.plantName?.trim() ?? current.plantName;
     const plantProfileId =
@@ -160,12 +167,15 @@ export class PlantingService {
     const sowingMethod = patch.sowingMethod ?? current.sowingMethod;
     const indoorSowDate =
       patch.indoorSowDate !== undefined ? patch.indoorSowDate : current.indoorSowDate;
-    const transplantDate =
-      patch.transplantDate !== undefined ? patch.transplantDate : current.transplantDate;
     const outdoorSowDate =
       patch.outdoorSowDate !== undefined ? patch.outdoorSowDate : current.outdoorSowDate;
 
-    assertPlantingDates({ sowingMethod, indoorSowDate, transplantDate, outdoorSowDate });
+    assertPlantingDates({
+      sowingMethod,
+      elementId: nextElementId,
+      indoorSowDate,
+      outdoorSowDate,
+    });
 
     const updated = await this.plantingRepo.update(plantingId, {
       ...patch,

@@ -6,7 +6,7 @@ export interface Planting {
   id: string;
   gardenId: string;
   seasonId: string;
-  elementId: string;
+  elementId: string | null;
   plantProfileId: string | null;
   plantName: string;
   sowingMethod: SowingMethod;
@@ -39,7 +39,7 @@ export async function createPlanting(
   gardenId: string,
   body: {
     seasonId: string;
-    elementId: string;
+    elementId?: string | null;
     plantProfileId?: string | null;
     plantName?: string;
     sowingMethod: SowingMethod;

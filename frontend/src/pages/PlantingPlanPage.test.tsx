@@ -32,7 +32,27 @@ vi.mock('../api/plantings', () => ({
   listPlantings: vi.fn(),
   patchPlanting: vi.fn(),
   deletePlanting: vi.fn(),
-  createPlanting: vi.fn(),
+  createPlanting: vi.fn(() =>
+    Promise.resolve({
+      id: 'new',
+      gardenId: 'g1',
+      seasonId: 's1',
+      elementId: null,
+      plantProfileId: null,
+      plantName: 'X',
+      sowingMethod: 'indoor' as const,
+      indoorSowDate: null,
+      transplantDate: null,
+      outdoorSowDate: null,
+      harvestWindowStart: null,
+      harvestWindowEnd: null,
+      quantity: null,
+      notes: null,
+      createdBy: 'u1',
+      createdAt: '',
+      updatedAt: '',
+    }),
+  ),
 }));
 
 vi.mock('../api/plantProfiles', () => ({
@@ -106,6 +126,11 @@ const en = {
   },
   planning: {
     planHint: 'Hint',
+    planModeOutdoor: 'Outdoor',
+    planModeIndoor: 'Indoor mode',
+    indoorUnassignedSection: 'Indoor pending',
+    noIndoorUnassigned: 'No pending',
+    transplantDateOptional: 'Trans optional',
     quickLog: 'Log',
     noPlantingsInArea: 'Empty',
     noElementsInArea: 'No elements',
@@ -288,14 +313,72 @@ describe('PlantingPlanPage', () => {
     expect(entries[0]).toHaveTextContent('newer');
     expect(entries[1]).toHaveTextContent('older');
 
-    fireEvent.change(screen.getByTestId('sowing-method'), { target: { value: 'indoor' } });
+    fireEvent.click(screen.getByTestId('plan-mode-indoor'));
     expect(screen.getByTestId('indoor-sow-date')).toBeInTheDocument();
     expect(screen.getByTestId('transplant-date')).toBeInTheDocument();
     expect(screen.queryByTestId('outdoor-sow-date')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('add-form-element')).not.toBeInTheDocument();
 
-    fireEvent.change(screen.getByTestId('sowing-method'), { target: { value: 'direct_outdoor' } });
+    fireEvent.click(screen.getByTestId('plan-mode-outdoor'));
     expect(screen.getByTestId('outdoor-sow-date')).toBeInTheDocument();
     expect(screen.queryByTestId('indoor-sow-date')).not.toBeInTheDocument();
+    expect(screen.getByTestId('add-form-element')).toBeInTheDocument();
+  });
+
+  it('lists indoor plantings without an element in the unassigned section', async () => {
+    vi.mocked(listPlantings).mockResolvedValue([
+      {
+        id: 'pl1',
+        gardenId: 'g1',
+        seasonId: 's1',
+        elementId: 'e1',
+        plantProfileId: null,
+        plantName: 'Lettuce',
+        sowingMethod: 'indoor',
+        indoorSowDate: null,
+        transplantDate: null,
+        outdoorSowDate: null,
+        harvestWindowStart: null,
+        harvestWindowEnd: null,
+        quantity: null,
+        notes: null,
+        createdBy: 'u1',
+        createdAt: '',
+        updatedAt: '',
+      },
+      {
+        id: 'pl2',
+        gardenId: 'g1',
+        seasonId: 's1',
+        elementId: null,
+        plantProfileId: null,
+        plantName: 'Basil',
+        sowingMethod: 'indoor',
+        indoorSowDate: '2026-03-01T12:00:00.000Z',
+        transplantDate: null,
+        outdoorSowDate: null,
+        harvestWindowStart: null,
+        harvestWindowEnd: null,
+        quantity: null,
+        notes: null,
+        createdBy: 'u1',
+        createdAt: '',
+        updatedAt: '',
+      },
+    ]);
+
+    const i18nInstance = await testI18n();
+    render(
+      <I18nextProvider i18n={i18nInstance}>
+        <GardenContext.Provider value={ctx}>
+          <PlantingPlanPage />
+        </GardenContext.Provider>
+      </I18nextProvider>,
+    );
+
+    await waitFor(() => expect(screen.getByTestId('indoor-unassigned-section')).toHaveTextContent('Basil'));
+    expect(screen.getByTestId('element-plantings-e1')).toHaveTextContent('Lettuce');
+    expect(screen.getByTestId('element-plantings-e1')).not.toHaveTextContent('Basil');
   });
 
   it('patches planting element when move select changes', async () => {
