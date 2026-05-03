@@ -53,7 +53,8 @@
   },
   "areas": {
     "sectionTitle": "Områder",
-    "emptyHint": "Ingen områder ennå. Opprett ett nedenfor.",
+    "addArea": "Legg til område",
+    "emptyHint": "Ingen områder ennå. Bruk «Legg til område» for å opprette ett.",
     "createTitle": "Nytt område",
     "title": "Tittel",
     "description": "Beskrivelse",

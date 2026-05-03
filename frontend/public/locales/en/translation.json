@@ -53,7 +53,8 @@
   },
   "areas": {
     "sectionTitle": "Areas",
-    "emptyHint": "No areas yet. Create one below.",
+    "addArea": "Add area",
+    "emptyHint": "No areas yet. Use Add area to create one.",
     "createTitle": "New area",
     "title": "Title",
     "description": "Description",
