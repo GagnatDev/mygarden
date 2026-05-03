@@ -338,7 +338,7 @@ export function AreaMapPage() {
   }
 
   if (!gardenId || !areaId) {
-    return <Navigate to="/gardens" replace />;
+    return <Navigate to="/" replace />;
   }
 
   if (loading) {
@@ -352,11 +352,11 @@ export function AreaMapPage() {
   if (gardens.length === 0) {
     return (
       <div>
-        <h1 className="text-2xl font-semibold text-stone-900">{t('nav.gardens')}</h1>
+        <h1 className="text-2xl font-semibold text-stone-900">{t('nav.home')}</h1>
         <p className="mt-2 text-stone-600">{t('garden.noGardenHint')}</p>
         <p className="mt-4">
-          <Link to="/gardens" className="text-emerald-700 underline">
-            {t('nav.gardens')}
+          <Link to="/" className="text-emerald-700 underline">
+            {t('nav.home')}
           </Link>
         </p>
       </div>
@@ -364,7 +364,7 @@ export function AreaMapPage() {
   }
 
   if (!selectedGarden) {
-    return <Navigate to="/gardens" replace />;
+    return <Navigate to="/" replace />;
   }
 
   if (!area && !mapLoading) {
@@ -388,8 +388,8 @@ export function AreaMapPage() {
         <div className="flex flex-1 flex-wrap items-start justify-between gap-3">
           <div>
             <nav className="text-sm text-stone-600">
-              <Link to="/gardens" className="hover:underline">
-                {t('nav.gardens')}
+              <Link to="/" className="hover:underline">
+                {t('nav.home')}
               </Link>
               <span className="mx-1">/</span>
               <Link to={`/gardens/${gardenId}`} className="hover:underline">

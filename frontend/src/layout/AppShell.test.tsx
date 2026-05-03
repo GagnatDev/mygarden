@@ -196,7 +196,7 @@ describe('AppShell', () => {
       expect(screen.getByTestId('user-display-name')).toHaveTextContent('Ada Lovelace');
     });
 
-    expect(screen.getAllByRole('link', { name: /gardens/i }).length).toBeGreaterThanOrEqual(1);
+    expect(screen.getByRole('link', { name: /^Home$/ })).toHaveAttribute('href', '/');
     expect(screen.getByRole('link', { name: /^Plan$/ })).toHaveAttribute('href', '/plan');
     await waitFor(() => {
       expect(screen.getByTestId('shell-brand-title')).toHaveTextContent('Test Garden');
@@ -301,7 +301,7 @@ describe('AppShell', () => {
     });
 
     const drawer = screen.getByTestId('mobile-nav-drawer');
-    expect(drawer.querySelectorAll('a[href]').length).toBeGreaterThanOrEqual(7);
+    expect(drawer.querySelectorAll('a[href]').length).toBeGreaterThanOrEqual(6);
 
     fireEvent.click(screen.getByTestId('mobile-nav-backdrop'));
     await waitFor(() => {

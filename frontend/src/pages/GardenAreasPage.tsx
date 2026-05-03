@@ -147,7 +147,7 @@ export function GardenAreasPage() {
   }
 
   if (!gardenId) {
-    return <Navigate to="/gardens" replace />;
+    return <Navigate to="/" replace />;
   }
 
   if (loading) {
@@ -159,7 +159,7 @@ export function GardenAreasPage() {
   }
 
   if (!selectedGarden) {
-    return <Navigate to="/gardens" replace />;
+    return <Navigate to="/" replace />;
   }
 
   const gridPreview = metersToGridDimensions(widthMeters, heightMeters, cellSizeMeters);
@@ -167,8 +167,8 @@ export function GardenAreasPage() {
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-8">
       <nav className="text-sm text-stone-600">
-        <Link to="/gardens" className="hover:underline">
-          {t('nav.gardens')}
+        <Link to="/" className="hover:underline">
+          {t('nav.home')}
         </Link>
         <span className="mx-1">/</span>
         <span className="font-medium text-stone-900">{selectedGarden.name}</span>

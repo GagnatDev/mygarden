@@ -41,13 +41,15 @@
     "en": "EN"
   },
   "home": {
-    "welcome": "Velg en del fra menyen for å komme i gang."
+    "welcome": "Åpne en hage for å jobbe i den, eller opprett en ny."
   },
   "placeholders": {
     "comingSoon": "Denne delen kommer i en senere versjon."
   },
   "gardens": {
-    "listHint": "Åpne en hage for å administrere områder og kart."
+    "listHint": "Åpne en hage for å administrere områder og kart.",
+    "emptyHome": "Du har ingen hager ennå. Bruk knappen over for å opprette en.",
+    "openGarden": "Åpne hage →"
   },
   "areas": {
     "sectionTitle": "Områder",

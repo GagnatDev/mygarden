@@ -4,7 +4,6 @@ import { AppShell } from './layout/AppShell';
 import { AreaMapPage } from './pages/AreaMapPage';
 import { CalendarPage } from './pages/CalendarPage';
 import { GardenAreasPage } from './pages/GardenAreasPage';
-import { GardensPage } from './pages/GardensPage';
 import { HomeDashboard } from './pages/HomeDashboard';
 import { LoginPage } from './pages/LoginPage';
 import { HistoryPage } from './pages/HistoryPage';
@@ -32,10 +31,10 @@ export function AppRoutes() {
           }
         >
           <Route path="/" element={<HomeDashboard />} />
-          <Route path="/gardens" element={<GardensPage />} />
+          <Route path="/gardens" element={<Navigate to="/" replace />} />
           <Route path="/gardens/:gardenId" element={<GardenAreasPage />} />
           <Route path="/gardens/:gardenId/areas/:areaId" element={<AreaMapPage />} />
-          <Route path="/garden" element={<Navigate to="/gardens" replace />} />
+          <Route path="/garden" element={<Navigate to="/" replace />} />
           <Route path="/plan" element={<PlantingPlanPage />} />
           <Route path="/calendar" element={<CalendarPage />} />
           <Route path="/plants" element={<PlantProfilesPage />} />

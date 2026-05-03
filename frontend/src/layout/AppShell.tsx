@@ -9,7 +9,6 @@ import { GardenPickerPopover } from './GardenPickerPopover';
 
 export const APP_NAV = [
   { to: '/', key: 'nav.home', end: true as boolean },
-  { to: '/gardens', key: 'nav.gardens', end: false },
   { to: '/plan', key: 'nav.plantingPlan', end: false },
   { to: '/calendar', key: 'nav.calendar', end: false },
   { to: '/plants', key: 'nav.plantProfiles', end: false },

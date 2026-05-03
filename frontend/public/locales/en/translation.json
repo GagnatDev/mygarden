@@ -41,13 +41,15 @@
     "en": "EN"
   },
   "home": {
-    "welcome": "Choose a section from the menu to get started."
+    "welcome": "Open a garden to work on it, or create a new one."
   },
   "placeholders": {
     "comingSoon": "This section will be available in a later release."
   },
   "gardens": {
-    "listHint": "Open a garden to manage areas and maps."
+    "listHint": "Open a garden to manage areas and maps.",
+    "emptyHome": "You have no gardens yet. Use the button above to create one.",
+    "openGarden": "Open garden →"
   },
   "areas": {
     "sectionTitle": "Areas",

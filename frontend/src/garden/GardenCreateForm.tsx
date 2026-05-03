@@ -4,9 +4,11 @@ import { createGarden } from '../api/gardens';
 
 export interface GardenCreateFormProps {
   onCreated: () => Promise<void>;
+  /** Omit card chrome and title when the form is shown inside a modal. */
+  embedded?: boolean;
 }
 
-export function GardenCreateForm({ onCreated }: GardenCreateFormProps) {
+export function GardenCreateForm({ onCreated, embedded = false }: GardenCreateFormProps) {
   const { t } = useTranslation();
   const [name, setName] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -36,10 +38,16 @@ export function GardenCreateForm({ onCreated }: GardenCreateFormProps) {
   return (
     <form
       onSubmit={(e) => void handleSubmit(e)}
-      className="mx-auto max-w-md space-y-4 rounded-xl border border-stone-200 bg-white p-6 shadow-sm"
+      className={
+        embedded
+          ? 'space-y-4'
+          : 'mx-auto max-w-md space-y-4 rounded-xl border border-stone-200 bg-white p-6 shadow-sm'
+      }
       data-testid="garden-create-form"
     >
-      <h2 className="text-lg font-semibold text-stone-900">{t('garden.createTitle')}</h2>
+      {embedded ? null : (
+        <h2 className="text-lg font-semibold text-stone-900">{t('garden.createTitle')}</h2>
+      )}
       <div>
         <label htmlFor="garden-name" className="block text-sm font-medium text-stone-700">
           {t('garden.name')}
