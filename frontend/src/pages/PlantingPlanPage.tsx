@@ -1,6 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { listAreas } from '../api/gardens';
+import type { Area } from '../api/areas';
+import { listAreas } from '../api/areas';
+import type { Element } from '../api/elements';
+import { listElements } from '../api/elements';
 import { listLogs } from '../api/logs';
 import {
   createPlanting,
@@ -17,6 +20,8 @@ import { LocaleDateField } from '../components/LocaleDateField';
 import { NotesSection } from '../components/NotesSection';
 import { QuickLogModal } from '../planning/QuickLogModal';
 
+type ElementWithArea = Element & { areaTitle: string };
+
 export function PlantingPlanPage() {
   const { t } = useTranslation();
   const { selectedGarden, loading: gardenLoading, error: gardenError } = useGardenContext();
@@ -24,7 +29,8 @@ export function PlantingPlanPage() {
     selectedGarden?.id ?? null,
   );
 
-  const [areas, setAreas] = useState<Awaited<ReturnType<typeof listAreas>>>([]);
+  const [areas, setAreas] = useState<Area[]>([]);
+  const [elementsWithArea, setElementsWithArea] = useState<ElementWithArea[]>([]);
   const [plantings, setPlantings] = useState<Planting[]>([]);
   const [profiles, setProfiles] = useState<PlantProfile[]>([]);
   const [logs, setLogs] = useState<Awaited<ReturnType<typeof listLogs>>>([]);
@@ -35,7 +41,7 @@ export function PlantingPlanPage() {
   const [useProfile, setUseProfile] = useState(true);
   const [plantProfileId, setPlantProfileId] = useState('');
   const [adhocName, setAdhocName] = useState('');
-  const [areaId, setAreaId] = useState('');
+  const [elementId, setElementId] = useState('');
   const [sowingMethod, setSowingMethod] = useState<SowingMethod>('indoor');
   const [indoorSow, setIndoorSow] = useState('');
   const [transplant, setTransplant] = useState('');
@@ -49,13 +55,20 @@ export function PlantingPlanPage() {
     setLoading(true);
     setError(null);
     try {
-      const [a, p, pr, lg] = await Promise.all([
-        listAreas(selectedGarden.id),
+      const ars = await listAreas(selectedGarden.id);
+      const elementLists = await Promise.all(
+        ars.map((a) => listElements(selectedGarden.id, a.id)),
+      );
+      const flat: ElementWithArea[] = ars.flatMap((a, i) =>
+        (elementLists[i] ?? []).map((el) => ({ ...el, areaTitle: a.title })),
+      );
+      const [p, pr, lg] = await Promise.all([
         listPlantings(selectedGarden.id, seasonId),
         listPlantProfiles(),
         listLogs(selectedGarden.id, seasonId),
       ]);
-      setAreas(a);
+      setAreas(ars);
+      setElementsWithArea(flat);
       setPlantings(p);
       setProfiles(pr);
       setLogs(lg);
@@ -70,21 +83,32 @@ export function PlantingPlanPage() {
     void loadAll();
   }, [loadAll]);
 
-  const byArea = useMemo(() => {
+  const byElement = useMemo(() => {
     const m = new Map<string, Planting[]>();
     for (const pl of plantings) {
-      const list = m.get(pl.areaId) ?? [];
+      if (!pl.elementId) continue;
+      const list = m.get(pl.elementId) ?? [];
       list.push(pl);
-      m.set(pl.areaId, list);
+      m.set(pl.elementId, list);
     }
     return m;
   }, [plantings]);
 
-  async function handleMovePlanting(plantingId: string, newAreaId: string) {
+  const elementsByAreaId = useMemo(() => {
+    const m = new Map<string, ElementWithArea[]>();
+    for (const el of elementsWithArea) {
+      const list = m.get(el.areaId) ?? [];
+      list.push(el);
+      m.set(el.areaId, list);
+    }
+    return m;
+  }, [elementsWithArea]);
+
+  async function handleMovePlanting(plantingId: string, newElementId: string) {
     if (!selectedGarden) return;
     setError(null);
     try {
-      await patchPlanting(selectedGarden.id, plantingId, { areaId: newAreaId });
+      await patchPlanting(selectedGarden.id, plantingId, { elementId: newElementId });
       await loadAll();
     } catch (e) {
       setError(e instanceof Error ? e.message : t('auth.unknownError'));
@@ -105,13 +129,13 @@ export function PlantingPlanPage() {
 
   async function handleAddPlanting(e: React.FormEvent) {
     e.preventDefault();
-    if (!selectedGarden || !seasonId || !areaId) return;
+    if (!selectedGarden || !seasonId || !elementId) return;
     setFormBusy(true);
     setError(null);
     try {
       const body: Parameters<typeof createPlanting>[1] = {
         seasonId,
-        areaId,
+        elementId,
         sowingMethod,
         harvestWindowStart: harvestStart ? new Date(`${harvestStart}T12:00:00.000Z`).toISOString() : null,
       };
@@ -171,73 +195,94 @@ export function PlantingPlanPage() {
       {loading ? (
         <p className="mt-4 text-stone-600">{t('auth.loading')}</p>
       ) : (
-        <section data-testid="plantings-by-area" className="mt-6 space-y-6">
-          {areas.map((a) => {
-            const list = byArea.get(a.id) ?? [];
+        <section data-testid="plantings-by-area" className="mt-6 space-y-8">
+          {areas.map((area) => {
+            const els = elementsByAreaId.get(area.id) ?? [];
             return (
-              <div key={a.id} data-testid={`area-plantings-${a.id}`} className="rounded-xl border border-stone-200 bg-white p-4">
-                <h2 className="font-semibold text-stone-900">{a.name}</h2>
-                {list.length === 0 ? (
-                  <p className="mt-1 text-sm text-stone-500">{t('planning.noPlantingsInArea')}</p>
+              <div key={area.id} data-testid={`area-block-${area.id}`} className="space-y-4">
+                <h2 className="text-lg font-semibold text-stone-900">{area.title}</h2>
+                {els.length === 0 ? (
+                  <p className="text-sm text-stone-500">{t('planning.noElementsInArea')}</p>
                 ) : (
-                  <ul className="mt-2 divide-y divide-stone-100 text-sm text-stone-700">
-                    {list.map((pl) => (
-                      <li
-                        key={pl.id}
-                        data-testid={`planting-row-${pl.id}`}
-                        className="flex flex-col gap-2 py-2 sm:flex-row sm:items-center sm:justify-between"
+                  els.map((element) => {
+                    const list = byElement.get(element.id) ?? [];
+                    return (
+                      <div
+                        key={element.id}
+                        data-testid={`element-plantings-${element.id}`}
+                        className="rounded-xl border border-stone-200 bg-white p-4"
                       >
-                        <span>
-                          {pl.plantName} · {t(`planning.sowing.${pl.sowingMethod}`)}
-                        </span>
-                        <div className="flex flex-wrap items-center gap-2">
-                          <button
-                            type="button"
-                            data-testid={`planting-notes-toggle-${pl.id}`}
-                            className="rounded border border-stone-200 px-2 py-1 text-xs font-medium text-stone-800 hover:bg-stone-50"
-                            onClick={() =>
-                              setNotesPlantingId((cur) => (cur === pl.id ? null : pl.id))
-                            }
-                          >
-                            {t('notes.title')}
-                          </button>
-                          <label className="flex items-center gap-1 text-xs text-stone-600">
-                            <span>{t('planning.moveToArea')}</span>
-                            <select
-                              data-testid={`planting-area-select-${pl.id}`}
-                              className="max-w-[10rem] rounded border border-stone-300 px-2 py-1 text-sm text-stone-800"
-                              value={pl.areaId}
-                              onChange={(e) => void handleMovePlanting(pl.id, e.target.value)}
-                            >
-                              {areas.map((ar) => (
-                                <option key={ar.id} value={ar.id}>
-                                  {ar.name}
-                                </option>
-                              ))}
-                            </select>
-                          </label>
-                          <button
-                            type="button"
-                            data-testid={`planting-delete-${pl.id}`}
-                            className="rounded border border-red-200 px-2 py-1 text-xs font-medium text-red-800 hover:bg-red-50"
-                            onClick={() => void handleDeletePlanting(pl.id)}
-                          >
-                            {t('planning.removePlanting')}
-                          </button>
-                        </div>
-                        {notesPlantingId === pl.id ? (
-                          <NotesSection
-                            className="mt-3 border-stone-200"
-                            gardenId={selectedGarden.id}
-                            seasonId={seasonId}
-                            targetType="planting"
-                            targetId={pl.id}
-                            hideHeading
-                          />
-                        ) : null}
-                      </li>
-                    ))}
-                  </ul>
+                        <h3 className="font-semibold text-stone-900">
+                          {element.name}{' '}
+                          <span className="text-sm font-normal text-stone-500">
+                            ({t(`garden.areaTypes.${element.type}`)})
+                          </span>
+                        </h3>
+                        {list.length === 0 ? (
+                          <p className="mt-1 text-sm text-stone-500">{t('planning.noPlantingsInArea')}</p>
+                        ) : (
+                          <ul className="mt-2 divide-y divide-stone-100 text-sm text-stone-700">
+                            {list.map((pl) => (
+                              <li
+                                key={pl.id}
+                                data-testid={`planting-row-${pl.id}`}
+                                className="flex flex-col gap-2 py-2 sm:flex-row sm:items-center sm:justify-between"
+                              >
+                                <span>
+                                  {pl.plantName} · {t(`planning.sowing.${pl.sowingMethod}`)}
+                                </span>
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <button
+                                    type="button"
+                                    data-testid={`planting-notes-toggle-${pl.id}`}
+                                    className="rounded border border-stone-200 px-2 py-1 text-xs font-medium text-stone-800 hover:bg-stone-50"
+                                    onClick={() =>
+                                      setNotesPlantingId((cur) => (cur === pl.id ? null : pl.id))
+                                    }
+                                  >
+                                    {t('notes.title')}
+                                  </button>
+                                  <label className="flex items-center gap-1 text-xs text-stone-600">
+                                    <span>{t('planning.moveToElement')}</span>
+                                    <select
+                                      data-testid={`planting-area-select-${pl.id}`}
+                                      className="max-w-[14rem] rounded border border-stone-300 px-2 py-1 text-sm text-stone-800"
+                                      value={pl.elementId ?? ''}
+                                      onChange={(e) => void handleMovePlanting(pl.id, e.target.value)}
+                                    >
+                                      {elementsWithArea.map((el) => (
+                                        <option key={el.id} value={el.id}>
+                                          {el.areaTitle} · {el.name}
+                                        </option>
+                                      ))}
+                                    </select>
+                                  </label>
+                                  <button
+                                    type="button"
+                                    data-testid={`planting-delete-${pl.id}`}
+                                    className="rounded border border-red-200 px-2 py-1 text-xs font-medium text-red-800 hover:bg-red-50"
+                                    onClick={() => void handleDeletePlanting(pl.id)}
+                                  >
+                                    {t('planning.removePlanting')}
+                                  </button>
+                                </div>
+                                {notesPlantingId === pl.id ? (
+                                  <NotesSection
+                                    className="mt-3 border-stone-200"
+                                    gardenId={selectedGarden.id}
+                                    seasonId={seasonId}
+                                    targetType="planting"
+                                    targetId={pl.id}
+                                    hideHeading
+                                  />
+                                ) : null}
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                      </div>
+                    );
+                  })
                 )}
               </div>
             );
@@ -292,18 +337,22 @@ export function PlantingPlanPage() {
           </label>
         )}
         <label className="block text-sm font-medium text-stone-700">
-          {t('garden.areaDetails')}
+          {t('planning.element')}
           <select
             className="mt-1 w-full rounded-lg border border-stone-300 px-3 py-2"
-            value={areaId}
-            onChange={(e) => setAreaId(e.target.value)}
+            value={elementId}
+            onChange={(e) => setElementId(e.target.value)}
             required
           >
             <option value="">{t('planning.select')}</option>
-            {areas.map((a) => (
-              <option key={a.id} value={a.id}>
-                {a.name}
-              </option>
+            {areas.map((area) => (
+              <optgroup key={area.id} label={area.title}>
+                {(elementsByAreaId.get(area.id) ?? []).map((el) => (
+                  <option key={el.id} value={el.id}>
+                    {el.name}
+                  </option>
+                ))}
+              </optgroup>
             ))}
           </select>
         </label>
@@ -387,8 +436,15 @@ export function PlantingPlanPage() {
         onClose={() => setQuickLogOpen(false)}
         gardenId={selectedGarden.id}
         seasonId={seasonId}
-        areas={areas.map((a) => ({ id: a.id, name: a.name }))}
-        plantings={plantings.map((p) => ({ id: p.id, plantName: p.plantName, areaId: p.areaId }))}
+        elements={elementsWithArea.map((el) => ({
+          id: el.id,
+          name: `${el.areaTitle} · ${el.name}`,
+        }))}
+        plantings={plantings.map((p) => ({
+          id: p.id,
+          plantName: p.plantName,
+          elementId: p.elementId ?? '',
+        }))}
         onLogged={() => void loadAll()}
       />
     </div>

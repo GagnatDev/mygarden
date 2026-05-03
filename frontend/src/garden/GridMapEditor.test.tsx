@@ -2,7 +2,8 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import i18n from 'i18next';
 import { I18nextProvider, initReactI18next } from 'react-i18next';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { Area, Garden } from '../api/gardens';
+import type { Area } from '../api/areas';
+import type { Element } from '../api/elements';
 import { CELL, GridMapEditor } from './GridMapEditor';
 
 const { apiFetchMock } = vi.hoisted(() => ({ apiFetchMock: vi.fn() }));
@@ -11,21 +12,23 @@ vi.mock('../api/client', () => ({
   apiFetch: (path: string, init?: RequestInit) => apiFetchMock(path, init),
 }));
 
-const garden: Garden = {
-  id: 'g1',
-  name: 'G',
+const mapArea: Area = {
+  id: 'ar1',
+  gardenId: 'g1',
+  title: 'Map',
+  description: '',
   gridWidth: 4,
   gridHeight: 3,
   cellSizeMeters: 1,
-  createdBy: 'u1',
+  sortIndex: 0,
+  backgroundImageUrl: null,
   createdAt: '2020-01-01T00:00:00.000Z',
   updatedAt: '2020-01-01T00:00:00.000Z',
-  backgroundImageUrl: null,
 };
 
-const area: Area = {
+const bedElement: Element = {
   id: 'a1',
-  gardenId: 'g1',
+  areaId: 'ar1',
   name: 'Bed',
   type: 'raised_bed',
   color: '#8B4513',
@@ -70,6 +73,12 @@ async function testI18n() {
             backgroundOpacity: 'Opacity',
             backgroundUploading: 'Uploading',
             backgroundUploadFailed: 'Failed',
+          },
+          elements: {
+            hasPlantingsHint: 'has plantings',
+            layers: {
+              elementType: 'Element type',
+            },
           },
         },
       },
@@ -119,8 +128,8 @@ function mockGridMapBoundingRect(map: HTMLElement, gw: number, gh: number) {
 }
 
 describe('GridMapEditor', () => {
-  it('renders grid with correct number of cells and shows placed areas', async () => {
-    const onSelectArea = vi.fn();
+  it('renders grid with correct number of cells and shows placed elements', async () => {
+    const onSelectElement = vi.fn();
     const onSelectionComplete = vi.fn();
     const onToolChange = vi.fn();
     const i18nInstance = await testI18n();
@@ -128,10 +137,9 @@ describe('GridMapEditor', () => {
     render(
       <I18nextProvider i18n={i18nInstance}>
         <GridMapEditor
-          garden={garden}
-          areas={[area]}
-          selectedAreaId={null}
-          onSelectArea={onSelectArea}
+          gardenId="g1" area={mapArea} elements={[bedElement]}
+          selectedElementId={null}
+          onSelectElement={onSelectElement}
           onSelectionComplete={onSelectionComplete}
           tool="select"
           onToolChange={onToolChange}
@@ -147,10 +155,10 @@ describe('GridMapEditor', () => {
   });
 
   it('uses one cell layer for large grids instead of one DOM node per cell', async () => {
-    const onSelectArea = vi.fn();
+    const onSelectElement = vi.fn();
     const i18nInstance = await testI18n();
-    const bigGarden: Garden = {
-      ...garden,
+    const bigMapArea: Area = {
+      ...mapArea,
       gridWidth: 200,
       gridHeight: 200,
     };
@@ -158,10 +166,9 @@ describe('GridMapEditor', () => {
     render(
       <I18nextProvider i18n={i18nInstance}>
         <GridMapEditor
-          garden={bigGarden}
-          areas={[]}
-          selectedAreaId={null}
-          onSelectArea={onSelectArea}
+          gardenId="g1" area={bigMapArea} elements={[]}
+          selectedElementId={null}
+          onSelectElement={onSelectElement}
           onSelectionComplete={vi.fn()}
           tool="select"
           onToolChange={vi.fn()}
@@ -177,17 +184,16 @@ describe('GridMapEditor', () => {
     expect(layer.getAttribute('height')).toBe('5600');
   });
 
-  it('selects an area when its label is clicked in select mode', async () => {
-    const onSelectArea = vi.fn();
+  it('selects an element when its label is clicked in select mode', async () => {
+    const onSelectElement = vi.fn();
     const i18nInstance = await testI18n();
 
     render(
       <I18nextProvider i18n={i18nInstance}>
         <GridMapEditor
-          garden={garden}
-          areas={[area]}
-          selectedAreaId={null}
-          onSelectArea={onSelectArea}
+          gardenId="g1" area={mapArea} elements={[bedElement]}
+          selectedElementId={null}
+          onSelectElement={onSelectElement}
           onSelectionComplete={vi.fn()}
           tool="select"
           onToolChange={vi.fn()}
@@ -196,19 +202,18 @@ describe('GridMapEditor', () => {
     );
 
     fireEvent.click(screen.getByTestId('map-area-a1'));
-    expect(onSelectArea).toHaveBeenCalledWith('a1');
+    expect(onSelectElement).toHaveBeenCalledWith('a1');
   });
 
-  it('shows a subtle indicator when the area has plantings', async () => {
+  it('shows a subtle indicator when the element has plantings', async () => {
     const i18nInstance = await testI18n();
     render(
       <I18nextProvider i18n={i18nInstance}>
         <GridMapEditor
-          garden={garden}
-          areas={[area]}
-          areaIdsWithPlantings={new Set(['a1'])}
-          selectedAreaId={null}
-          onSelectArea={vi.fn()}
+          gardenId="g1" area={mapArea} elements={[bedElement]}
+          elementIdsWithPlantings={new Set(['a1'])}
+          selectedElementId={null}
+          onSelectElement={vi.fn()}
           onSelectionComplete={vi.fn()}
           tool="select"
           onToolChange={vi.fn()}
@@ -219,19 +224,18 @@ describe('GridMapEditor', () => {
     expect(screen.getByTestId('map-area-a1')).toHaveAttribute('aria-label', expect.stringMatching(/has plantings/i));
   });
 
-  it('move mode shows ghost and preview, calls onMoveArea with snapped grid coords', async () => {
-    const onMoveArea = vi.fn();
-    const onSelectArea = vi.fn();
+  it('move mode shows ghost and preview, calls onMoveElement with snapped grid coords', async () => {
+    const onMoveElement = vi.fn();
+    const onSelectElement = vi.fn();
     const i18nInstance = await testI18n();
     render(
       <I18nextProvider i18n={i18nInstance}>
         <GridMapEditor
-          garden={garden}
-          areas={[area]}
-          selectedAreaId={null}
-          onSelectArea={onSelectArea}
+          gardenId="g1" area={mapArea} elements={[bedElement]}
+          selectedElementId={null}
+          onSelectElement={onSelectElement}
           onSelectionComplete={vi.fn()}
-          onMoveArea={onMoveArea}
+          onMoveElement={onMoveElement}
           tool="move"
           onToolChange={vi.fn()}
         />
@@ -239,7 +243,7 @@ describe('GridMapEditor', () => {
     );
 
     const map = screen.getByTestId('grid-map');
-    mockGridMapBoundingRect(map, garden.gridWidth, garden.gridHeight);
+    mockGridMapBoundingRect(map, mapArea.gridWidth, mapArea.gridHeight);
 
     const bed = screen.getByTestId('map-area-a1');
     fireEvent.pointerDown(bed, {
@@ -272,16 +276,16 @@ describe('GridMapEditor', () => {
       button: 0,
       buttons: 0,
     });
-    expect(onMoveArea).toHaveBeenCalledWith('a1', 2, 0);
-    expect(onSelectArea).not.toHaveBeenCalled();
+    expect(onMoveElement).toHaveBeenCalledWith('a1', 2, 0);
+    expect(onSelectElement).not.toHaveBeenCalled();
   });
 
   it('move mode shows red preview when position overlaps another area', async () => {
-    const onMoveArea = vi.fn();
+    const onMoveElement = vi.fn();
     const i18nInstance = await testI18n();
-    const other: Area = {
+    const otherEl: Element = {
       id: 'a2',
-      gardenId: 'g1',
+      areaId: 'ar1',
       name: 'Other',
       type: 'path',
       color: '#999',
@@ -296,12 +300,13 @@ describe('GridMapEditor', () => {
     render(
       <I18nextProvider i18n={i18nInstance}>
         <GridMapEditor
-          garden={garden}
-          areas={[area, other]}
-          selectedAreaId={null}
-          onSelectArea={vi.fn()}
+          gardenId="g1"
+          area={mapArea}
+          elements={[bedElement, otherEl]}
+          selectedElementId={null}
+          onSelectElement={vi.fn()}
           onSelectionComplete={vi.fn()}
-          onMoveArea={onMoveArea}
+          onMoveElement={onMoveElement}
           tool="move"
           onToolChange={vi.fn()}
         />
@@ -309,7 +314,7 @@ describe('GridMapEditor', () => {
     );
 
     const map = screen.getByTestId('grid-map');
-    mockGridMapBoundingRect(map, garden.gridWidth, garden.gridHeight);
+    mockGridMapBoundingRect(map, mapArea.gridWidth, mapArea.gridHeight);
     const bed = screen.getByTestId('map-area-a1');
 
     fireEvent.pointerDown(bed, {
@@ -337,21 +342,21 @@ describe('GridMapEditor', () => {
       button: 0,
       buttons: 0,
     });
-    expect(onMoveArea).not.toHaveBeenCalled();
+    expect(onMoveElement).not.toHaveBeenCalled();
   });
 
   it('move mode renders alignment guides when edges align with another area', async () => {
-    const onMoveArea = vi.fn();
+    const onMoveElement = vi.fn();
     const i18nInstance = await testI18n();
-    const wideGarden: Garden = { ...garden, gridWidth: 6, gridHeight: 4 };
-    const a1: Area = {
-      ...area,
+    const wideMapArea: Area = { ...mapArea, gridWidth: 6, gridHeight: 4 };
+    const alignEl1: Element = {
+      ...bedElement,
       gridWidth: 2,
       gridHeight: 2,
     };
-    const a2: Area = {
+    const alignEl2: Element = {
       id: 'a2',
-      gardenId: 'g1',
+      areaId: 'ar1',
       name: 'East',
       type: 'path',
       color: '#888',
@@ -366,12 +371,13 @@ describe('GridMapEditor', () => {
     render(
       <I18nextProvider i18n={i18nInstance}>
         <GridMapEditor
-          garden={wideGarden}
-          areas={[a1, a2]}
-          selectedAreaId={null}
-          onSelectArea={vi.fn()}
+          gardenId="g1"
+          area={wideMapArea}
+          elements={[alignEl1, alignEl2]}
+          selectedElementId={null}
+          onSelectElement={vi.fn()}
           onSelectionComplete={vi.fn()}
-          onMoveArea={onMoveArea}
+          onMoveElement={onMoveElement}
           tool="move"
           onToolChange={vi.fn()}
         />
@@ -379,7 +385,7 @@ describe('GridMapEditor', () => {
     );
 
     const map = screen.getByTestId('grid-map');
-    mockGridMapBoundingRect(map, wideGarden.gridWidth, wideGarden.gridHeight);
+    mockGridMapBoundingRect(map, wideMapArea.gridWidth, wideMapArea.gridHeight);
     const bed = screen.getByTestId('map-area-a1');
 
     fireEvent.pointerDown(bed, {
@@ -400,16 +406,15 @@ describe('GridMapEditor', () => {
     render(
       <I18nextProvider i18n={i18nInstance}>
         <GridMapEditor
-          garden={garden}
-          areas={[area]}
-          selectedAreaId={null}
-          onSelectArea={vi.fn()}
+          gardenId="g1" area={mapArea} elements={[bedElement]}
+          selectedElementId={null}
+          onSelectElement={vi.fn()}
           onSelectionComplete={vi.fn()}
           tool="select"
           onToolChange={vi.fn()}
           layer="status"
-          areaColorById={{ a1: '#00ff00' }}
-          areaBadgeById={{ a1: { text: 'Sown', toneClass: 'bg-blue-600' } }}
+          elementColorById={{ a1: '#00ff00' }}
+          elementBadgeById={{ a1: { text: 'Sown', toneClass: 'bg-blue-600' } }}
           legendItems={[
             { label: 'Sown', color: '#00ff00' },
             { label: 'Harvested', color: '#ff00ff' },
@@ -430,18 +435,17 @@ describe('GridMapEditor', () => {
     render(
       <I18nextProvider i18n={i18nInstance}>
         <GridMapEditor
-          garden={garden}
-          areas={[area]}
-          selectedAreaId={null}
-          onSelectArea={vi.fn()}
+          gardenId="g1" area={mapArea} elements={[bedElement]}
+          selectedElementId={null}
+          onSelectElement={vi.fn()}
           onSelectionComplete={vi.fn()}
           tool="select"
           onToolChange={vi.fn()}
           layer="historical"
-          historicalGhostAreas={[
+          historicalGhostElements={[
             { id: 'old-a', name: 'Old bed', gridX: 2, gridY: 1, gridWidth: 1, gridHeight: 1 },
           ]}
-          areaOverlayBadgesById={{ a1: ['Tomato', 'Carrot'] }}
+          elementOverlayBadgesById={{ a1: ['Tomato', 'Carrot'] }}
         />
       </I18nextProvider>,
     );
@@ -456,10 +460,9 @@ describe('GridMapEditor', () => {
     render(
       <I18nextProvider i18n={i18nInstance}>
         <GridMapEditor
-          garden={garden}
-          areas={[]}
-          selectedAreaId={null}
-          onSelectArea={vi.fn()}
+          gardenId="g1" area={mapArea} elements={[bedElement]}
+          selectedElementId={null}
+          onSelectElement={vi.fn()}
           onSelectionComplete={onSelectionComplete}
           tool="draw-polygon"
           onToolChange={vi.fn()}
@@ -468,7 +471,7 @@ describe('GridMapEditor', () => {
     );
 
     const map = screen.getByTestId('grid-map');
-    mockGridMapBoundingRect(map, garden.gridWidth, garden.gridHeight);
+    mockGridMapBoundingRect(map, mapArea.gridWidth, mapArea.gridHeight);
 
     fireEvent.pointerDown(map, { clientX: CELL * 0.5, clientY: CELL * 0.5, button: 0, pointerId: 1 });
     fireEvent.pointerDown(map, { clientX: CELL * 2.5, clientY: CELL * 0.5, button: 0, pointerId: 2 });
@@ -485,10 +488,9 @@ describe('GridMapEditor', () => {
     render(
       <I18nextProvider i18n={i18nInstance}>
         <GridMapEditor
-          garden={garden}
-          areas={[]}
-          selectedAreaId={null}
-          onSelectArea={vi.fn()}
+          gardenId="g1" area={mapArea} elements={[bedElement]}
+          selectedElementId={null}
+          onSelectElement={vi.fn()}
           onSelectionComplete={onSelectionComplete}
           tool="draw-polygon"
           onToolChange={vi.fn()}
@@ -497,7 +499,7 @@ describe('GridMapEditor', () => {
     );
 
     const map = screen.getByTestId('grid-map');
-    mockGridMapBoundingRect(map, garden.gridWidth, garden.gridHeight);
+    mockGridMapBoundingRect(map, mapArea.gridWidth, mapArea.gridHeight);
 
     fireEvent.pointerDown(map, { clientX: CELL * 0.5, clientY: CELL * 0.5, button: 0, pointerId: 1 });
     fireEvent.pointerDown(map, { clientX: CELL * 2.5, clientY: CELL * 0.5, button: 0, pointerId: 2 });
@@ -514,10 +516,10 @@ describe('GridMapEditor', () => {
   });
 
   it('renders polygon areas as svg polygon, not only a bounding rect', async () => {
-    const onSelectArea = vi.fn();
+    const onSelectElement = vi.fn();
     const i18nInstance = await testI18n();
-    const polyArea: Area = {
-      ...area,
+    const polyElement: Element = {
+      ...bedElement,
       shape: {
         kind: 'polygon',
         vertices: [
@@ -531,10 +533,11 @@ describe('GridMapEditor', () => {
     render(
       <I18nextProvider i18n={i18nInstance}>
         <GridMapEditor
-          garden={garden}
-          areas={[polyArea]}
-          selectedAreaId={null}
-          onSelectArea={onSelectArea}
+          gardenId="g1"
+          area={mapArea}
+          elements={[polyElement]}
+          selectedElementId={null}
+          onSelectElement={onSelectElement}
           onSelectionComplete={vi.fn()}
           tool="select"
           onToolChange={vi.fn()}
@@ -552,15 +555,16 @@ describe('GridMapEditor', () => {
     apiFetchMock.mockResolvedValue(
       new Response(bytes, { status: 200, headers: { 'Content-Type': 'image/png' } }),
     );
-    const onSelectArea = vi.fn();
+    const onSelectElement = vi.fn();
     const i18nInstance = await testI18n();
     render(
       <I18nextProvider i18n={i18nInstance}>
         <GridMapEditor
-          garden={{ ...garden, backgroundImageUrl: '/gardens/g1/background-image' }}
-          areas={[area]}
-          selectedAreaId={null}
-          onSelectArea={onSelectArea}
+          gardenId="g1"
+          area={{ ...mapArea, backgroundImageUrl: '/gardens/g1/areas/ar1/background-image' }}
+          elements={[bedElement]}
+          selectedElementId={null}
+          onSelectElement={onSelectElement}
           onSelectionComplete={vi.fn()}
           tool="select"
           onToolChange={vi.fn()}
@@ -568,16 +572,16 @@ describe('GridMapEditor', () => {
       </I18nextProvider>,
     );
     await waitFor(() => {
-      expect(apiFetchMock.mock.calls.some((c) => c[0] === '/gardens/g1/background-image')).toBe(true);
+      expect(apiFetchMock.mock.calls.some((c) => c[0] === '/gardens/g1/areas/ar1/background-image')).toBe(true);
     });
     await waitFor(() => {
       expect(screen.getByTestId('map-background-image')).toBeInTheDocument();
     });
     const img = screen.getByTestId('map-background-image');
-    expect(img).toHaveAttribute('width', String(garden.gridWidth * CELL));
-    expect(img).toHaveAttribute('height', String(garden.gridHeight * CELL));
+    expect(img).toHaveAttribute('width', String(mapArea.gridWidth * CELL));
+    expect(img).toHaveAttribute('height', String(mapArea.gridHeight * CELL));
     expect(img).toHaveAttribute('preserveAspectRatio', 'xMidYMid slice');
-    expect(apiFetchMock.mock.calls.some((c) => c[0] === '/gardens/g1/background-image')).toBe(true);
+    expect(apiFetchMock.mock.calls.some((c) => c[0] === '/gardens/g1/areas/ar1/background-image')).toBe(true);
   });
 
   it('opacity slider updates rendered opacity and persists to localStorage', async () => {
@@ -591,10 +595,11 @@ describe('GridMapEditor', () => {
     render(
       <I18nextProvider i18n={i18nInstance}>
         <GridMapEditor
-          garden={{ ...garden, backgroundImageUrl: '/gardens/g1/background-image' }}
-          areas={[area]}
-          selectedAreaId={null}
-          onSelectArea={vi.fn()}
+          gardenId="g1"
+          area={{ ...mapArea, backgroundImageUrl: '/gardens/g1/areas/ar1/background-image' }}
+          elements={[bedElement]}
+          selectedElementId={null}
+          onSelectElement={vi.fn()}
           onSelectionComplete={vi.fn()}
           tool="select"
           onToolChange={vi.fn()}
@@ -605,7 +610,7 @@ describe('GridMapEditor', () => {
     fireEvent.change(slider, { target: { value: '30' } });
     const img = screen.getByTestId('map-background-image');
     expect(img.getAttribute('opacity')).toBe('0.3');
-    expect(localStorage.getItem('mygarden.mapBgOpacity.g1')).toBe('30');
+    expect(localStorage.getItem('mygarden.mapBgOpacity.g1.ar1')).toBe('30');
   });
 
   it('Space+drag pans in select mode without starting a selection preview', async () => {
@@ -613,10 +618,9 @@ describe('GridMapEditor', () => {
     render(
       <I18nextProvider i18n={i18nInstance}>
         <GridMapEditor
-          garden={garden}
-          areas={[]}
-          selectedAreaId={null}
-          onSelectArea={vi.fn()}
+          gardenId="g1" area={mapArea} elements={[bedElement]}
+          selectedElementId={null}
+          onSelectElement={vi.fn()}
           onSelectionComplete={vi.fn()}
           tool="select"
           onToolChange={vi.fn()}
@@ -626,7 +630,7 @@ describe('GridMapEditor', () => {
 
     const map = screen.getByTestId('grid-map');
     const viewport = screen.getByTestId('grid-map-viewport');
-    mockGridMapBoundingRect(map, garden.gridWidth, garden.gridHeight);
+    mockGridMapBoundingRect(map, mapArea.gridWidth, mapArea.gridHeight);
 
     fireEvent.keyDown(document.body, { code: 'Space', key: ' ' });
     expect(map).toHaveStyle({ cursor: 'grab' });
@@ -672,10 +676,9 @@ describe('GridMapEditor', () => {
     render(
       <I18nextProvider i18n={i18nInstance}>
         <GridMapEditor
-          garden={garden}
-          areas={[]}
-          selectedAreaId={null}
-          onSelectArea={vi.fn()}
+          gardenId="g1" area={mapArea} elements={[bedElement]}
+          selectedElementId={null}
+          onSelectElement={vi.fn()}
           onSelectionComplete={onSelectionComplete}
           tool="draw-polygon"
           onToolChange={vi.fn()}
@@ -685,7 +688,7 @@ describe('GridMapEditor', () => {
 
     const map = screen.getByTestId('grid-map');
     const viewport = screen.getByTestId('grid-map-viewport');
-    mockGridMapBoundingRect(map, garden.gridWidth, garden.gridHeight);
+    mockGridMapBoundingRect(map, mapArea.gridWidth, mapArea.gridHeight);
 
     fireEvent.pointerDown(map, { clientX: CELL * 0.5, clientY: CELL * 0.5, button: 0, pointerId: 1 });
     fireEvent.pointerDown(map, { clientX: CELL * 2.5, clientY: CELL * 0.5, button: 0, pointerId: 2 });
@@ -730,10 +733,9 @@ describe('GridMapEditor', () => {
     render(
       <I18nextProvider i18n={i18nInstance}>
         <GridMapEditor
-          garden={garden}
-          areas={[]}
-          selectedAreaId={null}
-          onSelectArea={vi.fn()}
+          gardenId="g1" area={mapArea} elements={[bedElement]}
+          selectedElementId={null}
+          onSelectElement={vi.fn()}
           onSelectionComplete={onSelectionComplete}
           tool="select"
           onToolChange={vi.fn()}
@@ -743,7 +745,7 @@ describe('GridMapEditor', () => {
 
     const map = screen.getByTestId('grid-map');
     const viewport = screen.getByTestId('grid-map-viewport');
-    mockGridMapBoundingRect(map, garden.gridWidth, garden.gridHeight);
+    mockGridMapBoundingRect(map, mapArea.gridWidth, mapArea.gridHeight);
 
     const before = parseMapViewportTransform(viewport);
     fireEvent.pointerDown(map, {
@@ -783,10 +785,9 @@ describe('GridMapEditor', () => {
     render(
       <I18nextProvider i18n={i18nInstance}>
         <GridMapEditor
-          garden={garden}
-          areas={[]}
-          selectedAreaId={null}
-          onSelectArea={vi.fn()}
+          gardenId="g1" area={mapArea} elements={[bedElement]}
+          selectedElementId={null}
+          onSelectElement={vi.fn()}
           onSelectionComplete={vi.fn()}
           tool="select"
           onToolChange={vi.fn()}

@@ -4,7 +4,7 @@ export interface CreateActivityLogInput {
   gardenId: string;
   seasonId: string;
   plantingId: string | null;
-  areaId: string | null;
+  elementId: string | null;
   activity: ActivityType;
   date: Date;
   note: string | null;

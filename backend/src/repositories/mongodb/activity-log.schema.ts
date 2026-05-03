@@ -7,7 +7,7 @@ const activityLogSchema = new mongoose.Schema(
     gardenId: { type: String, required: true, index: true },
     seasonId: { type: String, required: true, index: true },
     plantingId: { type: String, default: null },
-    areaId: { type: String, default: null },
+    elementId: { type: String, default: null },
     activity: { type: String, enum: [...ACTIVITY_TYPES], required: true },
     date: { type: Date, required: true },
     note: { type: String, default: null },
@@ -20,7 +20,7 @@ const activityLogSchema = new mongoose.Schema(
 
 activityLogSchema.index({ gardenId: 1, seasonId: 1, date: -1 });
 activityLogSchema.index({ plantingId: 1 });
-activityLogSchema.index({ areaId: 1 });
+activityLogSchema.index({ elementId: 1 });
 activityLogSchema.index({ createdBy: 1 });
 
 export type ActivityLogDoc = mongoose.InferSchemaType<typeof activityLogSchema> & { _id: string };

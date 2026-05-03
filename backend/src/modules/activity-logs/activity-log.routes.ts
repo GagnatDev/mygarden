@@ -41,7 +41,7 @@ export function createActivityLogsRouter(c: AppContainer): Router {
       const log = await c.activityLogService.create(gardenId, req.auth!.id, {
         seasonId: parsed.data.seasonId,
         plantingId: parsed.data.plantingId ?? null,
-        areaId: parsed.data.areaId ?? null,
+        elementId: parsed.data.elementId ?? null,
         activity: parsed.data.activity,
         date: parsed.data.date,
         note: parsed.data.note ?? null,

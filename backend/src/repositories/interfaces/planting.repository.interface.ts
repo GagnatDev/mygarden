@@ -3,7 +3,7 @@ import type { Planting, SowingMethod } from '../../domain/planting.js';
 export interface CreatePlantingInput {
   gardenId: string;
   seasonId: string;
-  areaId: string;
+  elementId: string;
   plantProfileId: string | null;
   plantName: string;
   sowingMethod: SowingMethod;
@@ -26,7 +26,7 @@ export interface IPlantingRepository {
     patch: Partial<
       Pick<
         Planting,
-        | 'areaId'
+        | 'elementId'
         | 'plantProfileId'
         | 'plantName'
         | 'sowingMethod'

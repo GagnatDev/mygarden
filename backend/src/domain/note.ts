@@ -1,4 +1,4 @@
-export const NOTE_TARGET_TYPES = ['planting', 'area', 'season'] as const;
+export const NOTE_TARGET_TYPES = ['planting', 'element', 'season'] as const;
 export type NoteTargetType = (typeof NOTE_TARGET_TYPES)[number];
 
 export interface Note {

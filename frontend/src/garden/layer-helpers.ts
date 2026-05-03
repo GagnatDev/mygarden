@@ -1,10 +1,10 @@
 import type { ActivityLog, ActivityType } from '../api/logs';
 import type { Planting } from '../api/plantings';
 
-export type AreaStatus = 'not-started' | 'sown' | 'planted' | 'harvested';
+export type ElementStatus = 'not-started' | 'sown' | 'planted' | 'harvested';
 export type PlanActualMatch = 'complete' | 'partial' | 'not-started' | 'unplanned';
 
-const STATUS_RANK: Record<AreaStatus, number> = {
+const STATUS_RANK: Record<ElementStatus, number> = {
   'not-started': 0,
   sown: 1,
   planted: 2,
@@ -22,7 +22,7 @@ function isProgressLog(l: ActivityLog): boolean {
   return PROGRESS_ACTIVITIES.has(l.activity);
 }
 
-function logStatus(l: ActivityLog): AreaStatus {
+function logStatus(l: ActivityLog): ElementStatus {
   switch (l.activity) {
     case 'harvested':
       return 'harvested';
@@ -37,7 +37,6 @@ function logStatus(l: ActivityLog): AreaStatus {
 }
 
 function byNewest(a: ActivityLog, b: ActivityLog): number {
-  // Prefer the domain "date" (activity date), then fall back to createdAt if needed.
   const ad = a.date ?? a.createdAt;
   const bd = b.date ?? b.createdAt;
   if (ad > bd) return -1;
@@ -45,17 +44,17 @@ function byNewest(a: ActivityLog, b: ActivityLog): number {
   return 0;
 }
 
-export function deriveAreaStatus(
-  areaId: string,
+export function deriveElementStatus(
+  elementId: string,
   plantings: readonly Planting[],
   logs: readonly ActivityLog[],
-): AreaStatus {
-  const planned = plantings.filter((p) => p.areaId === areaId);
+): ElementStatus {
+  const planned = plantings.filter((p) => p.elementId === elementId);
   if (planned.length === 0) return 'not-started';
 
   const logsByPlantingId = new Map<string, ActivityLog[]>();
   for (const l of logs) {
-    if (l.areaId !== areaId) continue;
+    if (l.elementId !== elementId) continue;
     if (!l.plantingId) continue;
     if (!isProgressLog(l)) continue;
     const arr = logsByPlantingId.get(l.plantingId) ?? [];
@@ -63,7 +62,7 @@ export function deriveAreaStatus(
     logsByPlantingId.set(l.plantingId, arr);
   }
 
-  let best: AreaStatus = 'not-started';
+  let best: ElementStatus = 'not-started';
   for (const p of planned) {
     const plogs = logsByPlantingId.get(p.id);
     if (!plogs || plogs.length === 0) continue;
@@ -75,27 +74,27 @@ export function deriveAreaStatus(
 }
 
 export function derivePlanVsActual(
-  areaId: string,
+  elementId: string,
   plantings: readonly Planting[],
   logs: readonly ActivityLog[],
 ): PlanActualMatch {
-  const planned = plantings.filter((p) => p.areaId === areaId);
+  const planned = plantings.filter((p) => p.elementId === elementId);
 
-  const progressLogsInArea = logs.filter((l) => l.areaId === areaId && isProgressLog(l));
+  const progressLogsInElement = logs.filter((l) => l.elementId === elementId && isProgressLog(l));
   const plannedIds = new Set(planned.map((p) => p.id));
 
-  // Any progress activity in the area that isn't tied to a planned planting counts as unplanned.
-  const hasUnplanned = progressLogsInArea.some((l) => !l.plantingId || !plannedIds.has(l.plantingId));
+  const hasUnplanned = progressLogsInElement.some(
+    (l) => !l.plantingId || !plannedIds.has(l.plantingId),
+  );
   if (hasUnplanned) return 'unplanned';
 
   if (planned.length === 0) return 'not-started';
 
   const donePlantingIds = new Set(
-    progressLogsInArea.map((l) => l.plantingId).filter((id): id is string => typeof id === 'string'),
+    progressLogsInElement.map((l) => l.plantingId).filter((id): id is string => typeof id === 'string'),
   );
   const doneCount = planned.filter((p) => donePlantingIds.has(p.id)).length;
   if (doneCount === 0) return 'not-started';
   if (doneCount === planned.length) return 'complete';
   return 'partial';
 }
-

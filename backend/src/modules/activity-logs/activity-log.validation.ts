@@ -7,7 +7,7 @@ export const createActivityLogBodySchema = z
   .object({
     seasonId: z.string().uuid(),
     plantingId: z.string().uuid().nullish(),
-    areaId: z.string().uuid().nullish(),
+    elementId: z.string().uuid().nullish(),
     activity: z.enum(ACTIVITY_TYPES),
     date: dateField,
     note: z.string().nullable().optional(),
@@ -16,11 +16,11 @@ export const createActivityLogBodySchema = z
   })
   .superRefine((data, ctx) => {
     const hasPlanting = data.plantingId != null && data.plantingId !== '';
-    const hasArea = data.areaId != null && data.areaId !== '';
-    if (!hasPlanting && !hasArea) {
+    const hasElement = data.elementId != null && data.elementId !== '';
+    if (!hasPlanting && !hasElement) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
-        message: 'Either plantingId or areaId must be set',
+        message: 'Either plantingId or elementId must be set',
         path: ['plantingId'],
       });
     }

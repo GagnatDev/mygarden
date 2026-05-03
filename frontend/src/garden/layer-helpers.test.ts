@@ -1,14 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import type { ActivityLog } from '../api/logs';
 import type { Planting } from '../api/plantings';
-import { deriveAreaStatus, derivePlanVsActual } from './layer-helpers';
+import { deriveElementStatus, derivePlanVsActual } from './layer-helpers';
 
-function planting(id: string, areaId: string): Planting {
+function planting(id: string, elementId: string): Planting {
   return {
     id,
     gardenId: 'g1',
     seasonId: 's1',
-    areaId,
+    elementId,
     plantProfileId: null,
     plantName: 'X',
     sowingMethod: 'indoor',
@@ -31,7 +31,7 @@ function log(partial: Partial<ActivityLog> & Pick<ActivityLog, 'activity' | 'dat
     gardenId: 'g1',
     seasonId: 's1',
     plantingId: partial.plantingId ?? null,
-    areaId: partial.areaId ?? null,
+    elementId: partial.elementId ?? null,
     activity: partial.activity,
     date: partial.date,
     note: null,
@@ -44,62 +44,61 @@ function log(partial: Partial<ActivityLog> & Pick<ActivityLog, 'activity' | 'dat
 }
 
 describe('layer-helpers', () => {
-  describe('deriveAreaStatus', () => {
-    it('returns not-started when area has no plantings', () => {
-      expect(deriveAreaStatus('a1', [], [])).toBe('not-started');
+  describe('deriveElementStatus', () => {
+    it('returns not-started when element has no plantings', () => {
+      expect(deriveElementStatus('e1', [], [])).toBe('not-started');
     });
 
     it('returns sown when a planting has a sown log', () => {
-      const plantings = [planting('p1', 'a1')];
-      const logs = [log({ activity: 'sown_outdoors', date: '2020-02-01', areaId: 'a1', plantingId: 'p1' })];
-      expect(deriveAreaStatus('a1', plantings, logs)).toBe('sown');
+      const plantings = [planting('p1', 'e1')];
+      const logs = [log({ activity: 'sown_outdoors', date: '2020-02-01', elementId: 'e1', plantingId: 'p1' })];
+      expect(deriveElementStatus('e1', plantings, logs)).toBe('sown');
     });
 
     it('returns harvested when a planting has a harvested log', () => {
-      const plantings = [planting('p1', 'a1')];
-      const logs = [log({ activity: 'harvested', date: '2020-03-01', areaId: 'a1', plantingId: 'p1' })];
-      expect(deriveAreaStatus('a1', plantings, logs)).toBe('harvested');
+      const plantings = [planting('p1', 'e1')];
+      const logs = [log({ activity: 'harvested', date: '2020-03-01', elementId: 'e1', plantingId: 'p1' })];
+      expect(deriveElementStatus('e1', plantings, logs)).toBe('harvested');
     });
 
     it('multiple plantings: highest status wins', () => {
-      const plantings = [planting('p1', 'a1'), planting('p2', 'a1')];
+      const plantings = [planting('p1', 'e1'), planting('p2', 'e1')];
       const logs = [
-        log({ activity: 'sown_indoors', date: '2020-02-01', areaId: 'a1', plantingId: 'p1' }),
-        log({ activity: 'transplanted', date: '2020-02-02', areaId: 'a1', plantingId: 'p2' }),
+        log({ activity: 'sown_indoors', date: '2020-02-01', elementId: 'e1', plantingId: 'p1' }),
+        log({ activity: 'transplanted', date: '2020-02-02', elementId: 'e1', plantingId: 'p2' }),
       ];
-      expect(deriveAreaStatus('a1', plantings, logs)).toBe('planted');
+      expect(deriveElementStatus('e1', plantings, logs)).toBe('planted');
     });
   });
 
   describe('derivePlanVsActual', () => {
     it('returns complete when all planned plantings have progress logs', () => {
-      const plantings = [planting('p1', 'a1'), planting('p2', 'a1')];
+      const plantings = [planting('p1', 'e1'), planting('p2', 'e1')];
       const logs = [
-        log({ activity: 'sown_outdoors', date: '2020-02-01', areaId: 'a1', plantingId: 'p1' }),
-        log({ activity: 'transplanted', date: '2020-02-02', areaId: 'a1', plantingId: 'p2' }),
+        log({ activity: 'sown_outdoors', date: '2020-02-01', elementId: 'e1', plantingId: 'p1' }),
+        log({ activity: 'transplanted', date: '2020-02-02', elementId: 'e1', plantingId: 'p2' }),
       ];
-      expect(derivePlanVsActual('a1', plantings, logs)).toBe('complete');
+      expect(derivePlanVsActual('e1', plantings, logs)).toBe('complete');
     });
 
     it('returns partial when some planned plantings have progress logs', () => {
-      const plantings = [planting('p1', 'a1'), planting('p2', 'a1')];
-      const logs = [log({ activity: 'sown_outdoors', date: '2020-02-01', areaId: 'a1', plantingId: 'p1' })];
-      expect(derivePlanVsActual('a1', plantings, logs)).toBe('partial');
+      const plantings = [planting('p1', 'e1'), planting('p2', 'e1')];
+      const logs = [log({ activity: 'sown_outdoors', date: '2020-02-01', elementId: 'e1', plantingId: 'p1' })];
+      expect(derivePlanVsActual('e1', plantings, logs)).toBe('partial');
     });
 
     it('returns not-started when no planned plantings have progress logs', () => {
-      const plantings = [planting('p1', 'a1')];
+      const plantings = [planting('p1', 'e1')];
       const logs: ActivityLog[] = [];
-      expect(derivePlanVsActual('a1', plantings, logs)).toBe('not-started');
+      expect(derivePlanVsActual('e1', plantings, logs)).toBe('not-started');
     });
 
     it('returns unplanned when there is progress activity without a planned planting', () => {
-      const plantings = [planting('p1', 'a1')];
+      const plantings = [planting('p1', 'e1')];
       const logs = [
-        log({ activity: 'sown_outdoors', date: '2020-02-01', areaId: 'a1', plantingId: 'p2' }),
+        log({ activity: 'sown_outdoors', date: '2020-02-01', elementId: 'e1', plantingId: 'p2' }),
       ];
-      expect(derivePlanVsActual('a1', plantings, logs)).toBe('unplanned');
+      expect(derivePlanVsActual('e1', plantings, logs)).toBe('unplanned');
     });
   });
 });
-

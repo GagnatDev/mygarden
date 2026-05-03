@@ -41,7 +41,7 @@ export class TaskService {
 
   async createManual(
     gardenId: string,
-    input: { seasonId: string; title: string; dueDate: Date; areaId: string | null },
+    input: { seasonId: string; title: string; dueDate: Date; elementId: string | null },
   ): Promise<Task> {
     const season = await this.seasonRepo.findById(input.seasonId);
     if (!season || season.gardenId !== gardenId) {
@@ -51,7 +51,7 @@ export class TaskService {
       gardenId,
       seasonId: input.seasonId,
       plantingId: null,
-      areaId: input.areaId,
+      elementId: input.elementId,
       title: input.title,
       dueDate: input.dueDate,
       source: 'manual',
@@ -83,7 +83,7 @@ export class TaskService {
           gardenId,
           seasonId: task.seasonId,
           plantingId: task.plantingId,
-          areaId: task.areaId,
+          elementId: task.elementId,
           activity,
           date: now,
           note: task.title,

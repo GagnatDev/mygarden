@@ -13,7 +13,7 @@ export interface Task {
   gardenId: string;
   seasonId: string;
   plantingId: string | null;
-  areaId: string | null;
+  elementId: string | null;
   title: string;
   dueDate: Date;
   source: TaskSource;
@@ -32,7 +32,7 @@ export function toPublicTask(t: Task) {
     gardenId: t.gardenId,
     seasonId: t.seasonId,
     plantingId: t.plantingId,
-    areaId: t.areaId,
+    elementId: t.elementId,
     title: t.title,
     dueDate: t.dueDate.toISOString(),
     source: t.source,

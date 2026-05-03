@@ -4,11 +4,7 @@ const gardenSchema = new mongoose.Schema(
   {
     _id: { type: String, required: true },
     name: { type: String, required: true, trim: true },
-    gridWidth: { type: Number, required: true, min: 1 },
-    gridHeight: { type: Number, required: true, min: 1 },
-    cellSizeMeters: { type: Number, required: true, min: 0.1, max: 1 },
     createdBy: { type: String, required: true },
-    backgroundImageKey: { type: String, required: false },
   },
   {
     _id: false,

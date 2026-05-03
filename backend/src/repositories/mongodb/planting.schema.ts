@@ -6,7 +6,7 @@ const plantingSchema = new mongoose.Schema(
     _id: { type: String, required: true },
     gardenId: { type: String, required: true, index: true },
     seasonId: { type: String, required: true, index: true },
-    areaId: { type: String, required: true },
+    elementId: { type: String, required: true },
     plantProfileId: { type: String, default: null },
     plantName: { type: String, required: true, trim: true },
     sowingMethod: { type: String, enum: [...SOWING_METHODS], required: true },
@@ -23,7 +23,7 @@ const plantingSchema = new mongoose.Schema(
 );
 
 plantingSchema.index({ gardenId: 1, seasonId: 1 });
-plantingSchema.index({ areaId: 1 });
+plantingSchema.index({ elementId: 1 });
 plantingSchema.index({ plantProfileId: 1 });
 
 export type PlantingDoc = mongoose.InferSchemaType<typeof plantingSchema> & { _id: string };

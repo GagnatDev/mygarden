@@ -7,21 +7,21 @@ import type {
 
 function pushTask(
   out: CreateTaskInput[],
-  params: Omit<CreateTaskInput, 'gardenId' | 'seasonId' | 'plantingId' | 'source' | 'status' | 'autoKind'> & {
+  params: {
     gardenId: string;
     seasonId: string;
     plantingId: string;
+    elementId: string | null;
     title: string;
     dueDate: Date;
     autoKind: TaskAutoKind;
-    areaId: string | null;
   },
 ) {
   out.push({
     gardenId: params.gardenId,
     seasonId: params.seasonId,
     plantingId: params.plantingId,
-    areaId: params.areaId,
+    elementId: params.elementId,
     title: params.title,
     dueDate: params.dueDate,
     source: 'auto',
@@ -36,7 +36,7 @@ export async function replaceAutoTasksForPlanting(
 ): Promise<void> {
   await taskRepo.deleteAutoTasksByPlantingId(planting.id);
   const inputs: CreateTaskInput[] = [];
-  const { plantName, id, gardenId, seasonId, areaId } = planting;
+  const { plantName, id, gardenId, seasonId, elementId } = planting;
 
   if (planting.sowingMethod === 'indoor') {
     if (planting.indoorSowDate) {
@@ -44,7 +44,7 @@ export async function replaceAutoTasksForPlanting(
         gardenId,
         seasonId,
         plantingId: id,
-        areaId,
+        elementId,
         title: `Sow ${plantName} indoors`,
         dueDate: planting.indoorSowDate,
         autoKind: 'sow_indoor',
@@ -55,7 +55,7 @@ export async function replaceAutoTasksForPlanting(
         gardenId,
         seasonId,
         plantingId: id,
-        areaId,
+        elementId,
         title: `Transplant ${plantName}`,
         dueDate: planting.transplantDate,
         autoKind: 'transplant',
@@ -67,7 +67,7 @@ export async function replaceAutoTasksForPlanting(
         gardenId,
         seasonId,
         plantingId: id,
-        areaId,
+        elementId,
         title: `Sow ${plantName} outdoors`,
         dueDate: planting.outdoorSowDate,
         autoKind: 'sow_outdoor',
@@ -80,7 +80,7 @@ export async function replaceAutoTasksForPlanting(
       gardenId,
       seasonId,
       plantingId: id,
-      areaId,
+      elementId,
       title: `Start harvesting ${plantName}`,
       dueDate: planting.harvestWindowStart,
       autoKind: 'harvest_start',
@@ -92,6 +92,9 @@ export async function replaceAutoTasksForPlanting(
   }
 }
 
-export async function removeAllTasksForPlanting(taskRepo: ITaskRepository, plantingId: string): Promise<void> {
+export async function removeAllTasksForPlanting(
+  taskRepo: ITaskRepository,
+  plantingId: string,
+): Promise<void> {
   await taskRepo.deleteAllTasksByPlantingId(plantingId);
 }

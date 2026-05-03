@@ -1,68 +1,68 @@
 import { memo } from 'react';
 import { useTranslation } from 'react-i18next';
-import type { Area } from '../api/gardens';
+import type { Element } from '../api/elements';
 import { polygonCentroidGrid, polygonPointsPx } from './polygon-helpers';
 import { toneClassToHex } from './svg-utils';
 
-export interface AreaBadge {
+export interface ElementBadge {
   text: string;
   /** Tailwind background class, e.g. "bg-amber-500". */
   toneClass: string;
 }
 
 export interface GridMapAreasSvgProps {
-  areas: Area[];
+  elements: Element[];
   cell: number;
-  areaIdsWithPlantings?: ReadonlySet<string>;
-  areaColorById?: Readonly<Record<string, string>>;
-  areaBadgeById?: Readonly<Record<string, AreaBadge>>;
-  areaOverlayBadgesById?: Readonly<Record<string, string[]>>;
-  selectedAreaId: string | null;
+  elementIdsWithPlantings?: ReadonlySet<string>;
+  elementColorById?: Readonly<Record<string, string>>;
+  elementBadgeById?: Readonly<Record<string, ElementBadge>>;
+  elementOverlayBadgesById?: Readonly<Record<string, string[]>>;
+  selectedElementId: string | null;
   effectiveTool: 'select' | 'pan' | 'move' | 'draw-polygon';
   readOnly: boolean;
-  draggingAreaId?: string | null;
-  onSelectArea: (id: string | null) => void;
-  onBeginAreaMove?: (e: React.PointerEvent, area: Area) => void;
-  onBeginAreaMoveTouch?: (clientX: number, clientY: number, area: Area) => void;
+  draggingElementId?: string | null;
+  onSelectElement: (id: string | null) => void;
+  onBeginElementMove?: (e: React.PointerEvent, element: Element) => void;
+  onBeginElementMoveTouch?: (clientX: number, clientY: number, element: Element) => void;
 }
 
-function areaCenterPx(a: Area, cell: number): { cx: number; cy: number } {
-  if (a.shape?.kind === 'polygon') {
-    const c = polygonCentroidGrid(a.shape.vertices);
+function elementCenterPx(el: Element, cell: number): { cx: number; cy: number } {
+  if (el.shape?.kind === 'polygon') {
+    const c = polygonCentroidGrid(el.shape.vertices);
     return { cx: c.x * cell, cy: c.y * cell };
   }
   return {
-    cx: (a.gridX + a.gridWidth / 2) * cell,
-    cy: (a.gridY + a.gridHeight / 2) * cell,
+    cx: (el.gridX + el.gridWidth / 2) * cell,
+    cy: (el.gridY + el.gridHeight / 2) * cell,
   };
 }
 
 export const GridMapAreasSvg = memo<GridMapAreasSvgProps>(function GridMapAreasSvg({
-  areas,
+  elements,
   cell,
-  areaIdsWithPlantings,
-  areaColorById,
-  areaBadgeById,
-  areaOverlayBadgesById,
-  selectedAreaId,
+  elementIdsWithPlantings,
+  elementColorById,
+  elementBadgeById,
+  elementOverlayBadgesById,
+  selectedElementId,
   effectiveTool,
   readOnly,
-  draggingAreaId = null,
-  onSelectArea,
-  onBeginAreaMove,
-  onBeginAreaMoveTouch,
+  draggingElementId = null,
+  onSelectElement,
+  onBeginElementMove,
+  onBeginElementMoveTouch,
 }: GridMapAreasSvgProps) {
   const { t } = useTranslation();
 
   return (
     <>
-      {areas.map((a) => {
-        const selected = a.id === selectedAreaId;
-        const hasPlantings = areaIdsWithPlantings?.has(a.id) ?? false;
-        const dragging = a.id === draggingAreaId;
-        const overlayColor = areaColorById?.[a.id];
-        const badge = areaBadgeById?.[a.id];
-        const overlayBadges = areaOverlayBadgesById?.[a.id] ?? [];
+      {elements.map((a) => {
+        const selected = a.id === selectedElementId;
+        const hasPlantings = elementIdsWithPlantings?.has(a.id) ?? false;
+        const dragging = a.id === draggingElementId;
+        const overlayColor = elementColorById?.[a.id];
+        const badge = elementBadgeById?.[a.id];
+        const overlayBadges = elementOverlayBadgesById?.[a.id] ?? [];
         const fill = overlayColor ?? a.color;
 
         const x = a.gridX * cell;
@@ -72,12 +72,12 @@ export const GridMapAreasSvg = memo<GridMapAreasSvgProps>(function GridMapAreasS
         const polygonShape = a.shape?.kind === 'polygon' ? a.shape : undefined;
         const isPolygon = polygonShape !== undefined;
         const polygonPts = polygonShape ? polygonPointsPx(polygonShape.vertices, cell) : '';
-        const ariaLabel = hasPlantings ? `${a.name} (${t('garden.hasPlantingsHint')})` : a.name;
+        const ariaLabel = hasPlantings ? `${a.name} (${t('elements.hasPlantingsHint')})` : a.name;
 
         const pointerEvents: React.SVGAttributes<SVGGElement>['pointerEvents'] =
           effectiveTool === 'pan' || effectiveTool === 'draw-polygon' || readOnly ? 'none' : 'auto';
 
-        const { cx, cy } = areaCenterPx(a, cell);
+        const { cx, cy } = elementCenterPx(a, cell);
 
         return (
           <g
@@ -90,23 +90,23 @@ export const GridMapAreasSvg = memo<GridMapAreasSvgProps>(function GridMapAreasS
             pointerEvents={pointerEvents}
             onPointerDown={(ev) => {
               ev.stopPropagation();
-              if (!readOnly && effectiveTool === 'move' && onBeginAreaMove) {
+              if (!readOnly && effectiveTool === 'move' && onBeginElementMove) {
                 ev.preventDefault();
-                onBeginAreaMove(ev as unknown as React.PointerEvent, a);
+                onBeginElementMove(ev as unknown as React.PointerEvent, a);
               }
             }}
             onTouchStart={(ev) => {
               ev.stopPropagation();
-              if (readOnly || effectiveTool !== 'move' || !onBeginAreaMoveTouch) return;
+              if (readOnly || effectiveTool !== 'move' || !onBeginElementMoveTouch) return;
               const touch = ev.touches[0];
               if (!touch) return;
               ev.preventDefault();
-              onBeginAreaMoveTouch(touch.clientX, touch.clientY, a);
+              onBeginElementMoveTouch(touch.clientX, touch.clientY, a);
             }}
             onClick={(ev) => {
               if (readOnly || effectiveTool !== 'select') return;
               ev.stopPropagation();
-              onSelectArea(a.id);
+              onSelectElement(a.id);
             }}
           >
             {isPolygon ? (
@@ -202,4 +202,3 @@ export const GridMapAreasSvg = memo<GridMapAreasSvgProps>(function GridMapAreasS
     </>
   );
 });
-

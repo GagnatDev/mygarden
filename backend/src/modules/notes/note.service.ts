@@ -1,6 +1,7 @@
 import type { Note, NoteTargetType } from '../../domain/note.js';
 import { HttpError } from '../../middleware/problem-details.js';
 import type { IAreaRepository } from '../../repositories/interfaces/area.repository.interface.js';
+import type { IElementRepository } from '../../repositories/interfaces/element.repository.interface.js';
 import type { INoteRepository } from '../../repositories/interfaces/note.repository.interface.js';
 import type { IPlantingRepository } from '../../repositories/interfaces/planting.repository.interface.js';
 import type { ISeasonRepository } from '../../repositories/interfaces/season.repository.interface.js';
@@ -10,6 +11,7 @@ export class NoteService {
     private readonly noteRepo: INoteRepository,
     private readonly seasonRepo: ISeasonRepository,
     private readonly plantingRepo: IPlantingRepository,
+    private readonly elementRepo: IElementRepository,
     private readonly areaRepo: IAreaRepository,
   ) {}
 
@@ -86,10 +88,14 @@ export class NoteService {
       }
       return;
     }
-    if (targetType === 'area') {
-      const area = await this.areaRepo.findById(targetId);
+    if (targetType === 'element') {
+      const element = await this.elementRepo.findById(targetId);
+      if (!element) {
+        throw new HttpError(400, 'Element not found in this garden', 'Bad Request');
+      }
+      const area = await this.areaRepo.findById(element.areaId);
       if (!area || area.gardenId !== gardenId) {
-        throw new HttpError(400, 'Area not found in this garden', 'Bad Request');
+        throw new HttpError(400, 'Element not found in this garden', 'Bad Request');
       }
       return;
     }

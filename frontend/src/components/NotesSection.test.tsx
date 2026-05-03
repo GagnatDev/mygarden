@@ -16,7 +16,7 @@ describe('NotesSection', () => {
         id: 'n1',
         gardenId: 'g1',
         seasonId: 's1',
-        targetType: 'area',
+        targetType: 'element',
         targetId: 'a1',
         body: 'First',
         createdBy: 'u1',
@@ -55,7 +55,7 @@ describe('NotesSection', () => {
 
     render(
       <I18nextProvider i18n={instance}>
-        <NotesSection gardenId="g1" seasonId="s1" targetType="area" targetId="a1" />
+        <NotesSection gardenId="g1" seasonId="s1" targetType="element" targetId="a1" />
       </I18nextProvider>,
     );
 

@@ -15,7 +15,7 @@ export interface ActivityLog {
   gardenId: string;
   seasonId: string;
   plantingId: string | null;
-  areaId: string | null;
+  elementId: string | null;
   activity: ActivityType;
   date: string;
   note: string | null;
@@ -55,7 +55,7 @@ export async function createLog(
   body: {
     seasonId: string;
     plantingId?: string | null;
-    areaId?: string | null;
+    elementId?: string | null;
     activity: ActivityType;
     date: string;
     note?: string | null;

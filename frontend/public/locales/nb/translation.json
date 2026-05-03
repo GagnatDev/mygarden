@@ -23,12 +23,18 @@
     "openMenu": "Åpne meny",
     "closeMenu": "Lukk meny",
     "home": "Hjem",
+    "gardens": "Hager",
     "gardenMap": "Hagekart",
     "plantingPlan": "Plantingsplan",
     "calendar": "Kalender",
     "plantProfiles": "Plantprofiler",
     "notes": "Notater",
-    "history": "Sesonghistorikk"
+    "history": "Sesonghistorikk",
+    "currentGarden": "Aktiv hage",
+    "noGardensYet": "Ingen hager ennå.",
+    "createGardenLink": "Opprett en hage",
+    "gardenListLoading": "Laster hager…",
+    "chooseActiveGarden": "Velg aktiv hage"
   },
   "lang": {
     "nb": "NB",
@@ -39,6 +45,27 @@
   },
   "placeholders": {
     "comingSoon": "Denne delen kommer i en senere versjon."
+  },
+  "gardens": {
+    "listHint": "Åpne en hage for å administrere områder og kart."
+  },
+  "areas": {
+    "sectionTitle": "Områder",
+    "emptyHint": "Ingen områder ennå. Opprett ett nedenfor.",
+    "createTitle": "Nytt område",
+    "title": "Tittel",
+    "description": "Beskrivelse",
+    "createSubmit": "Opprett område",
+    "delete": "Slett",
+    "confirmDelete": "Slette dette området og elementene?",
+    "titleRequired": "Skriv inn en tittel."
+  },
+  "elements": {
+    "hasPlantingsHint": "har plantinger",
+    "layers": {
+      "elementType": "Elementtype"
+    },
+    "historicalGhostAria": "Historisk element {{name}}"
   },
   "garden": {
     "createTitle": "Opprett hagen din",
@@ -132,9 +159,10 @@
     "createProfile": "Lagre profil",
     "deleteProfile": "Slett profil",
     "confirmDeleteProfile": "Slette denne planteprofilen? Plantinger beholder lagret navn.",
-    "planHint": "Plantinger er gruppert per område for aktiv sesong.",
+    "planHint": "Plantinger er gruppert per område og element for aktiv sesong.",
     "noSeason": "Ingen aktiv sesong for denne hagen.",
-    "noPlantingsInArea": "Ingen plantinger i dette området ennå.",
+    "noPlantingsInArea": "Ingen plantinger her ennå.",
+    "noElementsInArea": "Ingen elementer i dette området ennå.",
     "addPlanting": "Legg til planting",
     "plantSource": "Plante",
     "fromProfile": "Fra profil",
@@ -152,12 +180,15 @@
     "harvestStartOptional": "Høstestart (valgfritt)",
     "savePlanting": "Lagre planting",
     "moveToArea": "Område",
+    "moveToElement": "Flytt til",
+    "element": "Element",
     "removePlanting": "Fjern",
     "confirmRemovePlanting": "Fjerne denne plantingen fra planen?",
     "quickLog": "Hurtiglogg",
     "logTarget": "Logg for",
     "targetPlanting": "En planting",
     "targetArea": "Et område",
+    "targetElement": "Et element",
     "planting": "Planting",
     "activity": "Aktivitet",
     "datePlaceholder": "Velg dato",
@@ -210,7 +241,8 @@
     "archiveSeason": "Arkiver sesong og start neste",
     "confirmArchive": "Arkivere denne sesongen? En ny aktiv sesong opprettes for neste år.",
     "pickSeason": "Velg en sesong.",
-    "mapCaption": "Kartlayout med områder (gjeldende hagerutenett).",
+    "mapCaption": "Kartlayout (første område i dette øyeblikksbildet).",
+    "noAreaInSnapshot": "Ingen områdedata i dette øyeblikksbildet.",
     "plantings": "Plantinger"
   },
   "offline": {

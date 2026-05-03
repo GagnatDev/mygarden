@@ -2,6 +2,7 @@ import type { ActivityLog } from '../../domain/activity-log.js';
 import { HttpError } from '../../middleware/problem-details.js';
 import type { IActivityLogRepository } from '../../repositories/interfaces/activity-log.repository.interface.js';
 import type { IAreaRepository } from '../../repositories/interfaces/area.repository.interface.js';
+import type { IElementRepository } from '../../repositories/interfaces/element.repository.interface.js';
 import type { IPlantingRepository } from '../../repositories/interfaces/planting.repository.interface.js';
 import type { ISeasonRepository } from '../../repositories/interfaces/season.repository.interface.js';
 
@@ -10,6 +11,7 @@ export class ActivityLogService {
     private readonly logRepo: IActivityLogRepository,
     private readonly seasonRepo: ISeasonRepository,
     private readonly plantingRepo: IPlantingRepository,
+    private readonly elementRepo: IElementRepository,
     private readonly areaRepo: IAreaRepository,
   ) {}
 
@@ -31,7 +33,7 @@ export class ActivityLogService {
     body: {
       seasonId: string;
       plantingId: string | null;
-      areaId: string | null;
+      elementId: string | null;
       activity: ActivityLog['activity'];
       date: Date;
       note: string | null;
@@ -49,17 +51,21 @@ export class ActivityLogService {
         throw new HttpError(404, 'Planting not found', 'Not Found');
       }
     }
-    if (body.areaId) {
-      const a = await this.areaRepo.findById(body.areaId);
-      if (!a || a.gardenId !== gardenId) {
-        throw new HttpError(404, 'Area not found', 'Not Found');
+    if (body.elementId) {
+      const el = await this.elementRepo.findById(body.elementId);
+      if (!el) {
+        throw new HttpError(404, 'Element not found', 'Not Found');
+      }
+      const area = await this.areaRepo.findById(el.areaId);
+      if (!area || area.gardenId !== gardenId) {
+        throw new HttpError(404, 'Element not found', 'Not Found');
       }
     }
     return this.logRepo.create({
       gardenId,
       seasonId: body.seasonId,
       plantingId: body.plantingId,
-      areaId: body.areaId,
+      elementId: body.elementId,
       activity: body.activity,
       date: body.date,
       note: body.note,

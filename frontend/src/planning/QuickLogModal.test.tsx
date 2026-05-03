@@ -10,6 +10,7 @@ const en = {
     logTarget: 'Target',
     targetPlanting: 'Planting',
     targetArea: 'Area',
+    targetElement: 'Element',
     planting: 'Pl',
     activity: 'Act',
     datePlaceholder: 'Pick',
@@ -80,8 +81,8 @@ describe('QuickLogModal', () => {
           onClose={onClose}
           gardenId="g1"
           seasonId="s1"
-          areas={[{ id: 'a1', name: 'Bed' }]}
-          plantings={[{ id: 'p1', plantName: 'Tom', areaId: 'a1' }]}
+          elements={[{ id: 'e1', name: 'Bed' }]}
+          plantings={[{ id: 'p1', plantName: 'Tom', elementId: 'e1' }]}
         />
       </I18nextProvider>,
     );

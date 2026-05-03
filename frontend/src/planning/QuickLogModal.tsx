@@ -14,7 +14,7 @@ const ACTIVITIES: ActivityType[] = [
   'problem_noted',
 ];
 
-export interface QuickLogAreaOption {
+export interface QuickLogElementOption {
   id: string;
   name: string;
 }
@@ -22,7 +22,7 @@ export interface QuickLogAreaOption {
 export interface QuickLogPlantingOption {
   id: string;
   plantName: string;
-  areaId: string;
+  elementId: string;
 }
 
 export function QuickLogModal({
@@ -30,7 +30,7 @@ export function QuickLogModal({
   onClose,
   gardenId,
   seasonId,
-  areas,
+  elements,
   plantings,
   onLogged,
 }: {
@@ -38,14 +38,14 @@ export function QuickLogModal({
   onClose: () => void;
   gardenId: string;
   seasonId: string;
-  areas: QuickLogAreaOption[];
+  elements: QuickLogElementOption[];
   plantings: QuickLogPlantingOption[];
   onLogged?: () => void;
 }) {
   const { t } = useTranslation();
-  const [target, setTarget] = useState<'planting' | 'area'>('planting');
+  const [target, setTarget] = useState<'planting' | 'element'>('planting');
   const [plantingId, setPlantingId] = useState('');
-  const [areaId, setAreaId] = useState('');
+  const [elementId, setElementId] = useState('');
   const [activity, setActivity] = useState<ActivityType>('watered');
   const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [note, setNote] = useState('');
@@ -58,16 +58,16 @@ export function QuickLogModal({
     e.preventDefault();
     setErr(null);
     let plantingIdOut: string | null = null;
-    let areaIdOut: string | null = null;
+    let elementIdOut: string | null = null;
     if (target === 'planting') {
       plantingIdOut = plantingId || null;
       if (plantingIdOut) {
-        areaIdOut = plantings.find((p) => p.id === plantingIdOut)?.areaId ?? null;
+        elementIdOut = plantings.find((p) => p.id === plantingIdOut)?.elementId ?? null;
       }
     } else {
-      areaIdOut = areaId || null;
+      elementIdOut = elementId || null;
     }
-    if (!plantingIdOut && !areaIdOut) {
+    if (!plantingIdOut && !elementIdOut) {
       setErr(t('planning.logNeedTarget'));
       return;
     }
@@ -78,7 +78,7 @@ export function QuickLogModal({
       await createLog(gardenId, {
         seasonId,
         plantingId: plantingIdOut,
-        areaId: areaIdOut,
+        elementId: elementIdOut,
         activity,
         date: day.toISOString(),
         note: note.trim() || null,
@@ -121,10 +121,10 @@ export function QuickLogModal({
               <input
                 type="radio"
                 name="target"
-                checked={target === 'area'}
-                onChange={() => setTarget('area')}
+                checked={target === 'element'}
+                onChange={() => setTarget('element')}
               />
-              {t('planning.targetArea')}
+              {t('planning.targetElement')}
             </label>
           </fieldset>
 
@@ -147,16 +147,16 @@ export function QuickLogModal({
             </label>
           ) : (
             <label className="block text-sm font-medium text-stone-700">
-              {t('garden.areaDetails')}
+              {t('planning.targetElement')}
               <select
                 className="mt-1 w-full rounded-lg border border-stone-300 px-3 py-2"
-                value={areaId}
-                onChange={(e) => setAreaId(e.target.value)}
+                value={elementId}
+                onChange={(e) => setElementId(e.target.value)}
               >
                 <option value="">{t('planning.select')}</option>
-                {areas.map((a) => (
-                  <option key={a.id} value={a.id}>
-                    {a.name}
+                {elements.map((el) => (
+                  <option key={el.id} value={el.id}>
+                    {el.name}
                   </option>
                 ))}
               </select>

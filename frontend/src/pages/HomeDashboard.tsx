@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { listAreas } from '../api/gardens';
+import { listAreas } from '../api/areas';
+import { listElements } from '../api/elements';
 import { listPlantings } from '../api/plantings';
 import { useGardenContext } from '../garden/garden-context';
 import { useActiveSeason } from '../garden/useActiveSeason';
@@ -10,25 +11,32 @@ export function HomeDashboard() {
   const { t } = useTranslation();
   const { selectedGarden, loading, error } = useGardenContext();
   const { seasonId } = useActiveSeason(selectedGarden?.id ?? null);
-  const [areas, setAreas] = useState<Awaited<ReturnType<typeof listAreas>>>([]);
+  const [elementsLabelled, setElementsLabelled] = useState<{ id: string; name: string }[]>([]);
   const [plantings, setPlantings] = useState<Awaited<ReturnType<typeof listPlantings>>>([]);
   const [quickLogOpen, setQuickLogOpen] = useState(false);
 
   const loadQuickLogData = useCallback(async () => {
     if (!selectedGarden || !seasonId) {
-      setAreas([]);
+      setElementsLabelled([]);
       setPlantings([]);
       return;
     }
     try {
-      const [a, p] = await Promise.all([
-        listAreas(selectedGarden.id),
-        listPlantings(selectedGarden.id, seasonId),
-      ]);
-      setAreas(a);
+      const areas = await listAreas(selectedGarden.id);
+      const lists = await Promise.all(
+        areas.map((a) => listElements(selectedGarden.id, a.id)),
+      );
+      const flat = areas.flatMap((a, i) =>
+        (lists[i] ?? []).map((el) => ({
+          id: el.id,
+          name: `${a.title} · ${el.name}`,
+        })),
+      );
+      const p = await listPlantings(selectedGarden.id, seasonId);
+      setElementsLabelled(flat);
       setPlantings(p);
     } catch {
-      setAreas([]);
+      setElementsLabelled([]);
       setPlantings([]);
     }
   }, [selectedGarden, seasonId]);
@@ -42,10 +50,14 @@ export function HomeDashboard() {
     return {
       gardenId: selectedGarden.id,
       seasonId,
-      areas: areas.map((a) => ({ id: a.id, name: a.name })),
-      plantings: plantings.map((p) => ({ id: p.id, plantName: p.plantName, areaId: p.areaId })),
+      elements: elementsLabelled,
+      plantings: plantings.map((p) => ({
+        id: p.id,
+        plantName: p.plantName,
+        elementId: p.elementId ?? '',
+      })),
     };
-  }, [selectedGarden, seasonId, areas, plantings]);
+  }, [selectedGarden, seasonId, elementsLabelled, plantings]);
 
   return (
     <div>
@@ -67,7 +79,7 @@ export function HomeDashboard() {
           onClose={() => setQuickLogOpen(false)}
           gardenId={quickLogProps.gardenId}
           seasonId={quickLogProps.seasonId}
-          areas={quickLogProps.areas}
+          elements={quickLogProps.elements}
           plantings={quickLogProps.plantings}
           onLogged={() => void loadQuickLogData()}
         />

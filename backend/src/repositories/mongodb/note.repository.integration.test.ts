@@ -13,14 +13,14 @@ describe('NoteRepository (integration)', () => {
     const gardenId = uuidv4();
     const seasonId = uuidv4();
     const userId = uuidv4();
-    const areaId = uuidv4();
+    const elementId = uuidv4();
 
     const n1 = await repo.create({
       gardenId,
       seasonId,
-      targetType: 'area',
-      targetId: areaId,
-      body: 'Area note',
+      targetType: 'element',
+      targetId: elementId,
+      body: 'Element note',
       createdBy: userId,
     });
     const n2 = await repo.create({
@@ -35,12 +35,12 @@ describe('NoteRepository (integration)', () => {
     const all = await repo.findByGardenSeason(gardenId, seasonId);
     expect(all).toHaveLength(2);
 
-    const areasOnly = await repo.findByGardenSeason(gardenId, seasonId, {
-      targetType: 'area',
-      targetId: areaId,
+    const elementsOnly = await repo.findByGardenSeason(gardenId, seasonId, {
+      targetType: 'element',
+      targetId: elementId,
     });
-    expect(areasOnly).toHaveLength(1);
-    expect(areasOnly[0]!.id).toBe(n1.id);
+    expect(elementsOnly).toHaveLength(1);
+    expect(elementsOnly[0]!.id).toBe(n1.id);
 
     const u = await repo.update(n1.id, { body: 'Updated' });
     expect(u?.body).toBe('Updated');

@@ -1,41 +1,31 @@
 import { z } from 'zod';
-import { AREA_TYPES } from '../../domain/area.js';
 
-const hexColor = z
-  .string()
-  .regex(/^#([0-9a-fA-F]{6}|[0-9a-fA-F]{3})$/, 'Color must be a hex code like #aabbcc');
+const CELL_SIZE_EPS = 1e-6;
 
-const pointSchema = z.object({
-  x: z.number().finite(),
-  y: z.number().finite(),
-});
-
-const shapeSchema = z.discriminatedUnion('kind', [
-  z.object({ kind: z.literal('rectangle') }),
-  z.object({ kind: z.literal('polygon'), vertices: z.array(pointSchema).min(3).max(256) }),
-  z.object({ kind: z.literal('path'), d: z.string().trim().min(1).max(50_000) }),
-]);
+const cellSizeMetersField = z.coerce
+  .number()
+  .min(0.1)
+  .max(1)
+  .refine((v) => Math.abs(Math.round(v * 10) / 10 - v) < CELL_SIZE_EPS, {
+    message: 'cellSizeMeters must be in 0.1 m steps',
+  });
 
 export const createAreaBodySchema = z.object({
-  name: z.string().trim().min(1).max(200),
-  type: z.enum(AREA_TYPES),
-  color: hexColor,
-  gridX: z.coerce.number().int().min(0),
-  gridY: z.coerce.number().int().min(0),
-  gridWidth: z.coerce.number().int().min(1),
-  gridHeight: z.coerce.number().int().min(1),
-  shape: shapeSchema.optional(),
+  title: z.string().trim().min(1, 'Title is required').max(200),
+  description: z.string().max(2000).optional(),
+  gridWidth: z.coerce.number().int().min(1).max(200),
+  gridHeight: z.coerce.number().int().min(1).max(200),
+  cellSizeMeters: cellSizeMetersField,
+  sortIndex: z.coerce.number().int().min(0).optional(),
 });
 
 export const patchAreaBodySchema = z
   .object({
-    name: z.string().trim().min(1).max(200).optional(),
-    type: z.enum(AREA_TYPES).optional(),
-    color: hexColor.optional(),
-    gridX: z.coerce.number().int().min(0).optional(),
-    gridY: z.coerce.number().int().min(0).optional(),
-    gridWidth: z.coerce.number().int().min(1).optional(),
-    gridHeight: z.coerce.number().int().min(1).optional(),
-    shape: shapeSchema.optional(),
+    title: z.string().trim().min(1).max(200).optional(),
+    description: z.string().max(2000).optional(),
+    gridWidth: z.coerce.number().int().min(1).max(200).optional(),
+    gridHeight: z.coerce.number().int().min(1).max(200).optional(),
+    cellSizeMeters: cellSizeMetersField.optional(),
+    sortIndex: z.coerce.number().int().min(0).optional(),
   })
   .refine((o) => Object.keys(o).length > 0, { message: 'At least one field is required' });

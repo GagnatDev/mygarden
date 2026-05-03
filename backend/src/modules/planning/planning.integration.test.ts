@@ -17,11 +17,7 @@ async function registerWithToken(
   await c.allowedEmailRepo.create({ email, addedBy: null });
   const res = await request(app)
     .post('/api/v1/auth/register')
-    .send({
-      email,
-      password: 'password12',
-      displayName,
-    })
+    .send({ email, password: 'password12', displayName })
     .expect(201);
   return {
     email,
@@ -30,14 +26,14 @@ async function registerWithToken(
   };
 }
 
-async function createGardenWithSeason(
+async function createGardenWithSeasonAndElement(
   app: ReturnType<typeof createApp>,
   token: string,
-): Promise<{ gardenId: string; seasonId: string }> {
+): Promise<{ gardenId: string; seasonId: string; areaId: string; elementId: string }> {
   const g = await request(app)
     .post('/api/v1/gardens')
     .set('Authorization', `Bearer ${token}`)
-    .send({ name: 'G', gridWidth: 10, gridHeight: 10, cellSizeMeters: 1 })
+    .send({ name: 'G' })
     .expect(201);
   const gardenId = g.body.id as string;
   const seasons = await request(app)
@@ -45,10 +41,29 @@ async function createGardenWithSeason(
     .set('Authorization', `Bearer ${token}`)
     .expect(200);
   const active = seasons.body.find((s: { isActive: boolean }) => s.isActive);
-  return { gardenId, seasonId: active.id as string };
+  const a = await request(app)
+    .post(`/api/v1/gardens/${gardenId}/areas`)
+    .set('Authorization', `Bearer ${token}`)
+    .send({ title: 'Yard', gridWidth: 10, gridHeight: 10, cellSizeMeters: 1 })
+    .expect(201);
+  const areaId = a.body.id as string;
+  const el = await request(app)
+    .post(`/api/v1/gardens/${gardenId}/areas/${areaId}/elements`)
+    .set('Authorization', `Bearer ${token}`)
+    .send({
+      name: 'Bed 1',
+      type: 'raised_bed',
+      color: '#336633',
+      gridX: 0,
+      gridY: 0,
+      gridWidth: 2,
+      gridHeight: 2,
+    })
+    .expect(201);
+  return { gardenId, seasonId: active.id as string, areaId, elementId: el.body.id as string };
 }
 
-describe('Planning: plant profiles, plantings, tasks, logs (integration)', () => {
+describe('Planning: plant profiles, plantings, tasks, logs, notes (integration)', () => {
   let env: Env;
   let app: ReturnType<typeof createApp>;
 
@@ -117,22 +132,7 @@ describe('Planning: plant profiles, plantings, tasks, logs (integration)', () =>
 
   it('creates planting with indoor dates, denormalizes plantName, lists by season', async () => {
     const { token } = await registerWithToken(app, env, 'Grower');
-    const { gardenId, seasonId } = await createGardenWithSeason(app, token);
-
-    const area = await request(app)
-      .post(`/api/v1/gardens/${gardenId}/areas`)
-      .set('Authorization', `Bearer ${token}`)
-      .send({
-        name: 'Bed 1',
-        type: 'raised_bed',
-        color: '#336633',
-        gridX: 0,
-        gridY: 0,
-        gridWidth: 2,
-        gridHeight: 2,
-      })
-      .expect(201);
-    const areaId = area.body.id as string;
+    const { gardenId, seasonId, elementId } = await createGardenWithSeasonAndElement(app, token);
 
     const profile = await request(app)
       .post('/api/v1/plant-profiles')
@@ -149,7 +149,7 @@ describe('Planning: plant profiles, plantings, tasks, logs (integration)', () =>
       .set('Authorization', `Bearer ${token}`)
       .send({
         seasonId,
-        areaId,
+        elementId,
         plantProfileId: profileId,
         sowingMethod: 'indoor',
         indoorSowDate: indoorSow.toISOString(),
@@ -164,7 +164,7 @@ describe('Planning: plant profiles, plantings, tasks, logs (integration)', () =>
       .set('Authorization', `Bearer ${token}`)
       .send({
         seasonId,
-        areaId,
+        elementId,
         sowingMethod: 'indoor',
         plantName: 'Ad hoc',
         indoorSowDate: indoorSow.toISOString(),
@@ -181,27 +181,14 @@ describe('Planning: plant profiles, plantings, tasks, logs (integration)', () =>
 
   it('rejects outdoor planting without outdoorSowDate', async () => {
     const { token } = await registerWithToken(app, env, 'X');
-    const { gardenId, seasonId } = await createGardenWithSeason(app, token);
-    const area = await request(app)
-      .post(`/api/v1/gardens/${gardenId}/areas`)
-      .set('Authorization', `Bearer ${token}`)
-      .send({
-        name: 'B',
-        type: 'open_bed',
-        color: '#333',
-        gridX: 0,
-        gridY: 0,
-        gridWidth: 1,
-        gridHeight: 1,
-      })
-      .expect(201);
+    const { gardenId, seasonId, elementId } = await createGardenWithSeasonAndElement(app, token);
 
     await request(app)
       .post(`/api/v1/gardens/${gardenId}/plantings`)
       .set('Authorization', `Bearer ${token}`)
       .send({
         seasonId,
-        areaId: area.body.id,
+        elementId,
         plantName: 'Carrot',
         sowingMethod: 'direct_outdoor',
       })
@@ -210,21 +197,7 @@ describe('Planning: plant profiles, plantings, tasks, logs (integration)', () =>
 
   it('auto-generates tasks on planting create/update and removes on delete', async () => {
     const { token } = await registerWithToken(app, env, 'Planner');
-    const { gardenId, seasonId } = await createGardenWithSeason(app, token);
-    const area = await request(app)
-      .post(`/api/v1/gardens/${gardenId}/areas`)
-      .set('Authorization', `Bearer ${token}`)
-      .send({
-        name: 'A',
-        type: 'raised_bed',
-        color: '#633',
-        gridX: 0,
-        gridY: 0,
-        gridWidth: 1,
-        gridHeight: 1,
-      })
-      .expect(201);
-    const areaId = area.body.id as string;
+    const { gardenId, seasonId, elementId } = await createGardenWithSeasonAndElement(app, token);
 
     const sow = new Date('2026-05-01T12:00:00.000Z');
     const plantingRes = await request(app)
@@ -232,7 +205,7 @@ describe('Planning: plant profiles, plantings, tasks, logs (integration)', () =>
       .set('Authorization', `Bearer ${token}`)
       .send({
         seasonId,
-        areaId,
+        elementId,
         plantName: 'Pea',
         sowingMethod: 'direct_outdoor',
         outdoorSowDate: sow.toISOString(),
@@ -284,7 +257,7 @@ describe('Planning: plant profiles, plantings, tasks, logs (integration)', () =>
 
   it('task API: filters, mark done with linked log, manual task', async () => {
     const { token, userId } = await registerWithToken(app, env, 'Tasker');
-    const { gardenId, seasonId } = await createGardenWithSeason(app, token);
+    const { gardenId, seasonId } = await createGardenWithSeasonAndElement(app, token);
 
     const due = new Date('2026-08-01T12:00:00.000Z');
     const manual = await request(app)
@@ -332,21 +305,7 @@ describe('Planning: plant profiles, plantings, tasks, logs (integration)', () =>
 
   it('activity logs: create, list with date range, PATCH LWW rejects stale clientTimestamp', async () => {
     const { token } = await registerWithToken(app, env, 'Logger');
-    const { gardenId, seasonId } = await createGardenWithSeason(app, token);
-    const area = await request(app)
-      .post(`/api/v1/gardens/${gardenId}/areas`)
-      .set('Authorization', `Bearer ${token}`)
-      .send({
-        name: 'Log bed',
-        type: 'raised_bed',
-        color: '#888',
-        gridX: 1,
-        gridY: 1,
-        gridWidth: 1,
-        gridHeight: 1,
-      })
-      .expect(201);
-    const areaId = area.body.id as string;
+    const { gardenId, seasonId, elementId } = await createGardenWithSeasonAndElement(app, token);
 
     const day = new Date('2026-06-10T10:00:00.000Z');
     const clientTs = new Date('2026-06-10T11:00:00.000Z');
@@ -356,7 +315,7 @@ describe('Planning: plant profiles, plantings, tasks, logs (integration)', () =>
       .set('Authorization', `Bearer ${token}`)
       .send({
         seasonId,
-        areaId,
+        elementId,
         activity: 'watered',
         date: day.toISOString(),
         clientTimestamp: clientTs.toISOString(),
@@ -385,5 +344,104 @@ describe('Planning: plant profiles, plantings, tasks, logs (integration)', () =>
       .set('Authorization', `Bearer ${token}`)
       .send({ note: 'Stale', clientTimestamp: older.toISOString() })
       .expect(409);
+  });
+
+  it('notes CRUD: element, planting, season targets', async () => {
+    const { token } = await registerWithToken(app, env, 'Notes');
+    const { gardenId, seasonId, elementId } = await createGardenWithSeasonAndElement(app, token);
+
+    const profile = await request(app)
+      .post('/api/v1/plant-profiles')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ name: 'P', type: 'vegetable' })
+      .expect(201);
+
+    const planting = await request(app)
+      .post(`/api/v1/gardens/${gardenId}/plantings`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        seasonId,
+        elementId,
+        plantProfileId: profile.body.id,
+        sowingMethod: 'indoor',
+        indoorSowDate: '2026-03-01T12:00:00.000Z',
+        transplantDate: '2026-04-01T12:00:00.000Z',
+      })
+      .expect(201);
+    const plantingId = planting.body.id as string;
+
+    const seasonNote = await request(app)
+      .post(`/api/v1/gardens/${gardenId}/notes`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        seasonId,
+        targetType: 'season',
+        targetId: seasonId,
+        body: 'Hello season',
+      })
+      .expect(201);
+    expect(seasonNote.body.body).toBe('Hello season');
+
+    await request(app)
+      .post(`/api/v1/gardens/${gardenId}/notes`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        seasonId,
+        targetType: 'season',
+        targetId: uuidv4(),
+        body: 'Wrong id',
+      })
+      .expect(400);
+
+    const elementN = await request(app)
+      .post(`/api/v1/gardens/${gardenId}/notes`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        seasonId,
+        targetType: 'element',
+        targetId: elementId,
+        body: 'On bed',
+      })
+      .expect(201);
+
+    await request(app)
+      .get(
+        `/api/v1/gardens/${gardenId}/notes?seasonId=${seasonId}&targetType=element&targetId=${elementId}`,
+      )
+      .set('Authorization', `Bearer ${token}`)
+      .expect(200)
+      .expect((res) => {
+        expect(res.body).toHaveLength(1);
+      });
+
+    const plantN = await request(app)
+      .post(`/api/v1/gardens/${gardenId}/notes`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        seasonId,
+        targetType: 'planting',
+        targetId: plantingId,
+        body: 'Plant note',
+      })
+      .expect(201);
+
+    const patched = await request(app)
+      .patch(`/api/v1/gardens/${gardenId}/notes/${plantN.body.id as string}`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ body: 'Edited' })
+      .expect(200);
+    expect(patched.body.body).toBe('Edited');
+
+    const { token: other } = await registerWithToken(app, env, 'Other');
+    await request(app)
+      .patch(`/api/v1/gardens/${gardenId}/notes/${elementN.body.id as string}`)
+      .set('Authorization', `Bearer ${other}`)
+      .send({ body: 'Nope' })
+      .expect(403);
+
+    await request(app)
+      .delete(`/api/v1/gardens/${gardenId}/notes/${seasonNote.body.id as string}`)
+      .set('Authorization', `Bearer ${token}`)
+      .expect(204);
   });
 });

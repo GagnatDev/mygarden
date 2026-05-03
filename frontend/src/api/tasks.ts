@@ -8,7 +8,7 @@ export interface GardenTask {
   gardenId: string;
   seasonId: string;
   plantingId: string | null;
-  areaId: string | null;
+  elementId: string | null;
   title: string;
   dueDate: string;
   source: TaskSource;
@@ -44,7 +44,7 @@ export async function listTasks(
 
 export async function createManualTask(
   gardenId: string,
-  body: { seasonId: string; title: string; dueDate: string; areaId?: string | null },
+  body: { seasonId: string; title: string; dueDate: string; elementId?: string | null },
 ): Promise<GardenTask> {
   const res = await apiFetch(`/gardens/${gardenId}/tasks`, {
     method: 'POST',

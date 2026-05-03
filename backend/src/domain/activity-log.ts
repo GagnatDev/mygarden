@@ -15,7 +15,7 @@ export interface ActivityLog {
   gardenId: string;
   seasonId: string;
   plantingId: string | null;
-  areaId: string | null;
+  elementId: string | null;
   activity: ActivityType;
   date: Date;
   note: string | null;
@@ -32,7 +32,7 @@ export function toPublicActivityLog(l: ActivityLog) {
     gardenId: l.gardenId,
     seasonId: l.seasonId,
     plantingId: l.plantingId,
-    areaId: l.areaId,
+    elementId: l.elementId,
     activity: l.activity,
     date: l.date.toISOString(),
     note: l.note,

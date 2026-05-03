@@ -1,40 +1,52 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import type { Area, Season } from '../api/gardens';
-import { deleteGarden, listAreas, listSeasons, patchArea } from '../api/gardens';
+import { Link, Navigate, useParams } from 'react-router-dom';
+import type { Season } from '../api/gardens';
+import { deleteGarden, listSeasons } from '../api/gardens';
+import type { Area } from '../api/areas';
+import { getArea } from '../api/areas';
+import type { Element } from '../api/elements';
+import { listElements, patchElement } from '../api/elements';
 import type { ActivityLog } from '../api/logs';
 import { listLogs } from '../api/logs';
 import { listPlantings } from '../api/plantings';
 import type { SeasonSnapshot } from '../api/seasons';
 import { getSeasonSnapshot } from '../api/seasons';
-import { AreaDetailPanel } from '../garden/AreaDetailPanel';
-import { CreateAreaDialog } from '../garden/CreateAreaDialog';
-import { GardenCreateForm } from '../garden/GardenCreateForm';
+import { CreateElementDialog } from '../garden/CreateElementDialog';
+import { ElementDetailPanel } from '../garden/ElementDetailPanel';
 import { useGardenContext } from '../garden/garden-context';
 import {
   GridMapEditor,
-  type AreaDraftSelection,
+  type ElementDraftSelection,
   type MapLayer,
   type MapTool,
 } from '../garden/GridMapEditor';
-import { deriveAreaStatus, derivePlanVsActual } from '../garden/layer-helpers';
+import { deriveElementStatus, derivePlanVsActual } from '../garden/layer-helpers';
 import { useActiveSeason } from '../garden/useActiveSeason';
 import { QuickLogModal } from '../planning/QuickLogModal';
 
-export function GardenMapPage() {
+export function AreaMapPage() {
   const { t } = useTranslation();
-  const { gardens, loading, error, selectedGarden, setSelectedGardenId, refreshGardens } =
-    useGardenContext();
-  const [areas, setAreas] = useState<Area[]>([]);
-  const [areasLoading, setAreasLoading] = useState(false);
-  const [selectedAreaId, setSelectedAreaId] = useState<string | null>(null);
-  const [pendingSelection, setPendingSelection] = useState<AreaDraftSelection | null>(null);
+  const { gardenId = '', areaId = '' } = useParams<{ gardenId: string; areaId: string }>();
+  const { gardens, loading, error, setSelectedGardenId, refreshGardens } = useGardenContext();
+
+  const [area, setArea] = useState<Area | null>(null);
+  const [elements, setElements] = useState<Element[]>([]);
+  const [mapLoading, setMapLoading] = useState(false);
+  const [selectedElementId, setSelectedElementId] = useState<string | null>(null);
+  const [pendingSelection, setPendingSelection] = useState<ElementDraftSelection | null>(null);
   const [tool, setTool] = useState<MapTool>('select');
-  const [layer, setLayer] = useState<MapLayer>('area-type');
+  const [layer, setLayer] = useState<MapLayer>('element-type');
   const [deleteGardenConfirm, setDeleteGardenConfirm] = useState(false);
   const [deleteGardenBusy, setDeleteGardenBusy] = useState(false);
   const [deleteGardenError, setDeleteGardenError] = useState<string | null>(null);
-  const { seasonId } = useActiveSeason(selectedGarden?.id ?? null);
+
+  const selectedGarden = useMemo(
+    () => gardens.find((g) => g.id === gardenId) ?? null,
+    [gardens, gardenId],
+  );
+
+  const { seasonId } = useActiveSeason(gardenId || null);
   const [mapPlantings, setMapPlantings] = useState<Awaited<ReturnType<typeof listPlantings>>>([]);
   const [mapLogs, setMapLogs] = useState<ActivityLog[]>([]);
   const [seasons, setSeasons] = useState<Season[]>([]);
@@ -43,61 +55,54 @@ export function GardenMapPage() {
   const [quickLogOpen, setQuickLogOpen] = useState(false);
   const [mapMoveError, setMapMoveError] = useState<string | null>(null);
 
+  useEffect(() => {
+    if (gardenId) setSelectedGardenId(gardenId);
+  }, [gardenId, setSelectedGardenId]);
+
   const refreshMapPlantings = useCallback(async () => {
-    if (!selectedGarden || !seasonId) return;
+    if (!gardenId || !seasonId) return;
     try {
-      const list = await listPlantings(selectedGarden.id, seasonId);
+      const list = await listPlantings(gardenId, seasonId);
       setMapPlantings(list);
     } catch {
       setMapPlantings([]);
     }
-  }, [selectedGarden, seasonId]);
+  }, [gardenId, seasonId]);
 
   const refreshMapLogs = useCallback(async () => {
-    if (!selectedGarden || !seasonId) return;
+    if (!gardenId || !seasonId) return;
     try {
-      const list = await listLogs(selectedGarden.id, seasonId);
+      const list = await listLogs(gardenId, seasonId);
       setMapLogs(list);
     } catch {
       setMapLogs([]);
     }
-  }, [selectedGarden, seasonId]);
+  }, [gardenId, seasonId]);
 
-  const loadAreas = useCallback(async (gardenId: string, opts?: { soft?: boolean }) => {
-    const soft = opts?.soft === true;
-    if (!soft) {
-      setAreasLoading(true);
-    }
-    try {
-      const list = await listAreas(gardenId);
-      setAreas(list);
-    } catch {
-      setAreas([]);
-    } finally {
-      if (!soft) {
-        setAreasLoading(false);
-      }
-    }
-  }, []);
-
-  const handleMoveArea = useCallback(
-    async (areaId: string, gridX: number, gridY: number) => {
-      if (!selectedGarden) return;
-      setMapMoveError(null);
+  const loadAreaAndElements = useCallback(
+    async (opts?: { soft?: boolean }) => {
+      const soft = opts?.soft === true;
+      if (!gardenId || !areaId) return;
+      if (!soft) setMapLoading(true);
       try {
-        await patchArea(selectedGarden.id, areaId, { gridX, gridY });
-        await loadAreas(selectedGarden.id, { soft: true });
-      } catch (e) {
-        setMapMoveError(e instanceof Error ? e.message : t('garden.moveAreaFailed'));
+        const [a, els] = await Promise.all([getArea(gardenId, areaId), listElements(gardenId, areaId)]);
+        setArea(a);
+        setElements(els);
+      } catch {
+        setArea(null);
+        setElements([]);
+      } finally {
+        if (!soft) setMapLoading(false);
       }
     },
-    [selectedGarden, loadAreas, t],
+    [gardenId, areaId],
   );
 
   useEffect(() => {
-    if (!selectedGarden) {
-      setAreas([]);
-      setSelectedAreaId(null);
+    if (!gardenId || !areaId) {
+      setArea(null);
+      setElements([]);
+      setSelectedElementId(null);
       setMapPlantings([]);
       setMapLogs([]);
       setSeasons([]);
@@ -107,23 +112,23 @@ export function GardenMapPage() {
       return;
     }
     setMapMoveError(null);
-    void loadAreas(selectedGarden.id);
-  }, [selectedGarden, loadAreas]);
+    void loadAreaAndElements();
+  }, [gardenId, areaId, loadAreaAndElements]);
 
   useEffect(() => {
-    if (!selectedGarden || !seasonId) {
+    if (!gardenId || !seasonId) {
       setMapPlantings([]);
       setMapLogs([]);
       return;
     }
     void refreshMapPlantings();
     void refreshMapLogs();
-  }, [selectedGarden, seasonId, refreshMapPlantings]);
+  }, [gardenId, seasonId, refreshMapPlantings, refreshMapLogs]);
 
   useEffect(() => {
-    if (!selectedGarden) return;
+    if (!gardenId) return;
     let cancelled = false;
-    void listSeasons(selectedGarden.id)
+    void listSeasons(gardenId)
       .then((list) => {
         if (cancelled) return;
         setSeasons(list);
@@ -140,15 +145,15 @@ export function GardenMapPage() {
     return () => {
       cancelled = true;
     };
-  }, [selectedGarden]);
+  }, [gardenId]);
 
   useEffect(() => {
-    if (!selectedGarden || layer !== 'historical' || !comparisonSeasonId) {
+    if (!gardenId || layer !== 'historical' || !comparisonSeasonId) {
       setComparisonSnap(null);
       return;
     }
     let cancelled = false;
-    void getSeasonSnapshot(selectedGarden.id, comparisonSeasonId)
+    void getSeasonSnapshot(gardenId, comparisonSeasonId)
       .then((snap) => {
         if (!cancelled) setComparisonSnap(snap);
       })
@@ -158,33 +163,47 @@ export function GardenMapPage() {
     return () => {
       cancelled = true;
     };
-  }, [selectedGarden, layer, comparisonSeasonId]);
+  }, [gardenId, layer, comparisonSeasonId]);
+
+  const handleMoveElement = useCallback(
+    async (elementId: string, gridX: number, gridY: number) => {
+      if (!gardenId || !areaId) return;
+      setMapMoveError(null);
+      try {
+        await patchElement(gardenId, areaId, elementId, { gridX, gridY });
+        await loadAreaAndElements({ soft: true });
+      } catch (e) {
+        setMapMoveError(e instanceof Error ? e.message : t('garden.moveAreaFailed'));
+      }
+    },
+    [gardenId, areaId, loadAreaAndElements, t],
+  );
 
   useEffect(() => {
-    if (selectedAreaId && !areas.some((a) => a.id === selectedAreaId)) {
-      setSelectedAreaId(null);
+    if (selectedElementId && !elements.some((e) => e.id === selectedElementId)) {
+      setSelectedElementId(null);
     }
-  }, [areas, selectedAreaId]);
+  }, [elements, selectedElementId]);
 
   useEffect(() => {
     if (tool !== 'select') {
-      setSelectedAreaId(null);
+      setSelectedElementId(null);
     }
   }, [tool]);
 
-  const selectedArea = areas.find((a) => a.id === selectedAreaId) ?? null;
+  const selectedElement = elements.find((e) => e.id === selectedElementId) ?? null;
 
-  const areaIdsWithPlantings = useMemo(
-    () => new Set(mapPlantings.map((p) => p.areaId)),
+  const elementIdsWithPlantings = useMemo(
+    () => new Set(mapPlantings.filter((p) => p.elementId).map((p) => p.elementId!)),
     [mapPlantings],
   );
 
   const layerComputed = useMemo(() => {
-    const areaColorById: Record<string, string> = {};
-    const areaBadgeById: Record<string, { text: string; toneClass: string }> = {};
-    const areaOverlayBadgesById: Record<string, string[]> = {};
+    const elementColorById: Record<string, string> = {};
+    const elementBadgeById: Record<string, { text: string; toneClass: string }> = {};
+    const elementOverlayBadgesById: Record<string, string[]> = {};
     const legendItems: Array<{ label: string; color: string }> = [];
-    const historicalGhostAreas: Array<{
+    const historicalGhostElements: Array<{
       id: string;
       name: string;
       gridX: number;
@@ -195,7 +214,7 @@ export function GardenMapPage() {
 
     if (layer === 'status') {
       const palette: Record<
-        ReturnType<typeof deriveAreaStatus>,
+        ReturnType<typeof deriveElementStatus>,
         { color: string; toneClass: string; label: string }
       > = {
         'not-started': { color: '#94a3b8', toneClass: 'bg-slate-500', label: t('garden.status.notStarted') },
@@ -203,11 +222,11 @@ export function GardenMapPage() {
         planted: { color: '#f59e0b', toneClass: 'bg-amber-500', label: t('garden.status.planted') },
         harvested: { color: '#10b981', toneClass: 'bg-emerald-600', label: t('garden.status.harvested') },
       };
-      for (const a of areas) {
-        const st = deriveAreaStatus(a.id, mapPlantings, mapLogs);
+      for (const el of elements) {
+        const st = deriveElementStatus(el.id, mapPlantings, mapLogs);
         const p = palette[st];
-        areaColorById[a.id] = p.color;
-        areaBadgeById[a.id] = { text: p.label, toneClass: p.toneClass };
+        elementColorById[el.id] = p.color;
+        elementBadgeById[el.id] = { text: p.label, toneClass: p.toneClass };
       }
       legendItems.push(
         { label: palette['not-started'].label, color: palette['not-started'].color },
@@ -227,11 +246,11 @@ export function GardenMapPage() {
         'not-started': { color: '#94a3b8', toneClass: 'bg-slate-500', label: t('garden.planActual.notStarted') },
         unplanned: { color: '#ef4444', toneClass: 'bg-red-600', label: t('garden.planActual.unplanned') },
       };
-      for (const a of areas) {
-        const match = derivePlanVsActual(a.id, mapPlantings, mapLogs);
+      for (const el of elements) {
+        const match = derivePlanVsActual(el.id, mapPlantings, mapLogs);
         const p = palette[match];
-        areaColorById[a.id] = p.color;
-        areaBadgeById[a.id] = { text: p.label, toneClass: p.toneClass };
+        elementColorById[el.id] = p.color;
+        elementBadgeById[el.id] = { text: p.label, toneClass: p.toneClass };
       }
       legendItems.push(
         { label: palette.complete.label, color: palette.complete.color },
@@ -242,56 +261,64 @@ export function GardenMapPage() {
     }
 
     if (layer === 'historical' && comparisonSnap) {
-      const currentAreaIds = new Set(areas.map((a) => a.id));
-      for (const a of comparisonSnap.areas) {
-        if (!currentAreaIds.has(a.id)) {
-          historicalGhostAreas.push({
-            id: a.id,
-            name: a.name,
-            gridX: a.gridX,
-            gridY: a.gridY,
-            gridWidth: a.gridWidth,
-            gridHeight: a.gridHeight,
+      const currentIds = new Set(elements.map((e) => e.id));
+      for (const el of comparisonSnap.elements) {
+        if (el.areaId !== areaId) continue;
+        if (!currentIds.has(el.id)) {
+          historicalGhostElements.push({
+            id: el.id,
+            name: el.name,
+            gridX: el.gridX,
+            gridY: el.gridY,
+            gridWidth: el.gridWidth,
+            gridHeight: el.gridHeight,
           });
         }
       }
-      const byArea = new Map<string, string[]>();
+      const byElement = new Map<string, string[]>();
       for (const p of comparisonSnap.plantings) {
-        const arr = byArea.get(p.areaId) ?? [];
+        if (!p.elementId) continue;
+        const arr = byElement.get(p.elementId) ?? [];
         arr.push(p.plantName);
-        byArea.set(p.areaId, arr);
+        byElement.set(p.elementId, arr);
       }
-      for (const [areaId, names] of byArea.entries()) {
+      for (const [elementIdKey, names] of byElement.entries()) {
         const uniq = Array.from(new Set(names));
-        areaOverlayBadgesById[areaId] = uniq;
+        elementOverlayBadgesById[elementIdKey] = uniq;
       }
     }
 
     return {
-      areaColorById: Object.keys(areaColorById).length ? areaColorById : undefined,
-      areaBadgeById: Object.keys(areaBadgeById).length ? areaBadgeById : undefined,
-      areaOverlayBadgesById: Object.keys(areaOverlayBadgesById).length ? areaOverlayBadgesById : undefined,
+      elementColorById: Object.keys(elementColorById).length ? elementColorById : undefined,
+      elementBadgeById: Object.keys(elementBadgeById).length ? elementBadgeById : undefined,
+      elementOverlayBadgesById: Object.keys(elementOverlayBadgesById).length
+        ? elementOverlayBadgesById
+        : undefined,
       legendItems: legendItems.length ? legendItems : undefined,
-      historicalGhostAreas: historicalGhostAreas.length ? historicalGhostAreas : undefined,
+      historicalGhostElements: historicalGhostElements.length ? historicalGhostElements : undefined,
     };
-  }, [layer, areas, mapPlantings, mapLogs, comparisonSnap, t]);
+  }, [layer, elements, mapPlantings, mapLogs, comparisonSnap, areaId, t]);
 
-  const plantingsForSelectedArea = useMemo(() => {
-    if (!selectedAreaId) return [];
+  const plantingsForSelectedElement = useMemo(() => {
+    if (!selectedElementId) return [];
     return mapPlantings
-      .filter((p) => p.areaId === selectedAreaId)
+      .filter((p) => p.elementId === selectedElementId)
       .map((p) => ({ id: p.id, plantName: p.plantName, sowingMethod: p.sowingMethod }));
-  }, [mapPlantings, selectedAreaId]);
+  }, [mapPlantings, selectedElementId]);
 
   const quickLogProps = useMemo(() => {
-    if (!selectedGarden || !seasonId) return null;
+    if (!gardenId || !seasonId) return null;
     return {
-      gardenId: selectedGarden.id,
+      gardenId,
       seasonId,
-      areas: areas.map((a) => ({ id: a.id, name: a.name })),
-      plantings: mapPlantings.map((p) => ({ id: p.id, plantName: p.plantName, areaId: p.areaId })),
+      elements: elements.map((e) => ({ id: e.id, name: e.name })),
+      plantings: mapPlantings.map((p) => ({
+        id: p.id,
+        plantName: p.plantName,
+        elementId: p.elementId ?? '',
+      })),
     };
-  }, [selectedGarden, seasonId, areas, mapPlantings]);
+  }, [gardenId, seasonId, elements, mapPlantings]);
 
   async function handleDeleteGarden() {
     if (!selectedGarden) return;
@@ -300,7 +327,7 @@ export function GardenMapPage() {
     try {
       await deleteGarden(selectedGarden.id);
       setDeleteGardenConfirm(false);
-      setSelectedAreaId(null);
+      setSelectedElementId(null);
       setPendingSelection(null);
       await refreshGardens();
     } catch (e) {
@@ -308,6 +335,10 @@ export function GardenMapPage() {
     } finally {
       setDeleteGardenBusy(false);
     }
+  }
+
+  if (!gardenId || !areaId) {
+    return <Navigate to="/gardens" replace />;
   }
 
   if (loading) {
@@ -321,17 +352,34 @@ export function GardenMapPage() {
   if (gardens.length === 0) {
     return (
       <div>
-        <h1 className="text-2xl font-semibold text-stone-900">{t('nav.gardenMap')}</h1>
+        <h1 className="text-2xl font-semibold text-stone-900">{t('nav.gardens')}</h1>
         <p className="mt-2 text-stone-600">{t('garden.noGardenHint')}</p>
-        <div className="mt-6">
-          <GardenCreateForm onCreated={refreshGardens} />
-        </div>
+        <p className="mt-4">
+          <Link to="/gardens" className="text-emerald-700 underline">
+            {t('nav.gardens')}
+          </Link>
+        </p>
       </div>
     );
   }
 
   if (!selectedGarden) {
-    return null;
+    return <Navigate to="/gardens" replace />;
+  }
+
+  if (!area && !mapLoading) {
+    return (
+      <div>
+        <p className="text-red-600">{t('auth.unknownError')}</p>
+        <Link to={`/gardens/${gardenId}`} className="mt-4 inline-block text-emerald-700 underline">
+          Back to areas
+        </Link>
+      </div>
+    );
+  }
+
+  if (!area) {
+    return <p className="text-stone-600">{t('auth.loading')}</p>;
   }
 
   return (
@@ -339,7 +387,19 @@ export function GardenMapPage() {
       <div className="flex shrink-0 flex-col gap-4 md:flex-row md:items-start md:justify-between">
         <div className="flex flex-1 flex-wrap items-start justify-between gap-3">
           <div>
-            <h1 className="text-2xl font-semibold text-stone-900">{t('nav.gardenMap')}</h1>
+            <nav className="text-sm text-stone-600">
+              <Link to="/gardens" className="hover:underline">
+                {t('nav.gardens')}
+              </Link>
+              <span className="mx-1">/</span>
+              <Link to={`/gardens/${gardenId}`} className="hover:underline">
+                {selectedGarden.name}
+              </Link>
+              <span className="mx-1">/</span>
+              <span className="font-medium text-stone-900">{area.title}</span>
+            </nav>
+            <h1 className="mt-2 text-2xl font-semibold text-stone-900">{area.title}</h1>
+            {area.description ? <p className="mt-1 text-sm text-stone-600">{area.description}</p> : null}
             <p className="mt-1 text-sm text-stone-600">{t('garden.mapHint')}</p>
           </div>
           {quickLogProps ? (
@@ -354,22 +414,6 @@ export function GardenMapPage() {
           ) : null}
         </div>
         <div className="flex flex-col gap-3 md:items-end">
-          {gardens.length > 1 ? (
-            <label className="flex w-full flex-col text-sm font-medium text-stone-700 md:w-auto md:min-w-[12rem]">
-              {t('garden.selectGarden')}
-              <select
-                className="mt-1 rounded-lg border border-stone-300 px-3 py-2 font-normal"
-                value={selectedGarden.id}
-                onChange={(e) => setSelectedGardenId(e.target.value)}
-              >
-                {gardens.map((g) => (
-                  <option key={g.id} value={g.id}>
-                    {g.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-          ) : null}
           {deleteGardenError ? (
             <p className="max-w-md text-sm text-red-600 md:text-right">{deleteGardenError}</p>
           ) : null}
@@ -419,21 +463,25 @@ export function GardenMapPage() {
               {mapMoveError}
             </p>
           ) : null}
-          {areasLoading ? (
+          {mapLoading ? (
             <p className="text-stone-600">{t('auth.loading')}</p>
           ) : (
             <GridMapEditor
-              garden={selectedGarden}
-              onGardenBackgroundChanged={() => void refreshGardens({ soft: true })}
-              areas={areas}
-              areaIdsWithPlantings={areaIdsWithPlantings}
+              gardenId={gardenId}
+              area={area}
+              onAreaBackgroundChanged={() => {
+                void loadAreaAndElements({ soft: true });
+                void refreshGardens({ soft: true });
+              }}
+              elements={elements}
+              elementIdsWithPlantings={elementIdsWithPlantings}
               layer={layer}
               onLayerChange={setLayer}
-              areaColorById={layerComputed.areaColorById}
-              areaBadgeById={layerComputed.areaBadgeById}
-              areaOverlayBadgesById={layerComputed.areaOverlayBadgesById}
+              elementColorById={layerComputed.elementColorById}
+              elementBadgeById={layerComputed.elementBadgeById}
+              elementOverlayBadgesById={layerComputed.elementOverlayBadgesById}
               legendItems={layerComputed.legendItems}
-              historicalGhostAreas={layerComputed.historicalGhostAreas}
+              historicalGhostElements={layerComputed.historicalGhostElements}
               toolbarAddon={
                 layer === 'historical' ? (
                   <label className="flex items-center gap-2 text-sm font-medium text-stone-700">
@@ -453,24 +501,25 @@ export function GardenMapPage() {
                   </label>
                 ) : null
               }
-              selectedAreaId={selectedAreaId}
-              onSelectArea={setSelectedAreaId}
+              selectedElementId={selectedElementId}
+              onSelectElement={setSelectedElementId}
               onSelectionComplete={setPendingSelection}
-              onMoveArea={handleMoveArea}
+              onMoveElement={handleMoveElement}
               tool={tool}
               onToolChange={setTool}
             />
           )}
         </div>
-        {selectedArea && seasonId && tool === 'select' ? (
-          <AreaDetailPanel
-            gardenId={selectedGarden.id}
+        {selectedElement && seasonId && tool === 'select' ? (
+          <ElementDetailPanel
+            gardenId={gardenId}
+            areaId={areaId}
             seasonId={seasonId}
-            area={selectedArea}
-            plantings={plantingsForSelectedArea}
-            onClose={() => setSelectedAreaId(null)}
+            element={selectedElement}
+            plantings={plantingsForSelectedElement}
+            onClose={() => setSelectedElementId(null)}
             onChanged={async () => {
-              await loadAreas(selectedGarden.id, { soft: true });
+              await loadAreaAndElements({ soft: true });
               await refreshMapPlantings();
             }}
           />
@@ -478,11 +527,12 @@ export function GardenMapPage() {
       </div>
 
       {pendingSelection ? (
-        <CreateAreaDialog
-          gardenId={selectedGarden.id}
+        <CreateElementDialog
+          gardenId={gardenId}
+          areaId={areaId}
           selection={pendingSelection}
           onClose={() => setPendingSelection(null)}
-          onCreated={async () => loadAreas(selectedGarden.id, { soft: true })}
+          onCreated={async () => loadAreaAndElements({ soft: true })}
         />
       ) : null}
 
@@ -492,7 +542,7 @@ export function GardenMapPage() {
           onClose={() => setQuickLogOpen(false)}
           gardenId={quickLogProps.gardenId}
           seasonId={quickLogProps.seasonId}
-          areas={quickLogProps.areas}
+          elements={quickLogProps.elements}
           plantings={quickLogProps.plantings}
           onLogged={() => void refreshMapPlantings()}
         />

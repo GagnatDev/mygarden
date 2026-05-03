@@ -23,16 +23,30 @@ async function registerWithToken(
   await c.allowedEmailRepo.create({ email, addedBy: null });
   const res = await request(app)
     .post('/api/v1/auth/register')
-    .send({
-      email,
-      password: 'password12',
-      displayName,
-    })
+    .send({ email, password: 'password12', displayName })
     .expect(201);
   return { token: res.body.accessToken as string };
 }
 
-describe('Garden background image API (integration)', () => {
+async function createGardenAndArea(
+  app: ReturnType<typeof createApp>,
+  token: string,
+): Promise<{ gardenId: string; areaId: string }> {
+  const g = await request(app)
+    .post('/api/v1/gardens')
+    .set('Authorization', `Bearer ${token}`)
+    .send({ name: 'BgGarden' })
+    .expect(201);
+  const gardenId = g.body.id as string;
+  const a = await request(app)
+    .post(`/api/v1/gardens/${gardenId}/areas`)
+    .set('Authorization', `Bearer ${token}`)
+    .send({ title: 'BgArea', gridWidth: 4, gridHeight: 3, cellSizeMeters: 1 })
+    .expect(201);
+  return { gardenId, areaId: a.body.id as string };
+}
+
+describe('Area background image API (integration)', () => {
   let env: Env;
   let app: ReturnType<typeof createApp>;
 
@@ -56,48 +70,41 @@ describe('Garden background image API (integration)', () => {
 
   it('upload sets backgroundImageUrl, GET returns image, DELETE clears', async () => {
     const { token } = await registerWithToken(app, env, 'BgUser');
-
-    const created = await request(app)
-      .post('/api/v1/gardens')
-      .set('Authorization', `Bearer ${token}`)
-      .send({
-        name: 'With bg',
-        gridWidth: 4,
-        gridHeight: 3,
-        cellSizeMeters: 1,
-      })
-      .expect(201);
-    const gardenId = created.body.id as string;
+    const { gardenId, areaId } = await createGardenAndArea(app, token);
 
     const putRes = await request(app)
-      .put(`/api/v1/gardens/${gardenId}/background-image`)
+      .put(`/api/v1/gardens/${gardenId}/areas/${areaId}/background-image`)
       .set('Authorization', `Bearer ${token}`)
       .attach('file', tinyPng, 'tiny.png')
       .expect(200);
 
-    expect(putRes.body.backgroundImageUrl).toBe(`/gardens/${gardenId}/background-image`);
+    expect(putRes.body.backgroundImageUrl).toBe(
+      `/gardens/${gardenId}/areas/${areaId}/background-image`,
+    );
 
     const one = await request(app)
-      .get(`/api/v1/gardens/${gardenId}`)
+      .get(`/api/v1/gardens/${gardenId}/areas/${areaId}`)
       .set('Authorization', `Bearer ${token}`)
       .expect(200);
-    expect(one.body.backgroundImageUrl).toBe(`/gardens/${gardenId}/background-image`);
+    expect(one.body.backgroundImageUrl).toBe(
+      `/gardens/${gardenId}/areas/${areaId}/background-image`,
+    );
 
     const img = await request(app)
-      .get(`/api/v1/gardens/${gardenId}/background-image`)
+      .get(`/api/v1/gardens/${gardenId}/areas/${areaId}/background-image`)
       .set('Authorization', `Bearer ${token}`)
       .expect(200);
     expect(img.headers['content-type']).toMatch(/image\/png/);
     expect(img.body).toEqual(tinyPng);
 
     const del = await request(app)
-      .delete(`/api/v1/gardens/${gardenId}/background-image`)
+      .delete(`/api/v1/gardens/${gardenId}/areas/${areaId}/background-image`)
       .set('Authorization', `Bearer ${token}`)
       .expect(200);
     expect(del.body.backgroundImageUrl).toBeNull();
 
     await request(app)
-      .get(`/api/v1/gardens/${gardenId}/background-image`)
+      .get(`/api/v1/gardens/${gardenId}/areas/${areaId}/background-image`)
       .set('Authorization', `Bearer ${token}`)
       .expect(404);
   });

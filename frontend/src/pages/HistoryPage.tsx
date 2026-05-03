@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import type { Area } from '../api/areas';
+import type { Element } from '../api/elements';
 import { listSeasons, type Season } from '../api/gardens';
 import { archiveSeason, getSeasonSnapshot, type SeasonSnapshot } from '../api/seasons';
 import { NotesSection } from '../components/NotesSection';
@@ -71,7 +73,22 @@ export function HistoryPage() {
     };
   }, [selectedGarden, pickedId, t]);
 
-  const areaIdsWithPlantings = useMemo(() => new Set(snap?.plantings.map((p) => p.areaId) ?? []), [snap]);
+  const elementIdsWithPlantings = useMemo(
+    () => new Set(snap?.plantings.map((p) => p.elementId).filter((id): id is string => Boolean(id)) ?? []),
+    [snap],
+  );
+
+  const historyMap = useMemo(() => {
+    if (!snap || snap.areas.length === 0) {
+      return { area: null as Area | null, elements: [] as Element[] };
+    }
+    const area = snap.areas[0];
+    if (!area) {
+      return { area: null as Area | null, elements: [] as Element[] };
+    }
+    const els = snap.elements.filter((e) => e.areaId === area.id);
+    return { area, elements: els };
+  }, [snap]);
 
   const canArchive = pickedId && activeSeasonId && pickedId === activeSeasonId;
 
@@ -146,16 +163,19 @@ export function HistoryPage() {
 
       {loading || !snap ? (
         <p className="mt-6 text-stone-600">{loading ? t('auth.loading') : t('history.pickSeason')}</p>
+      ) : !historyMap.area ? (
+        <p className="mt-6 text-sm text-stone-600">{t('history.noAreaInSnapshot')}</p>
       ) : (
         <div className="mt-6 space-y-8">
           <div className="flex min-h-[280px] flex-col md:min-h-[360px]">
             <p className="mb-2 text-sm text-stone-600">{t('history.mapCaption')}</p>
             <GridMapEditor
-              garden={selectedGarden}
-              areas={snap.areas}
-              areaIdsWithPlantings={areaIdsWithPlantings}
-              selectedAreaId={null}
-              onSelectArea={() => {}}
+              gardenId={selectedGarden.id}
+              area={historyMap.area}
+              elements={historyMap.elements}
+              elementIdsWithPlantings={elementIdsWithPlantings}
+              selectedElementId={null}
+              onSelectElement={() => {}}
               onSelectionComplete={() => {}}
               tool={tool}
               onToolChange={setTool}

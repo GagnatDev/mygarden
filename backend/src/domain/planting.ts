@@ -5,7 +5,7 @@ export interface Planting {
   id: string;
   gardenId: string;
   seasonId: string;
-  areaId: string;
+  elementId: string;
   plantProfileId: string | null;
   plantName: string;
   sowingMethod: SowingMethod;
@@ -26,7 +26,7 @@ export function toPublicPlanting(p: Planting) {
     id: p.id,
     gardenId: p.gardenId,
     seasonId: p.seasonId,
-    areaId: p.areaId,
+    elementId: p.elementId,
     plantProfileId: p.plantProfileId,
     plantName: p.plantName,
     sowingMethod: p.sowingMethod,

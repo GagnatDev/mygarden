@@ -1,13 +1,15 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/useAuth';
 import { LanguageSwitcher } from '../components/LanguageSwitcher';
 import { OfflineIndicator } from '../components/OfflineIndicator';
+import { useGardenContext } from '../garden/garden-context';
+import { GardenPickerPopover } from './GardenPickerPopover';
 
 export const APP_NAV = [
   { to: '/', key: 'nav.home', end: true as boolean },
-  { to: '/garden', key: 'nav.gardenMap', end: false },
+  { to: '/gardens', key: 'nav.gardens', end: false },
   { to: '/plan', key: 'nav.plantingPlan', end: false },
   { to: '/calendar', key: 'nav.calendar', end: false },
   { to: '/plants', key: 'nav.plantProfiles', end: false },
@@ -66,9 +68,17 @@ function MenuGlyph({ open }: { open: boolean }) {
 export function AppShell() {
   const { t } = useTranslation();
   const { user, logout } = useAuth();
+  const { gardens, selectedGarden, loading: gardensLoading } = useGardenContext();
   const navigate = useNavigate();
   const location = useLocation();
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
+
+  const shellBrandTitle = useMemo(() => {
+    if (selectedGarden) return selectedGarden.name;
+    return t('app.title');
+  }, [selectedGarden, t]);
+
+  const showGardenPicker = !gardensLoading && gardens.length > 1;
 
   useEffect(() => {
     setMobileNavOpen(false);
@@ -112,7 +122,15 @@ export function AppShell() {
       <OfflineIndicator />
       <aside className="hidden w-52 shrink-0 border-r border-stone-200 bg-white md:flex md:flex-col">
         <div className="border-b border-stone-100 p-4">
-          <p className="text-lg font-semibold tracking-tight">{t('app.title')}</p>
+          <div className="flex items-start justify-between gap-2">
+            <p
+              className="min-w-0 flex-1 truncate text-lg font-semibold tracking-tight"
+              data-testid="shell-brand-title"
+            >
+              {shellBrandTitle}
+            </p>
+            {showGardenPicker ? <GardenPickerPopover /> : null}
+          </div>
           <p className="mt-1 truncate text-sm text-stone-500" data-testid="user-display-name">
             {user?.displayName}
           </p>
@@ -151,7 +169,12 @@ export function AppShell() {
             <MenuGlyph open={mobileNavOpen} />
           </button>
           <div className="min-w-0 flex-1">
-            <p className="font-semibold">{t('app.title')}</p>
+            <div className="flex items-center gap-1.5">
+              <p className="min-w-0 flex-1 truncate font-semibold" data-testid="shell-brand-title-mobile">
+                {shellBrandTitle}
+              </p>
+              {showGardenPicker ? <GardenPickerPopover /> : null}
+            </div>
             <p className="truncate text-xs text-stone-500" data-testid="user-display-name-mobile">
               {user?.displayName}
             </p>
@@ -190,17 +213,25 @@ export function AppShell() {
             data-testid="mobile-nav-drawer"
             className="absolute inset-y-0 left-0 z-50 flex w-full max-w-sm flex-col border-r border-stone-200 bg-white shadow-xl"
           >
-            <div className="flex items-center justify-between border-b border-stone-100 px-4 py-3">
-              <p className="text-lg font-semibold tracking-tight">{t('app.title')}</p>
-              <button
-                type="button"
-                className="flex h-10 w-10 items-center justify-center rounded-lg border border-stone-200 hover:bg-stone-50"
-                aria-label={t('nav.closeMenu')}
-                onClick={() => setMobileNavOpen(false)}
-                data-testid="mobile-nav-drawer-close"
+            <div className="flex items-center justify-between gap-2 border-b border-stone-100 px-4 py-3">
+              <p
+                className="min-w-0 flex-1 truncate text-lg font-semibold tracking-tight"
+                data-testid="shell-brand-title-drawer"
               >
-                <MenuGlyph open />
-              </button>
+                {shellBrandTitle}
+              </p>
+              <div className="flex shrink-0 items-center gap-2">
+                {showGardenPicker ? <GardenPickerPopover /> : null}
+                <button
+                  type="button"
+                  className="flex h-10 w-10 items-center justify-center rounded-lg border border-stone-200 hover:bg-stone-50"
+                  aria-label={t('nav.closeMenu')}
+                  onClick={() => setMobileNavOpen(false)}
+                  data-testid="mobile-nav-drawer-close"
+                >
+                  <MenuGlyph open />
+                </button>
+              </div>
             </div>
             <nav className="flex flex-1 flex-col gap-1 overflow-y-auto p-3" aria-label={t('nav.main')}>
               {APP_NAV.map((item) => (

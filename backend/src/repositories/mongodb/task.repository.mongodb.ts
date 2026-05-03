@@ -10,7 +10,7 @@ function toTask(doc: TaskDoc): Task {
     gardenId: doc.gardenId,
     seasonId: doc.seasonId,
     plantingId: doc.plantingId ?? null,
-    areaId: doc.areaId ?? null,
+    elementId: doc.elementId ?? null,
     title: doc.title,
     dueDate: doc.dueDate,
     source: doc.source as TaskSource,
@@ -32,7 +32,7 @@ export class TaskRepositoryMongo implements ITaskRepository {
       gardenId: input.gardenId,
       seasonId: input.seasonId,
       plantingId: input.plantingId,
-      areaId: input.areaId,
+      elementId: input.elementId,
       title: input.title,
       dueDate: input.dueDate,
       source: input.source,
@@ -85,7 +85,11 @@ export class TaskRepositoryMongo implements ITaskRepository {
       Pick<Task, 'title' | 'dueDate' | 'status' | 'completedAt' | 'completedBy' | 'linkedLogId'>
     >,
   ): Promise<Task | null> {
-    const doc = await TaskModel.findByIdAndUpdate(id, { $set: patch }, { new: true, runValidators: true }).lean();
+    const doc = await TaskModel.findByIdAndUpdate(
+      id,
+      { $set: patch },
+      { new: true, runValidators: true },
+    ).lean();
     if (!doc) return null;
     return toTask(doc as TaskDoc);
   }

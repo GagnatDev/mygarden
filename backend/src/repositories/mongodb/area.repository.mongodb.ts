@@ -1,36 +1,20 @@
 import { v4 as uuidv4 } from 'uuid';
-import type { Area, AreaShape, AreaType } from '../../domain/area.js';
+import type { Area } from '../../domain/area.js';
 import type { CreateAreaInput, IAreaRepository } from '../interfaces/area.repository.interface.js';
 import type { AreaDoc } from './area.schema.js';
 import { AreaModel } from './area.schema.js';
-
-function docShapeToAreaShape(raw: AreaDoc['shape']): AreaShape | undefined {
-  if (raw == null) return undefined;
-  if (raw.kind === 'rectangle') return { kind: 'rectangle' };
-  if (raw.kind === 'polygon') {
-    const verts = raw.vertices;
-    if (!verts?.length) return undefined;
-    return { kind: 'polygon', vertices: verts.map((v) => ({ x: v.x, y: v.y })) };
-  }
-  if (raw.kind === 'path') {
-    if (typeof raw.d !== 'string' || raw.d.length === 0) return undefined;
-    return { kind: 'path', d: raw.d };
-  }
-  return undefined;
-}
 
 function toArea(doc: AreaDoc): Area {
   return {
     id: doc._id,
     gardenId: doc.gardenId,
-    name: doc.name,
-    type: doc.type as AreaType,
-    color: doc.color,
-    gridX: doc.gridX,
-    gridY: doc.gridY,
+    title: doc.title,
+    description: doc.description ?? '',
     gridWidth: doc.gridWidth,
     gridHeight: doc.gridHeight,
-    shape: docShapeToAreaShape(doc.shape),
+    cellSizeMeters: doc.cellSizeMeters,
+    sortIndex: doc.sortIndex ?? 0,
+    backgroundImageKey: doc.backgroundImageKey ?? null,
     createdAt: doc.createdAt,
     updatedAt: doc.updatedAt,
   };
@@ -42,14 +26,13 @@ export class AreaRepositoryMongo implements IAreaRepository {
     const doc = await AreaModel.create({
       _id: id,
       gardenId: input.gardenId,
-      name: input.name,
-      type: input.type,
-      color: input.color,
-      gridX: input.gridX,
-      gridY: input.gridY,
+      title: input.title,
+      description: input.description,
       gridWidth: input.gridWidth,
       gridHeight: input.gridHeight,
-      shape: input.shape,
+      cellSizeMeters: input.cellSizeMeters,
+      sortIndex: input.sortIndex,
+      backgroundImageKey: input.backgroundImageKey ?? undefined,
     });
     return toArea(doc.toObject() as AreaDoc);
   }
@@ -61,17 +44,30 @@ export class AreaRepositoryMongo implements IAreaRepository {
   }
 
   async findByGardenId(gardenId: string): Promise<Area[]> {
-    const docs = await AreaModel.find({ gardenId }).lean();
+    const docs = await AreaModel.find({ gardenId }).sort({ sortIndex: 1, createdAt: 1 }).lean();
     return (docs as AreaDoc[]).map(toArea);
   }
 
   async update(
     id: string,
     patch: Partial<
-      Pick<Area, 'name' | 'type' | 'color' | 'gridX' | 'gridY' | 'gridWidth' | 'gridHeight' | 'shape'>
+      Pick<
+        Area,
+        | 'title'
+        | 'description'
+        | 'gridWidth'
+        | 'gridHeight'
+        | 'cellSizeMeters'
+        | 'sortIndex'
+        | 'backgroundImageKey'
+      >
     >,
   ): Promise<Area | null> {
-    const doc = await AreaModel.findByIdAndUpdate(id, { $set: patch }, { new: true, runValidators: true }).lean();
+    const doc = await AreaModel.findByIdAndUpdate(
+      id,
+      { $set: patch },
+      { new: true, runValidators: true },
+    ).lean();
     if (!doc) return null;
     return toArea(doc as AreaDoc);
   }

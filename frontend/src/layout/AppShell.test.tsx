@@ -4,6 +4,7 @@ import { I18nextProvider, initReactI18next } from 'react-i18next';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { AuthProvider } from '../auth/AuthContext';
+import { GardenProvider } from '../garden/GardenContext';
 import { AppShell } from './AppShell';
 
 async function testI18n() {
@@ -20,12 +21,18 @@ async function testI18n() {
             openMenu: 'Open menu',
             closeMenu: 'Close menu',
             home: 'Home',
+            gardens: 'Gardens',
             gardenMap: 'Garden map',
             plantingPlan: 'Plan',
             calendar: 'Calendar',
             plantProfiles: 'Plants',
             notes: 'Notes',
             history: 'History',
+            currentGarden: 'Current garden',
+            noGardensYet: 'No gardens yet.',
+            createGardenLink: 'Create a garden',
+            gardenListLoading: 'Loading gardens…',
+            chooseActiveGarden: 'Choose active garden',
           },
           auth: { logout: 'Log out', loading: '…' },
           lang: { nb: 'NB', en: 'EN' },
@@ -37,11 +44,57 @@ async function testI18n() {
   return instance;
 }
 
+const TEST_GARDEN = {
+  id: 'g1',
+  name: 'Test Garden',
+  createdBy: 'u1',
+  createdAt: '2020-01-01T00:00:00.000Z',
+  updatedAt: '2020-01-01T00:00:00.000Z',
+};
+
+function gardensOkResponse() {
+  return new Response(JSON.stringify([TEST_GARDEN]), {
+    status: 200,
+    headers: { 'Content-Type': 'application/json' },
+  });
+}
+
 describe('AppShell', () => {
   const fetchMock = vi.fn();
 
   beforeEach(() => {
     vi.stubGlobal('fetch', fetchMock);
+    fetchMock.mockImplementation((input: RequestInfo | URL) => {
+      const u = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
+      const path = new URL(u, 'http://localhost').pathname;
+      if (path.endsWith('/auth/refresh')) {
+        return Promise.resolve(
+          new Response(JSON.stringify({ accessToken: 'a' }), {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' },
+          }),
+        );
+      }
+      if (path.endsWith('/users/me')) {
+        return Promise.resolve(
+          new Response(
+            JSON.stringify({
+              id: 'u1',
+              email: 'ada@example.com',
+              displayName: 'Ada Lovelace',
+              language: 'en',
+              createdAt: '2020-01-01T00:00:00.000Z',
+              updatedAt: '2020-01-01T00:00:00.000Z',
+            }),
+            { status: 200, headers: { 'Content-Type': 'application/json' } },
+          ),
+        );
+      }
+      if (path === '/api/v1/gardens') {
+        return Promise.resolve(gardensOkResponse());
+      }
+      return Promise.resolve(new Response(null, { status: 404 }));
+    });
   });
 
   afterEach(() => {
@@ -122,37 +175,18 @@ describe('AppShell', () => {
   }
 
   it('renders navigation labels and user display name', async () => {
-    fetchMock
-      .mockResolvedValueOnce(
-        new Response(JSON.stringify({ accessToken: 'a' }), {
-          status: 200,
-          headers: { 'Content-Type': 'application/json' },
-        }),
-      )
-      .mockResolvedValueOnce(
-        new Response(
-          JSON.stringify({
-            id: 'u1',
-            email: 'ada@example.com',
-            displayName: 'Ada Lovelace',
-            language: 'en',
-            createdAt: '2020-01-01T00:00:00.000Z',
-            updatedAt: '2020-01-01T00:00:00.000Z',
-          }),
-          { status: 200, headers: { 'Content-Type': 'application/json' } },
-        ),
-      );
-
     const i18nInstance = await testI18n();
     render(
       <I18nextProvider i18n={i18nInstance}>
         <MemoryRouter initialEntries={['/']}>
           <AuthProvider>
-            <Routes>
-              <Route element={<AppShell />}>
-                <Route path="/" element={<div>child</div>} />
-              </Route>
-            </Routes>
+            <GardenProvider>
+              <Routes>
+                <Route element={<AppShell />}>
+                  <Route path="/" element={<div>child</div>} />
+                </Route>
+              </Routes>
+            </GardenProvider>
           </AuthProvider>
         </MemoryRouter>
       </I18nextProvider>,
@@ -162,44 +196,92 @@ describe('AppShell', () => {
       expect(screen.getByTestId('user-display-name')).toHaveTextContent('Ada Lovelace');
     });
 
-    expect(screen.getAllByRole('link', { name: /garden map/i }).length).toBeGreaterThanOrEqual(1);
-    expect(screen.getAllByRole('link', { name: /^plan$/i }).length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByRole('link', { name: /gardens/i }).length).toBeGreaterThanOrEqual(1);
+    expect(screen.getByRole('link', { name: /^Plan$/ })).toHaveAttribute('href', '/plan');
+    await waitFor(() => {
+      expect(screen.getByTestId('shell-brand-title')).toHaveTextContent('Test Garden');
+    });
+    expect(screen.queryByTestId('garden-picker-toggle')).not.toBeInTheDocument();
     expect(screen.getByTestId('logout-button')).toBeInTheDocument();
   });
 
-  it('opens a slide-out menu with full navigation labels on small viewports', async () => {
-    stubMobileViewport();
-    fetchMock
-      .mockResolvedValueOnce(
-        new Response(JSON.stringify({ accessToken: 'a' }), {
-          status: 200,
-          headers: { 'Content-Type': 'application/json' },
-        }),
-      )
-      .mockResolvedValueOnce(
-        new Response(
-          JSON.stringify({
-            id: 'u1',
-            email: 'ada@example.com',
-            displayName: 'Ada Lovelace',
-            language: 'en',
-            createdAt: '2020-01-01T00:00:00.000Z',
-            updatedAt: '2020-01-01T00:00:00.000Z',
+  it('shows settings control to switch gardens when multiple gardens exist', async () => {
+    fetchMock.mockImplementation((input: RequestInfo | URL) => {
+      const u = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
+      const path = new URL(u, 'http://localhost').pathname;
+      if (path.endsWith('/auth/refresh')) {
+        return Promise.resolve(
+          new Response(JSON.stringify({ accessToken: 'a' }), {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' },
           }),
-          { status: 200, headers: { 'Content-Type': 'application/json' } },
-        ),
-      );
+        );
+      }
+      if (path.endsWith('/users/me')) {
+        return Promise.resolve(
+          new Response(
+            JSON.stringify({
+              id: 'u1',
+              email: 'ada@example.com',
+              displayName: 'Ada Lovelace',
+              language: 'en',
+              createdAt: '2020-01-01T00:00:00.000Z',
+              updatedAt: '2020-01-01T00:00:00.000Z',
+            }),
+            { status: 200, headers: { 'Content-Type': 'application/json' } },
+          ),
+        );
+      }
+      if (path === '/api/v1/gardens') {
+        return Promise.resolve(
+          new Response(
+            JSON.stringify([
+              TEST_GARDEN,
+              { ...TEST_GARDEN, id: 'g2', name: 'Second plot' },
+            ]),
+            { status: 200, headers: { 'Content-Type': 'application/json' } },
+          ),
+        );
+      }
+      return Promise.resolve(new Response(null, { status: 404 }));
+    });
 
     const i18nInstance = await testI18n();
     render(
       <I18nextProvider i18n={i18nInstance}>
         <MemoryRouter initialEntries={['/']}>
           <AuthProvider>
-            <Routes>
-              <Route element={<AppShell />}>
-                <Route path="/" element={<div>child</div>} />
-              </Route>
-            </Routes>
+            <GardenProvider>
+              <Routes>
+                <Route element={<AppShell />}>
+                  <Route path="/" element={<div>child</div>} />
+                </Route>
+              </Routes>
+            </GardenProvider>
+          </AuthProvider>
+        </MemoryRouter>
+      </I18nextProvider>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getAllByTestId('garden-picker-toggle').length).toBeGreaterThanOrEqual(1);
+    });
+  });
+
+  it('opens a slide-out menu with full navigation labels on small viewports', async () => {
+    stubMobileViewport();
+    const i18nInstance = await testI18n();
+    render(
+      <I18nextProvider i18n={i18nInstance}>
+        <MemoryRouter initialEntries={['/']}>
+          <AuthProvider>
+            <GardenProvider>
+              <Routes>
+                <Route element={<AppShell />}>
+                  <Route path="/" element={<div>child</div>} />
+                </Route>
+              </Routes>
+            </GardenProvider>
           </AuthProvider>
         </MemoryRouter>
       </I18nextProvider>,
@@ -229,37 +311,18 @@ describe('AppShell', () => {
 
   it('clears mobile drawer and body scroll lock when viewport crosses md breakpoint', async () => {
     const viewport = stubDynamicMdBreakpoint();
-    fetchMock
-      .mockResolvedValueOnce(
-        new Response(JSON.stringify({ accessToken: 'a' }), {
-          status: 200,
-          headers: { 'Content-Type': 'application/json' },
-        }),
-      )
-      .mockResolvedValueOnce(
-        new Response(
-          JSON.stringify({
-            id: 'u1',
-            email: 'ada@example.com',
-            displayName: 'Ada Lovelace',
-            language: 'en',
-            createdAt: '2020-01-01T00:00:00.000Z',
-            updatedAt: '2020-01-01T00:00:00.000Z',
-          }),
-          { status: 200, headers: { 'Content-Type': 'application/json' } },
-        ),
-      );
-
     const i18nInstance = await testI18n();
     render(
       <I18nextProvider i18n={i18nInstance}>
         <MemoryRouter initialEntries={['/']}>
           <AuthProvider>
-            <Routes>
-              <Route element={<AppShell />}>
-                <Route path="/" element={<div>child</div>} />
-              </Route>
-            </Routes>
+            <GardenProvider>
+              <Routes>
+                <Route element={<AppShell />}>
+                  <Route path="/" element={<div>child</div>} />
+                </Route>
+              </Routes>
+            </GardenProvider>
           </AuthProvider>
         </MemoryRouter>
       </I18nextProvider>,
@@ -280,6 +343,8 @@ describe('AppShell', () => {
     await waitFor(() => {
       expect(screen.queryByTestId('mobile-nav-drawer')).not.toBeInTheDocument();
     });
-    expect(document.body.style.overflow).not.toBe('hidden');
+    await waitFor(() => {
+      expect(document.body.style.overflow).not.toBe('hidden');
+    });
   });
 });

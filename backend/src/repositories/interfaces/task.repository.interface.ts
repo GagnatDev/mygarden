@@ -4,7 +4,7 @@ export interface CreateTaskInput {
   gardenId: string;
   seasonId: string;
   plantingId: string | null;
-  areaId: string | null;
+  elementId: string | null;
   title: string;
   dueDate: Date;
   source: TaskSource;

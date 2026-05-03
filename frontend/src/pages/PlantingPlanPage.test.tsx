@@ -2,7 +2,8 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import i18n from 'i18next';
 import { I18nextProvider, initReactI18next } from 'react-i18next';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { listAreas } from '../api/gardens';
+import { listAreas } from '../api/areas';
+import { listElements } from '../api/elements';
 import { listLogs } from '../api/logs';
 import { listNotes } from '../api/notes';
 import { deletePlanting, listPlantings, patchPlanting } from '../api/plantings';
@@ -19,8 +20,12 @@ vi.mock('../garden/useActiveSeason', () => ({
   }),
 }));
 
-vi.mock('../api/gardens', () => ({
+vi.mock('../api/areas', () => ({
   listAreas: vi.fn(),
+}));
+
+vi.mock('../api/elements', () => ({
+  listElements: vi.fn(),
 }));
 
 vi.mock('../api/plantings', () => ({
@@ -49,13 +54,9 @@ vi.mock('../auth/useAuth', () => ({
 const garden = {
   id: 'g1',
   name: 'Home',
-  gridWidth: 10,
-  gridHeight: 10,
-  cellSizeMeters: 1,
   createdBy: 'u1',
   createdAt: '',
   updatedAt: '',
-  backgroundImageUrl: null as string | null,
 };
 
 const ctx: GardenContextValue = {
@@ -66,6 +67,17 @@ const ctx: GardenContextValue = {
   selectedGarden: garden,
   setSelectedGardenId: vi.fn(),
   refreshGardens: vi.fn(),
+};
+
+const baseEl = {
+  type: 'raised_bed' as const,
+  color: '#333',
+  gridX: 0,
+  gridY: 0,
+  gridWidth: 2,
+  gridHeight: 2,
+  createdAt: '',
+  updatedAt: '',
 };
 
 const en = {
@@ -80,11 +92,23 @@ const en = {
     save: 'Save',
     confirmDelete: 'OK?',
   },
-  garden: { noGardenHint: 'No garden', areaDetails: 'Area' },
+  garden: {
+    noGardenHint: 'No garden',
+    areaDetails: 'Area',
+    areaTypes: {
+      raised_bed: 'Raised',
+      open_bed: 'Open',
+      tree_zone: 'Tree',
+      path: 'Path',
+      lawn: 'Lawn',
+      other: 'Other',
+    },
+  },
   planning: {
     planHint: 'Hint',
     quickLog: 'Log',
     noPlantingsInArea: 'Empty',
+    noElementsInArea: 'No elements',
     addPlanting: 'Add',
     plantSource: 'Source',
     fromProfile: 'Profile',
@@ -103,6 +127,8 @@ const en = {
     harvestStartOptional: 'Harv',
     savePlanting: 'Save',
     moveToArea: 'Area',
+    moveToElement: 'Move',
+    element: 'Element',
     removePlanting: 'Remove',
     confirmRemovePlanting: 'Sure remove?',
     activityTimeline: 'Timeline',
@@ -133,38 +159,62 @@ describe('PlantingPlanPage', () => {
   beforeEach(() => {
     vi.mocked(listAreas).mockResolvedValue([
       {
-        id: 'a1',
+        id: 'ar1',
         gardenId: 'g1',
-        name: 'Bed A',
-        type: 'raised_bed',
-        color: '#333',
-        gridX: 0,
-        gridY: 0,
-        gridWidth: 2,
-        gridHeight: 2,
+        title: 'Front',
+        description: '',
+        gridWidth: 10,
+        gridHeight: 10,
+        cellSizeMeters: 1,
+        sortIndex: 0,
+        backgroundImageUrl: null,
         createdAt: '',
         updatedAt: '',
       },
       {
-        id: 'a2',
+        id: 'ar2',
         gardenId: 'g1',
-        name: 'Bed B',
-        type: 'raised_bed',
-        color: '#633',
-        gridX: 2,
-        gridY: 0,
-        gridWidth: 2,
-        gridHeight: 2,
+        title: 'Back',
+        description: '',
+        gridWidth: 10,
+        gridHeight: 10,
+        cellSizeMeters: 1,
+        sortIndex: 1,
+        backgroundImageUrl: null,
         createdAt: '',
         updatedAt: '',
       },
     ]);
+    vi.mocked(listElements).mockImplementation(async (_g, areaId) => {
+      if (areaId === 'ar1') {
+        return [
+          {
+            id: 'e1',
+            areaId: 'ar1',
+            name: 'Bed A',
+            ...baseEl,
+          },
+        ];
+      }
+      if (areaId === 'ar2') {
+        return [
+          {
+            id: 'e2',
+            areaId: 'ar2',
+            name: 'Bed B',
+            ...baseEl,
+            gridX: 2,
+          },
+        ];
+      }
+      return [];
+    });
     vi.mocked(listPlantings).mockResolvedValue([
       {
         id: 'pl1',
         gardenId: 'g1',
         seasonId: 's1',
-        areaId: 'a1',
+        elementId: 'e1',
         plantProfileId: null,
         plantName: 'Lettuce',
         sowingMethod: 'indoor',
@@ -187,7 +237,7 @@ describe('PlantingPlanPage', () => {
         gardenId: 'g1',
         seasonId: 's1',
         plantingId: null,
-        areaId: 'a1',
+        elementId: 'e1',
         activity: 'watered',
         date: '2026-06-02T12:00:00.000Z',
         note: 'newer',
@@ -202,7 +252,7 @@ describe('PlantingPlanPage', () => {
         gardenId: 'g1',
         seasonId: 's1',
         plantingId: null,
-        areaId: 'a1',
+        elementId: 'e1',
         activity: 'pruned',
         date: '2026-05-01T12:00:00.000Z',
         note: 'older',
@@ -219,7 +269,7 @@ describe('PlantingPlanPage', () => {
     vi.clearAllMocks();
   });
 
-  it('shows plantings grouped by area, timeline order, and sowing method fields', async () => {
+  it('shows plantings grouped by area and element, timeline order, and sowing method fields', async () => {
     const i18nInstance = await testI18n();
 
     render(
@@ -231,7 +281,7 @@ describe('PlantingPlanPage', () => {
     );
 
     await waitFor(() => expect(screen.getByTestId('plantings-by-area')).toBeInTheDocument());
-    expect(screen.getByTestId('area-plantings-a1')).toHaveTextContent('Lettuce');
+    expect(screen.getByTestId('element-plantings-e1')).toHaveTextContent('Lettuce');
 
     const timeline = screen.getByTestId('activity-timeline');
     const entries = timeline.querySelectorAll('[data-testid^="log-entry-"]');
@@ -248,12 +298,12 @@ describe('PlantingPlanPage', () => {
     expect(screen.queryByTestId('indoor-sow-date')).not.toBeInTheDocument();
   });
 
-  it('patches planting area when move select changes', async () => {
+  it('patches planting element when move select changes', async () => {
     vi.mocked(patchPlanting).mockResolvedValue({
       id: 'pl1',
       gardenId: 'g1',
       seasonId: 's1',
-      areaId: 'a2',
+      elementId: 'e2',
       plantProfileId: null,
       plantName: 'Lettuce',
       sowingMethod: 'indoor',
@@ -280,10 +330,10 @@ describe('PlantingPlanPage', () => {
 
     await waitFor(() => expect(screen.getByTestId('planting-area-select-pl1')).toBeInTheDocument());
 
-    fireEvent.change(screen.getByTestId('planting-area-select-pl1'), { target: { value: 'a2' } });
+    fireEvent.change(screen.getByTestId('planting-area-select-pl1'), { target: { value: 'e2' } });
 
     await waitFor(() => {
-      expect(patchPlanting).toHaveBeenCalledWith('g1', 'pl1', { areaId: 'a2' });
+      expect(patchPlanting).toHaveBeenCalledWith('g1', 'pl1', { elementId: 'e2' });
     });
   });
 

@@ -23,12 +23,18 @@
     "openMenu": "Open menu",
     "closeMenu": "Close menu",
     "home": "Home",
+    "gardens": "Gardens",
     "gardenMap": "Garden map",
     "plantingPlan": "Planting plan",
     "calendar": "Calendar",
     "plantProfiles": "Plant profiles",
     "notes": "Notes",
-    "history": "Season history"
+    "history": "Season history",
+    "currentGarden": "Current garden",
+    "noGardensYet": "No gardens yet.",
+    "createGardenLink": "Create a garden",
+    "gardenListLoading": "Loading gardens…",
+    "chooseActiveGarden": "Choose active garden"
   },
   "lang": {
     "nb": "NB",
@@ -39,6 +45,27 @@
   },
   "placeholders": {
     "comingSoon": "This section will be available in a later release."
+  },
+  "gardens": {
+    "listHint": "Open a garden to manage areas and maps."
+  },
+  "areas": {
+    "sectionTitle": "Areas",
+    "emptyHint": "No areas yet. Create one below.",
+    "createTitle": "New area",
+    "title": "Title",
+    "description": "Description",
+    "createSubmit": "Create area",
+    "delete": "Delete",
+    "confirmDelete": "Delete this area and its elements?",
+    "titleRequired": "Enter a title."
+  },
+  "elements": {
+    "hasPlantingsHint": "has plantings",
+    "layers": {
+      "elementType": "Element type"
+    },
+    "historicalGhostAria": "Historical element {{name}}"
   },
   "garden": {
     "createTitle": "Create your garden",
@@ -132,9 +159,10 @@
     "createProfile": "Save profile",
     "deleteProfile": "Delete profile",
     "confirmDeleteProfile": "Delete this plant profile? Plantings keep the saved name.",
-    "planHint": "Plantings are grouped by area for the active season.",
+    "planHint": "Plantings are grouped by area and element for the active season.",
     "noSeason": "No active season found for this garden.",
-    "noPlantingsInArea": "No plantings in this area yet.",
+    "noPlantingsInArea": "No plantings here yet.",
+    "noElementsInArea": "No elements in this area yet.",
     "addPlanting": "Add planting",
     "plantSource": "Plant",
     "fromProfile": "From profile",
@@ -152,12 +180,15 @@
     "harvestStartOptional": "Harvest start (optional)",
     "savePlanting": "Save planting",
     "moveToArea": "Area",
+    "moveToElement": "Move to",
+    "element": "Element",
     "removePlanting": "Remove",
     "confirmRemovePlanting": "Remove this planting from the plan?",
     "quickLog": "Quick log",
     "logTarget": "Log for",
     "targetPlanting": "A planting",
     "targetArea": "An area",
+    "targetElement": "An element",
     "planting": "Planting",
     "activity": "Activity",
     "datePlaceholder": "Select date",
@@ -210,7 +241,8 @@
     "archiveSeason": "Archive current season & start next",
     "confirmArchive": "Archive this season? A new active season will be created for next year.",
     "pickSeason": "Choose a season.",
-    "mapCaption": "Map layout with areas (current garden grid).",
+    "mapCaption": "Map layout (first area in this snapshot).",
+    "noAreaInSnapshot": "No area data in this snapshot.",
     "plantings": "Plantings"
   },
   "offline": {

@@ -12,7 +12,7 @@ const tinyPng = Buffer.from(
   'base64',
 );
 
-describe('Garden background upload when S3 env is absent (integration)', () => {
+describe('Area background upload when S3 env is absent (integration)', () => {
   let env: Env;
   let app: ReturnType<typeof createApp>;
 
@@ -35,28 +35,26 @@ describe('Garden background upload when S3 env is absent (integration)', () => {
     await c.allowedEmailRepo.create({ email, addedBy: null });
     const reg = await request(app)
       .post('/api/v1/auth/register')
-      .send({
-        email,
-        password: 'password12',
-        displayName: 'U',
-      })
+      .send({ email, password: 'password12', displayName: 'U' })
       .expect(201);
     const token = reg.body.accessToken as string;
 
-    const created = await request(app)
+    const g = await request(app)
       .post('/api/v1/gardens')
       .set('Authorization', `Bearer ${token}`)
-      .send({
-        name: 'G',
-        gridWidth: 2,
-        gridHeight: 2,
-        cellSizeMeters: 1,
-      })
+      .send({ name: 'G' })
       .expect(201);
-    const gardenId = created.body.id as string;
+    const gardenId = g.body.id as string;
+
+    const a = await request(app)
+      .post(`/api/v1/gardens/${gardenId}/areas`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ title: 'A', gridWidth: 2, gridHeight: 2, cellSizeMeters: 1 })
+      .expect(201);
+    const areaId = a.body.id as string;
 
     await request(app)
-      .put(`/api/v1/gardens/${gardenId}/background-image`)
+      .put(`/api/v1/gardens/${gardenId}/areas/${areaId}/background-image`)
       .set('Authorization', `Bearer ${token}`)
       .attach('file', tinyPng, 'tiny.png')
       .expect(503);

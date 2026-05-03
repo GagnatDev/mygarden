@@ -1,5 +1,6 @@
 import { toPublicActivityLog } from '../../domain/activity-log.js';
 import { toPublicArea } from '../../domain/area.js';
+import { toPublicElement } from '../../domain/element.js';
 import { toPublicNote } from '../../domain/note.js';
 import { toPublicPlanting } from '../../domain/planting.js';
 import type { Season } from '../../domain/season.js';
@@ -7,6 +8,7 @@ import { toPublicSeason } from '../../domain/season.js';
 import { HttpError } from '../../middleware/problem-details.js';
 import type { IActivityLogRepository } from '../../repositories/interfaces/activity-log.repository.interface.js';
 import type { IAreaRepository } from '../../repositories/interfaces/area.repository.interface.js';
+import type { IElementRepository } from '../../repositories/interfaces/element.repository.interface.js';
 import type { INoteRepository } from '../../repositories/interfaces/note.repository.interface.js';
 import type { IPlantingRepository } from '../../repositories/interfaces/planting.repository.interface.js';
 import type { ISeasonRepository } from '../../repositories/interfaces/season.repository.interface.js';
@@ -25,6 +27,7 @@ export class SeasonService {
     private readonly activityLogRepo: IActivityLogRepository,
     private readonly noteRepo: INoteRepository,
     private readonly areaRepo: IAreaRepository,
+    private readonly elementRepo: IElementRepository,
   ) {}
 
   async listByGarden(gardenId: string): Promise<Season[]> {
@@ -132,8 +135,9 @@ export class SeasonService {
     if (!season || season.gardenId !== gardenId) {
       throw new HttpError(404, 'Season not found', 'Not Found');
     }
-    const [areas, plantings, logs, notes] = await Promise.all([
-      this.areaRepo.findByGardenId(gardenId),
+    const areas = await this.areaRepo.findByGardenId(gardenId);
+    const [elements, plantings, logs, notes] = await Promise.all([
+      this.elementRepo.findByAreaIds(areas.map((a) => a.id)),
       this.plantingRepo.findByGardenAndSeason(gardenId, seasonId),
       this.activityLogRepo.findByGardenSeason(gardenId, seasonId),
       this.noteRepo.findByGardenSeason(gardenId, seasonId),
@@ -141,6 +145,7 @@ export class SeasonService {
     return {
       season: toPublicSeason(season),
       areas: areas.map(toPublicArea),
+      elements: elements.map(toPublicElement),
       plantings: plantings.map(toPublicPlanting),
       logs: logs.map(toPublicActivityLog),
       notes: notes.map(toPublicNote),

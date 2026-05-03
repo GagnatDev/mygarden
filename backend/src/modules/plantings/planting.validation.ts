@@ -6,7 +6,7 @@ const dateField = z.union([z.coerce.date(), z.string().datetime()]).transform((v
 export const createPlantingBodySchema = z
   .object({
     seasonId: z.string().uuid(),
-    areaId: z.string().uuid(),
+    elementId: z.string().uuid(),
     plantProfileId: z.string().uuid().nullish(),
     plantName: z.string().trim().min(1).optional(),
     sowingMethod: z.enum(SOWING_METHODS),
@@ -55,7 +55,7 @@ export const createPlantingBodySchema = z
   });
 
 export const patchPlantingBodySchema = z.object({
-  areaId: z.string().uuid().optional(),
+  elementId: z.string().uuid().optional(),
   plantProfileId: z.string().uuid().nullish(),
   plantName: z.string().trim().min(1).optional(),
   sowingMethod: z.enum(SOWING_METHODS).optional(),

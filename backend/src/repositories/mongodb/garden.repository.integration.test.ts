@@ -13,12 +13,10 @@ describe('GardenRepository (integration)', () => {
     const userId = uuidv4();
     const g = await repo.create({
       name: 'Test Garden',
-      gridWidth: 10,
-      gridHeight: 12,
-      cellSizeMeters: 1,
       createdBy: userId,
     });
-    expect(g.gridWidth).toBe(10);
+    expect(g.name).toBe('Test Garden');
+    expect(g.createdBy).toBe(userId);
 
     const byId = await repo.findById(g.id);
     expect(byId?.name).toBe('Test Garden');

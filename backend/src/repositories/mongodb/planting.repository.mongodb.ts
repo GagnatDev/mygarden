@@ -1,6 +1,9 @@
 import { v4 as uuidv4 } from 'uuid';
 import type { Planting, SowingMethod } from '../../domain/planting.js';
-import type { CreatePlantingInput, IPlantingRepository } from '../interfaces/planting.repository.interface.js';
+import type {
+  CreatePlantingInput,
+  IPlantingRepository,
+} from '../interfaces/planting.repository.interface.js';
 import type { PlantingDoc } from './planting.schema.js';
 import { PlantingModel } from './planting.schema.js';
 
@@ -9,7 +12,7 @@ function toPlanting(doc: PlantingDoc): Planting {
     id: doc._id,
     gardenId: doc.gardenId,
     seasonId: doc.seasonId,
-    areaId: doc.areaId,
+    elementId: doc.elementId,
     plantProfileId: doc.plantProfileId ?? null,
     plantName: doc.plantName,
     sowingMethod: doc.sowingMethod as SowingMethod,
@@ -33,7 +36,7 @@ export class PlantingRepositoryMongo implements IPlantingRepository {
       _id: id,
       gardenId: input.gardenId,
       seasonId: input.seasonId,
-      areaId: input.areaId,
+      elementId: input.elementId,
       plantProfileId: input.plantProfileId,
       plantName: input.plantName,
       sowingMethod: input.sowingMethod,
@@ -65,7 +68,7 @@ export class PlantingRepositoryMongo implements IPlantingRepository {
     patch: Partial<
       Pick<
         Planting,
-        | 'areaId'
+        | 'elementId'
         | 'plantProfileId'
         | 'plantName'
         | 'sowingMethod'
@@ -79,7 +82,11 @@ export class PlantingRepositoryMongo implements IPlantingRepository {
       >
     >,
   ): Promise<Planting | null> {
-    const doc = await PlantingModel.findByIdAndUpdate(id, { $set: patch }, { new: true, runValidators: true }).lean();
+    const doc = await PlantingModel.findByIdAndUpdate(
+      id,
+      { $set: patch },
+      { new: true, runValidators: true },
+    ).lean();
     if (!doc) return null;
     return toPlanting(doc as PlantingDoc);
   }

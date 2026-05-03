@@ -1,13 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import type { Area } from '../api/areas';
 import {
-  deleteGardenBackgroundImage,
-  uploadGardenBackgroundImage,
-  type Area,
-  type Garden,
-} from '../api/gardens';
+  deleteAreaBackgroundImage,
+  uploadAreaBackgroundImage,
+} from '../api/areas';
+import type { Element, ElementShape } from '../api/elements';
 import { apiFetch } from '../api/client';
-import type { AreaShape } from '../api/gardens';
 import { computeAlignmentGuides } from './alignment-guides';
 import { GridMapAreasSvg } from './GridMapAreasSvg';
 import { GridMapSvgGridLayer } from './GridMapSvgGridLayer';
@@ -33,7 +32,7 @@ export interface GridSelection {
   gridHeight: number;
 }
 
-export type AreaDraftSelection = GridSelection & { shape?: AreaShape };
+export type ElementDraftSelection = GridSelection & { shape?: ElementShape };
 
 function clamp(n: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, n));
@@ -58,14 +57,14 @@ function normalizeRect(
 }
 
 export type MapTool = 'select' | 'pan' | 'move' | 'draw-polygon';
-export type MapLayer = 'area-type' | 'plan-vs-actual' | 'status' | 'historical';
+export type MapLayer = 'element-type' | 'plan-vs-actual' | 'status' | 'historical';
 
 export interface MapLegendItem {
   label: string;
   color: string;
 }
 
-export interface HistoricalGhostArea {
+export interface HistoricalGhostElement {
   id: string;
   name: string;
   gridX: number;
@@ -75,7 +74,7 @@ export interface HistoricalGhostArea {
 }
 
 interface MoveDragState {
-  areaId: string;
+  elementId: string;
   origGridX: number;
   origGridY: number;
   grabDx: number;
@@ -91,63 +90,65 @@ interface MoveDragState {
 }
 
 export interface GridMapEditorProps {
-  garden: Garden;
-  areas: Area[];
-  /** Area IDs that have at least one planting (subtle map indicator only). */
-  areaIdsWithPlantings?: ReadonlySet<string>;
-  /** Controls how areas are colored/badged. */
+  gardenId: string;
+  area: Area;
+  elements: Element[];
+  /** Element IDs that have at least one planting (subtle map indicator only). */
+  elementIdsWithPlantings?: ReadonlySet<string>;
+  /** Controls how elements are colored/badged. */
   layer?: MapLayer;
   onLayerChange?: (layer: MapLayer) => void;
-  /** Optional per-area background color overrides for the active layer. */
-  areaColorById?: Readonly<Record<string, string>>;
-  /** Optional per-area badge for the active layer. */
-  areaBadgeById?: Readonly<
+  /** Optional per-element background color overrides for the active layer. */
+  elementColorById?: Readonly<Record<string, string>>;
+  /** Optional per-element badge for the active layer. */
+  elementBadgeById?: Readonly<
     Record<string, { text: string; toneClass: string }>
   >;
-  /** Optional per-area overlay badges (e.g. historical plant names). */
-  areaOverlayBadgesById?: Readonly<Record<string, string[]>>;
+  /** Optional per-element overlay badges (e.g. historical plant names). */
+  elementOverlayBadgesById?: Readonly<Record<string, string[]>>;
   /** Legend items displayed under the toolbar for non-default layers. */
   legendItems?: readonly MapLegendItem[];
-  /** Historical comparison: show deleted areas as dashed ghosts. */
-  historicalGhostAreas?: readonly HistoricalGhostArea[];
+  /** Historical comparison: show deleted elements as dashed ghosts. */
+  historicalGhostElements?: readonly HistoricalGhostElement[];
   /** Optional UI fragment shown in the toolbar (e.g. season picker for historical layer). */
   toolbarAddon?: React.ReactNode;
-  selectedAreaId: string | null;
-  onSelectArea: (id: string | null) => void;
-  onSelectionComplete: (sel: AreaDraftSelection) => void;
-  /** Reposition an existing area (grid top-left); parent persists via API. */
-  onMoveArea?: (areaId: string, gridX: number, gridY: number) => void;
+  selectedElementId: string | null;
+  onSelectElement: (id: string | null) => void;
+  onSelectionComplete: (sel: ElementDraftSelection) => void;
+  /** Reposition an existing element (grid top-left); parent persists via API. */
+  onMoveElement?: (elementId: string, gridX: number, gridY: number) => void;
   tool: MapTool;
   onToolChange: (t: MapTool) => void;
-  /** When true, map is view-only (pan/zoom only, no new selections or area clicks). */
+  /** When true, map is view-only (pan/zoom only, no new selections or element clicks). */
   readOnly?: boolean;
-  /** Called after a successful background upload or remove (e.g. refresh garden list). */
-  onGardenBackgroundChanged?: () => void | Promise<void>;
+  /** Called after a successful background upload or remove (e.g. refresh area). */
+  onAreaBackgroundChanged?: () => void | Promise<void>;
 }
 
 export function GridMapEditor({
-  garden,
-  areas,
-  areaIdsWithPlantings,
-  layer = 'area-type',
+  gardenId,
+  area,
+  elements,
+  elementIdsWithPlantings,
+  layer = 'element-type',
   onLayerChange,
-  areaColorById,
-  areaBadgeById,
-  areaOverlayBadgesById,
+  elementColorById,
+  elementBadgeById,
+  elementOverlayBadgesById,
   legendItems,
-  historicalGhostAreas,
+  historicalGhostElements,
   toolbarAddon,
-  selectedAreaId,
-  onSelectArea,
+  selectedElementId,
+  onSelectElement,
   onSelectionComplete,
-  onMoveArea,
+  onMoveElement,
   tool,
   onToolChange,
   readOnly = false,
-  onGardenBackgroundChanged,
+  onAreaBackgroundChanged,
 }: GridMapEditorProps) {
   const { t } = useTranslation();
-  const backgroundImageUrl = garden.backgroundImageUrl ?? null;
+  const backgroundImageUrl = area.backgroundImageUrl ?? null;
   const effectiveTool: MapTool = readOnly ? 'pan' : tool;
   const containerRef = useRef<HTMLDivElement>(null);
   const worldRef = useRef<SVGSVGElement>(null);
@@ -188,10 +189,10 @@ export function GridMapEditor({
   const moveRef = useRef<MoveDragState | null>(null);
   const [move, setMove] = useState<MoveDragState | null>(null);
   /** While move tool is active: last area finished via pointer (nudge target + outline); not synced to parent. */
-  const [moveNudgeAreaId, setMoveNudgeAreaId] = useState<string | null>(null);
+  const [moveNudgeElementId, setMoveNudgeElementId] = useState<string | null>(null);
   const [poly, setPoly] = useState<Array<{ x: number; y: number }> | null>(null);
 
-  const bgStorageKey = `mygarden.mapBgOpacity.${garden.id}`;
+  const bgStorageKey = `mygarden.mapBgOpacity.${gardenId}.${area.id}`;
   const [bgOpacityPct, setBgOpacityPct] = useState(50);
   useEffect(() => {
     try {
@@ -271,7 +272,7 @@ export function GridMapEditor({
         return null;
       });
     };
-  }, [backgroundImageUrl, garden.updatedAt]);
+  }, [backgroundImageUrl, area.updatedAt]);
 
   const onBackgroundFileSelected = useCallback(
     async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -281,41 +282,41 @@ export function GridMapEditor({
       setBgActionBusy(true);
       setBgActionError(null);
       try {
-        await uploadGardenBackgroundImage(garden.id, file);
-        await onGardenBackgroundChanged?.();
+        await uploadAreaBackgroundImage(gardenId, area.id, file);
+        await onAreaBackgroundChanged?.();
       } catch (err) {
         setBgActionError(err instanceof Error ? err.message : t('garden.backgroundUploadFailed'));
       } finally {
         setBgActionBusy(false);
       }
     },
-    [garden.id, onGardenBackgroundChanged, t],
+    [gardenId, area.id, onAreaBackgroundChanged, t],
   );
 
   const onRemoveBackground = useCallback(async () => {
     setBgActionBusy(true);
     setBgActionError(null);
     try {
-      await deleteGardenBackgroundImage(garden.id);
-      await onGardenBackgroundChanged?.();
+      await deleteAreaBackgroundImage(gardenId, area.id);
+      await onAreaBackgroundChanged?.();
     } catch (err) {
       setBgActionError(err instanceof Error ? err.message : t('garden.backgroundUploadFailed'));
     } finally {
       setBgActionBusy(false);
     }
-  }, [garden.id, onGardenBackgroundChanged, t]);
+  }, [gardenId, area.id, onAreaBackgroundChanged, t]);
 
   useEffect(() => {
     if (effectiveTool !== 'move') {
-      setMoveNudgeAreaId(null);
+      setMoveNudgeElementId(null);
     }
   }, [effectiveTool]);
 
-  const areaOutlineId =
-    effectiveTool === 'move' ? moveNudgeAreaId ?? selectedAreaId : selectedAreaId;
+  const elementOutlineId =
+    effectiveTool === 'move' ? moveNudgeElementId ?? selectedElementId : selectedElementId;
 
-  const gw = garden.gridWidth;
-  const gh = garden.gridHeight;
+  const gw = area.gridWidth;
+  const gh = area.gridHeight;
   const worldW = gw * CELL;
   const worldH = gh * CELL;
 
@@ -382,9 +383,9 @@ export function GridMapEditor({
     setMove(next);
   }, []);
 
-  const beginAreaMoveAt = useCallback(
-    (area: Area, clientX: number, clientY: number, pointerId?: number) => {
-      if (!onMoveArea) return;
+  const beginElementMoveAt = useCallback(
+    (element: Element, clientX: number, clientY: number, pointerId?: number) => {
+      if (!onMoveElement) return;
       const world = worldRef.current;
       if (!world) return;
       const g = clientToGrid(clientX, clientY);
@@ -393,15 +394,15 @@ export function GridMapEditor({
         world.setPointerCapture?.(pointerId);
       }
       const next: MoveDragState = {
-        areaId: area.id,
-        origGridX: area.gridX,
-        origGridY: area.gridY,
-        grabDx: g.gx - area.gridX,
-        grabDy: g.gy - area.gridY,
-        w: area.gridWidth,
-        h: area.gridHeight,
-        curGridX: area.gridX,
-        curGridY: area.gridY,
+        elementId: element.id,
+        origGridX: element.gridX,
+        origGridY: element.gridY,
+        grabDx: g.gx - element.gridX,
+        grabDy: g.gy - element.gridY,
+        w: element.gridWidth,
+        h: element.gridHeight,
+        curGridX: element.gridX,
+        curGridY: element.gridY,
         startClientX: clientX,
         startClientY: clientY,
         lastClientX: clientX,
@@ -409,23 +410,23 @@ export function GridMapEditor({
       };
       setMoveBoth(next);
     },
-    [clientToGrid, onMoveArea, setMoveBoth],
+    [clientToGrid, onMoveElement, setMoveBoth],
   );
 
-  const beginAreaMove = useCallback(
-    (e: React.PointerEvent, area: Area) => {
+  const beginElementMove = useCallback(
+    (e: React.PointerEvent, element: Element) => {
       if (typeof e.button === 'number' && e.button !== 0) return;
       e.preventDefault();
-      beginAreaMoveAt(area, e.clientX, e.clientY, e.pointerId);
+      beginElementMoveAt(element, e.clientX, e.clientY, e.pointerId);
     },
-    [beginAreaMoveAt],
+    [beginElementMoveAt],
   );
 
-  const beginAreaMoveTouch = useCallback(
-    (clientX: number, clientY: number, area: Area) => {
-      beginAreaMoveAt(area, clientX, clientY);
+  const beginElementMoveTouch = useCallback(
+    (clientX: number, clientY: number, element: Element) => {
+      beginElementMoveAt(element, clientX, clientY);
     },
-    [beginAreaMoveAt],
+    [beginElementMoveAt],
   );
 
   useEffect(() => {
@@ -549,11 +550,11 @@ export function GridMapEditor({
   }, []);
 
   useEffect(() => {
-    if (readOnly || !areaOutlineId || !onMoveArea) return;
+    if (readOnly || !elementOutlineId || !onMoveElement) return;
     const onKey = (e: KeyboardEvent) => {
       if (moveRef.current) return;
-      const el = e.target as HTMLElement | null;
-      if (el?.closest('input, textarea, select, [contenteditable="true"]')) return;
+      const targetEl = e.target as HTMLElement | null;
+      if (targetEl?.closest('input, textarea, select, [contenteditable="true"]')) return;
       let dx = 0;
       let dy = 0;
       switch (e.key) {
@@ -572,21 +573,21 @@ export function GridMapEditor({
         default:
           return;
       }
-      const area = areas.find((a) => a.id === areaOutlineId);
-      if (!area) return;
+      const hit = elements.find((it) => it.id === elementOutlineId);
+      if (!hit) return;
       e.preventDefault();
       const rect = {
-        gridX: area.gridX + dx,
-        gridY: area.gridY + dy,
-        gridWidth: area.gridWidth,
-        gridHeight: area.gridHeight,
+        gridX: hit.gridX + dx,
+        gridY: hit.gridY + dy,
+        gridWidth: hit.gridWidth,
+        gridHeight: hit.gridHeight,
       };
-      if (!isValidMovePosition(area.id, rect, areas, gw, gh)) return;
-      onMoveArea(area.id, rect.gridX, rect.gridY);
+      if (!isValidMovePosition(hit.id, rect, elements, gw, gh)) return;
+      onMoveElement(hit.id, rect.gridX, rect.gridY);
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [readOnly, areaOutlineId, areas, gw, gh, onMoveArea]);
+  }, [readOnly, elementOutlineId, elements, gw, gh, onMoveElement]);
 
   const onPointerDown = (e: React.PointerEvent) => {
     if (typeof e.button === 'number' && e.button !== 0) return;
@@ -700,22 +701,22 @@ export function GridMapEditor({
       gridWidth: ms.w,
       gridHeight: ms.h,
     };
-    const valid = isValidMovePosition(ms.areaId, rect, areas, gw, gh);
+    const valid = isValidMovePosition(ms.elementId, rect, elements, gw, gh);
     const dragPx = Math.hypot(clientX - ms.startClientX, clientY - ms.startClientY);
     if (dragPx < 6) {
-      setMoveNudgeAreaId(ms.areaId);
+      setMoveNudgeElementId(ms.elementId);
       return;
     }
     if (
       valid &&
-      onMoveArea &&
+      onMoveElement &&
       (ms.curGridX !== ms.origGridX || ms.curGridY !== ms.origGridY)
     ) {
-      setMoveNudgeAreaId(ms.areaId);
-      onMoveArea(ms.areaId, ms.curGridX, ms.curGridY);
+      setMoveNudgeElementId(ms.elementId);
+      onMoveElement(ms.elementId, ms.curGridX, ms.curGridY);
       return;
     }
-    setMoveNudgeAreaId(ms.areaId);
+    setMoveNudgeElementId(ms.elementId);
   };
 
   const onPointerUp = (e: React.PointerEvent) => {
@@ -815,10 +816,10 @@ export function GridMapEditor({
     pinchRef.current = null;
   };
 
-  const movingArea = move
-    ? areas.find((a) => a.id === move.areaId)
+  const movingElement = move
+    ? elements.find((a) => a.id === move.elementId)
     : undefined;
-  const effectiveToolForAreas: 'select' | 'pan' | 'move' =
+  const effectiveToolForElements: 'select' | 'pan' | 'move' =
     effectiveTool === 'draw-polygon' ? 'pan' : effectiveTool;
   const moveRect = move
     ? {
@@ -830,11 +831,11 @@ export function GridMapEditor({
     : null;
   const moveValid =
     move && moveRect
-      ? isValidMovePosition(move.areaId, moveRect, areas, gw, gh)
+      ? isValidMovePosition(move.elementId, moveRect, elements, gw, gh)
       : false;
   const otherRects =
     move && moveRect
-      ? areas.filter((a) => a.id !== move.areaId).map((a) => ({
+      ? elements.filter((a) => a.id !== move.elementId).map((a) => ({
           gridX: a.gridX,
           gridY: a.gridY,
           gridWidth: a.gridWidth,
@@ -873,7 +874,7 @@ export function GridMapEditor({
                 tool === 'move' ? 'bg-emerald-100 text-emerald-900' : 'text-stone-600'
               }`}
               onClick={() => onToolChange('move')}
-              disabled={!onMoveArea}
+              disabled={!onMoveElement}
             >
               {t('garden.toolMove')}
             </button>
@@ -921,7 +922,7 @@ export function GridMapEditor({
             value={layer}
             onChange={(e) => onLayerChange?.(e.target.value as MapLayer)}
           >
-            <option value="area-type">{t('garden.layers.areaType')}</option>
+            <option value="element-type">{t('elements.layers.elementType')}</option>
             <option value="status">{t('garden.layers.status')}</option>
             <option value="plan-vs-actual">{t('garden.layers.planVsActual')}</option>
             <option value="historical">{t('garden.layers.historical')}</option>
@@ -1009,7 +1010,7 @@ export function GridMapEditor({
         </div>
       </div>
 
-      {layer !== 'area-type' && legendItems && legendItems.length > 0 ? (
+      {layer !== 'element-type' && legendItems && legendItems.length > 0 ? (
         <div className="flex flex-wrap items-center gap-2 text-xs text-stone-700" data-testid="map-layer-legend">
           <span className="font-medium">{t('garden.legend')}</span>
           {legendItems.map((it) => (
@@ -1071,7 +1072,7 @@ export function GridMapEditor({
             ) : null}
             <GridMapSvgGridLayer worldW={worldW} worldH={worldH} cell={CELL} />
 
-            {historicalGhostAreas?.map((ga) => (
+            {historicalGhostElements?.map((ga) => (
               <rect
                 key={ga.id}
                 data-testid="map-historical-ghost-area"
@@ -1084,32 +1085,32 @@ export function GridMapEditor({
                 strokeWidth={2}
                 strokeDasharray="6 4"
                 pointerEvents="none"
-                aria-label={t('garden.historicalGhostAreaAria', { name: ga.name })}
+                aria-label={t('elements.historicalGhostAria', { name: ga.name })}
               />
             ))}
 
             <GridMapAreasSvg
-              areas={areas}
+              elements={elements}
               cell={CELL}
-              areaIdsWithPlantings={areaIdsWithPlantings}
-              areaColorById={areaColorById}
-              areaBadgeById={areaBadgeById}
-              areaOverlayBadgesById={areaOverlayBadgesById}
-              selectedAreaId={areaOutlineId}
-              effectiveTool={effectiveToolForAreas}
+              elementIdsWithPlantings={elementIdsWithPlantings}
+              elementColorById={elementColorById}
+              elementBadgeById={elementBadgeById}
+              elementOverlayBadgesById={elementOverlayBadgesById}
+              selectedElementId={elementOutlineId}
+              effectiveTool={effectiveToolForElements}
               readOnly={readOnly}
-              draggingAreaId={move?.areaId ?? null}
-              onSelectArea={onSelectArea}
-              onBeginAreaMove={onMoveArea ? beginAreaMove : undefined}
-              onBeginAreaMoveTouch={onMoveArea ? beginAreaMoveTouch : undefined}
+              draggingElementId={move?.elementId ?? null}
+              onSelectElement={onSelectElement}
+              onBeginElementMove={onMoveElement ? beginElementMove : undefined}
+              onBeginElementMoveTouch={onMoveElement ? beginElementMoveTouch : undefined}
             />
 
-            {move && movingArea ? (
-              movingArea.shape?.kind === 'polygon' ? (
+            {move && movingElement ? (
+              movingElement.shape?.kind === 'polygon' ? (
                 <polygon
                   data-testid="map-move-ghost"
-                  points={polygonPointsPx(movingArea.shape.vertices, CELL)}
-                  fill={`${movingArea.color}99`}
+                  points={polygonPointsPx(movingElement.shape.vertices, CELL)}
+                  fill={`${movingElement.color}99`}
                   stroke="rgba(255,255,255,0.8)"
                   strokeWidth={2}
                   strokeDasharray="6 4"
@@ -1122,7 +1123,7 @@ export function GridMapEditor({
                   y={move.origGridY * CELL}
                   width={move.w * CELL}
                   height={move.h * CELL}
-                  fill={`${movingArea.color}99`}
+                  fill={`${movingElement.color}99`}
                   stroke="rgba(255,255,255,0.8)"
                   strokeWidth={2}
                   strokeDasharray="6 4"
@@ -1131,13 +1132,13 @@ export function GridMapEditor({
               )
             ) : null}
 
-            {move && movingArea ? (
-              movingArea.shape?.kind === 'polygon' ? (
+            {move && movingElement ? (
+              movingElement.shape?.kind === 'polygon' ? (
                 <polygon
                   data-testid="map-move-preview"
                   data-valid={moveValid ? 'true' : 'false'}
                   points={polygonPointsPx(
-                    translateVertices(movingArea.shape.vertices, move.curGridX - move.origGridX, move.curGridY - move.origGridY),
+                    translateVertices(movingElement.shape.vertices, move.curGridX - move.origGridX, move.curGridY - move.origGridY),
                     CELL,
                   )}
                   fill="rgba(0,0,0,0.08)"

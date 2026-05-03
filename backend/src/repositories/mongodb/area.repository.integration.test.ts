@@ -9,40 +9,40 @@ describe('AreaRepository (integration)', () => {
   beforeAll(startMongo, 120_000);
   afterAll(stopMongo, 30_000);
 
-  it('create, findByGardenId, update, delete, deleteByGardenId', async () => {
+  it('create, findByGardenId sorts by sortIndex, update, delete, deleteByGardenId', async () => {
     const gardenId = uuidv4();
     const a = await repo.create({
       gardenId,
-      name: 'Bed 1',
-      type: 'raised_bed',
-      color: '#8B4513',
-      gridX: 0,
-      gridY: 0,
-      gridWidth: 2,
-      gridHeight: 3,
-      shape: { kind: 'polygon', vertices: [{ x: 0, y: 0 }, { x: 2, y: 0 }, { x: 2, y: 3 }] },
+      title: 'Front yard',
+      description: 'Sunny south-facing patch',
+      gridWidth: 10,
+      gridHeight: 8,
+      cellSizeMeters: 0.5,
+      sortIndex: 1,
     });
-    const list = await repo.findByGardenId(gardenId);
-    expect(list).toHaveLength(1);
-    expect(list[0]?.shape?.kind).toBe('polygon');
+    const b = await repo.create({
+      gardenId,
+      title: 'Back yard',
+      description: '',
+      gridWidth: 6,
+      gridHeight: 6,
+      cellSizeMeters: 1,
+      sortIndex: 0,
+    });
 
-    const u = await repo.update(a.id, { name: 'Bed A' });
-    expect(u?.name).toBe('Bed A');
+    const list = await repo.findByGardenId(gardenId);
+    expect(list).toHaveLength(2);
+    expect(list[0]!.id).toBe(b.id);
+    expect(list[1]!.id).toBe(a.id);
+
+    const updated = await repo.update(a.id, { title: 'Front bed', description: 'updated' });
+    expect(updated?.title).toBe('Front bed');
+    expect(updated?.description).toBe('updated');
 
     expect(await repo.delete(a.id)).toBe(true);
-    expect(await repo.findByGardenId(gardenId)).toHaveLength(0);
+    expect(await repo.findByGardenId(gardenId)).toHaveLength(1);
 
-    await repo.create({
-      gardenId,
-      name: 'B',
-      type: 'path',
-      color: '#ccc',
-      gridX: 0,
-      gridY: 0,
-      gridWidth: 1,
-      gridHeight: 1,
-      shape: { kind: 'rectangle' },
-    });
     expect(await repo.deleteByGardenId(gardenId)).toBe(1);
+    expect(await repo.findByGardenId(gardenId)).toHaveLength(0);
   });
 });

@@ -1,14 +1,17 @@
 import { apiFetch, readProblemDetails } from './client';
-import type { Area, Season } from './gardens';
+import type { Area } from './areas';
+import type { Element } from './elements';
 import type { ActivityLog } from './logs';
 import type { Note } from './notes';
 import type { Planting } from './plantings';
+import type { Season } from './gardens';
 
 export type { Season };
 
 export interface SeasonSnapshot {
   season: Season;
   areas: Area[];
+  elements: Element[];
   plantings: Planting[];
   logs: ActivityLog[];
   notes: Note[];

@@ -1,39 +1,40 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import type { Area, AreaType } from '../api/gardens';
-import { deleteArea, patchArea } from '../api/gardens';
+import type { Element, ElementType } from '../api/elements';
+import { deleteElement, patchElement } from '../api/elements';
 import { NotesSection } from '../components/NotesSection';
 
-const TYPES: AreaType[] = ['raised_bed', 'open_bed', 'tree_zone', 'path', 'lawn', 'other'];
+const TYPES: ElementType[] = ['raised_bed', 'open_bed', 'tree_zone', 'path', 'lawn', 'other'];
 
-export interface AreaPlantingSummary {
+export interface ElementPlantingSummary {
   id: string;
   plantName: string;
   sowingMethod: string;
 }
 
-export interface AreaDetailPanelProps {
+export interface ElementDetailPanelProps {
   gardenId: string;
+  areaId: string;
   seasonId: string;
-  area: Area;
-  /** Plantings in this area for the active season (shown when area is selected). */
-  plantings?: AreaPlantingSummary[];
+  element: Element;
+  plantings?: ElementPlantingSummary[];
   onClose: () => void;
   onChanged: () => Promise<void>;
 }
 
-export function AreaDetailPanel({
+export function ElementDetailPanel({
   gardenId,
+  areaId,
   seasonId,
-  area,
+  element,
   plantings = [],
   onClose,
   onChanged,
-}: AreaDetailPanelProps) {
+}: ElementDetailPanelProps) {
   const { t } = useTranslation();
-  const [name, setName] = useState(area.name);
-  const [type, setType] = useState<AreaType>(area.type);
-  const [color, setColor] = useState(area.color);
+  const [name, setName] = useState(element.name);
+  const [type, setType] = useState<ElementType>(element.type);
+  const [color, setColor] = useState(element.color);
   const [editing, setEditing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -43,7 +44,7 @@ export function AreaDetailPanel({
     setError(null);
     setBusy(true);
     try {
-      await patchArea(gardenId, area.id, { name: name.trim(), type, color });
+      await patchElement(gardenId, areaId, element.id, { name: name.trim(), type, color });
       setEditing(false);
       await onChanged();
     } catch (e) {
@@ -57,7 +58,7 @@ export function AreaDetailPanel({
     setBusy(true);
     setError(null);
     try {
-      await deleteArea(gardenId, area.id);
+      await deleteElement(gardenId, areaId, element.id);
       await onChanged();
       onClose();
     } catch (e) {
@@ -75,7 +76,7 @@ export function AreaDetailPanel({
       aria-label={t('garden.areaDetails')}
     >
       <div className="flex items-start justify-between gap-2">
-        <h2 className="text-lg font-semibold text-stone-900">{area.name}</h2>
+        <h2 className="text-lg font-semibold text-stone-900">{element.name}</h2>
         <button
           type="button"
           className="rounded-lg px-2 py-1 text-sm text-stone-500 hover:bg-stone-100"
@@ -85,7 +86,7 @@ export function AreaDetailPanel({
         </button>
       </div>
       <p className="mt-1 text-sm text-stone-500">
-        {t(`garden.areaTypes.${area.type}`)} · {area.gridWidth}×{area.gridHeight} {t('garden.cells')}
+        {t(`garden.areaTypes.${element.type}`)} · {element.gridWidth}×{element.gridHeight} {t('garden.cells')}
       </p>
 
       {plantings.length > 0 ? (
@@ -101,30 +102,30 @@ export function AreaDetailPanel({
         </section>
       ) : null}
 
-      <NotesSection gardenId={gardenId} seasonId={seasonId} targetType="area" targetId={area.id} />
+      <NotesSection gardenId={gardenId} seasonId={seasonId} targetType="element" targetId={element.id} />
 
       {editing ? (
         <div className="mt-4 space-y-3">
           <div>
-            <label htmlFor="edit-area-name" className="block text-sm font-medium text-stone-700">
+            <label htmlFor="edit-element-name" className="block text-sm font-medium text-stone-700">
               {t('garden.areaName')}
             </label>
             <input
-              id="edit-area-name"
+              id="edit-element-name"
               className="mt-1 w-full rounded-lg border border-stone-300 px-3 py-2"
               value={name}
               onChange={(e) => setName(e.target.value)}
             />
           </div>
           <div>
-            <label htmlFor="edit-area-type" className="block text-sm font-medium text-stone-700">
+            <label htmlFor="edit-element-type" className="block text-sm font-medium text-stone-700">
               {t('garden.areaType')}
             </label>
             <select
-              id="edit-area-type"
+              id="edit-element-type"
               className="mt-1 w-full rounded-lg border border-stone-300 px-3 py-2"
               value={type}
-              onChange={(e) => setType(e.target.value as AreaType)}
+              onChange={(e) => setType(e.target.value as ElementType)}
             >
               {TYPES.map((k) => (
                 <option key={k} value={k}>
@@ -134,11 +135,11 @@ export function AreaDetailPanel({
             </select>
           </div>
           <div>
-            <label htmlFor="edit-area-color" className="block text-sm font-medium text-stone-700">
+            <label htmlFor="edit-element-color" className="block text-sm font-medium text-stone-700">
               {t('garden.areaColor')}
             </label>
             <input
-              id="edit-area-color"
+              id="edit-element-color"
               type="color"
               className="mt-1 h-10 w-full cursor-pointer rounded border border-stone-300"
               value={color.length === 7 ? color : '#8B4513'}
@@ -166,9 +167,9 @@ export function AreaDetailPanel({
               className="rounded-lg border border-stone-200 py-2 font-medium text-stone-700"
               onClick={() => {
                 setEditing(false);
-                setName(area.name);
-                setType(area.type);
-                setColor(area.color);
+                setName(element.name);
+                setType(element.type);
+                setColor(element.color);
                 setError(null);
               }}
             >

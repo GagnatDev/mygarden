@@ -3,6 +3,7 @@ import { HttpError } from '../../middleware/problem-details.js';
 import type { IActivityLogRepository } from '../../repositories/interfaces/activity-log.repository.interface.js';
 import type { INoteRepository } from '../../repositories/interfaces/note.repository.interface.js';
 import type { IAreaRepository } from '../../repositories/interfaces/area.repository.interface.js';
+import type { IElementRepository } from '../../repositories/interfaces/element.repository.interface.js';
 import type { IGardenMembershipRepository } from '../../repositories/interfaces/garden-membership.repository.interface.js';
 import type { IGardenRepository } from '../../repositories/interfaces/garden.repository.interface.js';
 import type { IPlantingRepository } from '../../repositories/interfaces/planting.repository.interface.js';
@@ -12,9 +13,6 @@ import type { IFileStorageService } from '../../services/file-storage/file-stora
 
 export interface CreateGardenDto {
   name: string;
-  gridWidth: number;
-  gridHeight: number;
-  cellSizeMeters: number;
 }
 
 export class GardenService {
@@ -23,6 +21,7 @@ export class GardenService {
     private readonly membershipRepo: IGardenMembershipRepository,
     private readonly seasonRepo: ISeasonRepository,
     private readonly areaRepo: IAreaRepository,
+    private readonly elementRepo: IElementRepository,
     private readonly plantingRepo: IPlantingRepository,
     private readonly taskRepo: ITaskRepository,
     private readonly activityLogRepo: IActivityLogRepository,
@@ -42,9 +41,6 @@ export class GardenService {
   async createForUser(userId: string, dto: CreateGardenDto): Promise<Garden> {
     const garden = await this.gardenRepo.create({
       name: dto.name,
-      gridWidth: dto.gridWidth,
-      gridHeight: dto.gridHeight,
-      cellSizeMeters: dto.cellSizeMeters,
       createdBy: userId,
     });
     await this.membershipRepo.create({
@@ -79,7 +75,7 @@ export class GardenService {
   async updateForMember(
     gardenId: string,
     userId: string,
-    patch: Partial<Pick<Garden, 'name' | 'gridWidth' | 'gridHeight' | 'cellSizeMeters'>>,
+    patch: Partial<Pick<Garden, 'name'>>,
   ): Promise<Garden> {
     await this.getForMember(gardenId, userId);
     const updated = await this.gardenRepo.update(gardenId, patch);
@@ -98,11 +94,20 @@ export class GardenService {
       throw new HttpError(403, 'Only the garden owner can delete the garden', 'Forbidden');
     }
     const garden = await this.gardenRepo.findById(gardenId);
-    if (garden?.backgroundImageKey) {
-      await this.fileStorage.deleteObject(garden.backgroundImageKey).catch(() => {
-        /* best-effort */
-      });
+    if (!garden) {
+      throw new HttpError(404, 'Garden not found', 'Not Found');
     }
+
+    const areas = await this.areaRepo.findByGardenId(gardenId);
+    for (const area of areas) {
+      if (area.backgroundImageKey) {
+        await this.fileStorage.deleteObject(area.backgroundImageKey).catch(() => {
+          /* best-effort */
+        });
+      }
+      await this.elementRepo.deleteByAreaId(area.id);
+    }
+
     await this.noteRepo.deleteByGardenId(gardenId);
     await this.activityLogRepo.deleteByGardenId(gardenId);
     await this.taskRepo.deleteByGardenId(gardenId);
