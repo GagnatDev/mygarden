@@ -92,6 +92,9 @@ function jsonResponse(data: unknown, status = 200) {
   });
 }
 
+/** Fixed UTC anchor so the grid month always matches computed task day keys (avoids flaky month boundaries in CI). */
+const CALENDAR_TEST_ANCHOR = new Date(Date.UTC(2026, 5, 15, 12, 0, 0));
+
 const defaultArea = {
   id: 'a1',
   gardenId: 'g1',
@@ -143,7 +146,7 @@ function renderWithRouter(i18nInstance: typeof i18n, initialEntries: string[]) {
 
 describe('CalendarPage', () => {
   it('marks task done from day panel and refetches tasks', async () => {
-    const ref = new Date();
+    const ref = CALENDAR_TEST_ANCHOR;
     const y = ref.getUTCFullYear();
     const mo = ref.getUTCMonth();
     const taskDay = 15;
@@ -270,7 +273,7 @@ describe('CalendarPage', () => {
   });
 
   it('shows at most preview cap and a +more line for extra tasks', async () => {
-    const ref = new Date();
+    const ref = CALENDAR_TEST_ANCHOR;
     const y = ref.getUTCFullYear();
     const mo = ref.getUTCMonth();
     const taskDay = 8;
@@ -375,7 +378,7 @@ describe('CalendarPage', () => {
   });
 
   it('uses history push when opening a day and back closes the panel', async () => {
-    const ref = new Date();
+    const ref = CALENDAR_TEST_ANCHOR;
     const y = ref.getUTCFullYear();
     const mo = ref.getUTCMonth();
     const taskDay = 12;
@@ -435,7 +438,7 @@ describe('CalendarPage', () => {
   });
 
   it('closes panel via Close without leaving day in the URL', async () => {
-    const ref = new Date();
+    const ref = CALENDAR_TEST_ANCHOR;
     const y = ref.getUTCFullYear();
     const mo = ref.getUTCMonth();
     const taskDay = 14;
@@ -490,7 +493,7 @@ describe('CalendarPage', () => {
   });
 
   it('shows Norwegian auto-task title in grid preview when plantName and autoKind are set', async () => {
-    const ref = new Date();
+    const ref = CALENDAR_TEST_ANCHOR;
     const y = ref.getUTCFullYear();
     const mo = ref.getUTCMonth();
     const taskDay = 15;
