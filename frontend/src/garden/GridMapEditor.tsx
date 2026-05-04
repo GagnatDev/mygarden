@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { Area } from '../api/areas';
 import {
@@ -19,6 +19,7 @@ import {
 import {
   MAX_MAP_SCALE,
   MIN_MAP_SCALE,
+  type MapView,
   zoomToFocal,
 } from './view-helpers';
 
@@ -151,8 +152,24 @@ export function GridMapEditor({
   const backgroundImageUrl = area.backgroundImageUrl ?? null;
   const effectiveTool: MapTool = readOnly ? 'pan' : tool;
   const containerRef = useRef<HTMLDivElement>(null);
+  const viewportRef = useRef<HTMLDivElement>(null);
   const worldRef = useRef<SVGSVGElement>(null);
-  const [view, setView] = useState({ tx: 0, ty: 0, scale: 1 });
+  const [view, setView] = useState<MapView>({ tx: 0, ty: 0, scale: 1 });
+  /** Matches the CSS transform on the viewport; may diverge from `view` during pan/pinch until flushed. */
+  const liveViewRef = useRef<MapView>(view);
+
+  const applyViewportTransform = useCallback((v: MapView) => {
+    const node = viewportRef.current;
+    if (!node) return;
+    node.style.transform = `translate(calc(-50% + ${v.tx}px), calc(-50% + ${v.ty}px)) scale(${v.scale})`;
+    node.style.transformOrigin = 'center center';
+  }, []);
+
+  useLayoutEffect(() => {
+    liveViewRef.current = view;
+    applyViewportTransform(view);
+  }, [view, applyViewportTransform]);
+
   const dragRef = useRef<
     | { kind: 'pan'; x: number; y: number }
     | {
@@ -324,30 +341,30 @@ export function GridMapEditor({
     (clientX: number, clientY: number): { gx: number; gy: number } | null => {
       const el = worldRef.current;
       const box = el?.getBoundingClientRect();
-      if (!box) return null;
-      const x = (clientX - box.left) / view.scale;
-      const y = (clientY - box.top) / view.scale;
+      if (!box || box.width <= 0 || box.height <= 0) return null;
+      const x = ((clientX - box.left) / box.width) * worldW;
+      const y = ((clientY - box.top) / box.height) * worldH;
       const gx = Math.floor(x / CELL);
       const gy = Math.floor(y / CELL);
       if (!Number.isFinite(gx) || !Number.isFinite(gy)) return null;
       if (gx < 0 || gy < 0 || gx >= gw || gy >= gh) return null;
       return { gx, gy };
     },
-    [gw, gh, view.scale],
+    [gw, gh, worldW, worldH],
   );
 
   const clientToWorld = useCallback(
     (clientX: number, clientY: number): { x: number; y: number } | null => {
       const el = worldRef.current;
       const box = el?.getBoundingClientRect();
-      if (!box) return null;
-      const x = (clientX - box.left) / view.scale;
-      const y = (clientY - box.top) / view.scale;
+      if (!box || box.width <= 0 || box.height <= 0) return null;
+      const x = ((clientX - box.left) / box.width) * worldW;
+      const y = ((clientY - box.top) / box.height) * worldH;
       if (!Number.isFinite(x) || !Number.isFinite(y)) return null;
       if (x < 0 || y < 0 || x > worldW || y > worldH) return null;
       return { x, y };
     },
-    [view.scale, worldW, worldH],
+    [worldW, worldH],
   );
 
   const polygonDraft = poly;
@@ -661,7 +678,9 @@ export function GridMapEditor({
       const dx = e.clientX - d.x;
       const dy = e.clientY - d.y;
       dragRef.current = { kind: 'pan', x: e.clientX, y: e.clientY };
-      setView((v) => ({ ...v, tx: v.tx + dx, ty: v.ty + dy }));
+      const lv = liveViewRef.current;
+      liveViewRef.current = { ...lv, tx: lv.tx + dx, ty: lv.ty + dy };
+      applyViewportTransform(liveViewRef.current);
       return;
     }
     const gridPos = clientToGrid(e.clientX, e.clientY);
@@ -734,6 +753,7 @@ export function GridMapEditor({
     if (d?.kind === 'pan') {
       dragRef.current = null;
       setSpacePanPointerDown(false);
+      setView({ ...liveViewRef.current });
       return;
     }
     endDrag(e);
@@ -748,12 +768,16 @@ export function GridMapEditor({
   };
 
   const onPointerCancel = () => {
+    const wasPan = dragRef.current?.kind === 'pan';
     moveRef.current = null;
     setMove(null);
     dragRef.current = null;
     setSpacePanPointerDown(false);
     setPreview(null);
     setPoly(null);
+    if (wasPan) {
+      setView({ ...liveViewRef.current });
+    }
   };
 
   const onTouchStart = (e: React.TouchEvent) => {
@@ -765,7 +789,7 @@ export function GridMapEditor({
       const r = containerEl.getBoundingClientRect();
       pinchRef.current = {
         dist,
-        scale: view.scale,
+        scale: liveViewRef.current.scale,
         containerRect: {
           left: r.left,
           top: r.top,
@@ -803,7 +827,9 @@ export function GridMapEditor({
       const midX = (a.clientX + b.clientX) / 2;
       const midY = (a.clientY + b.clientY) / 2;
       const { containerRect } = pinchRef.current;
-      setView((v) => zoomToFocal(v, containerRect, midX, midY, nextScale));
+      const next = zoomToFocal(liveViewRef.current, containerRect, midX, midY, nextScale);
+      liveViewRef.current = next;
+      applyViewportTransform(next);
     }
   };
 
@@ -813,7 +839,11 @@ export function GridMapEditor({
       finishMoveAt(undefined, ms.lastClientX, ms.lastClientY);
       return;
     }
+    const wasPinching = pinchRef.current !== null;
     pinchRef.current = null;
+    if (wasPinching && e.touches.length < 2) {
+      setView({ ...liveViewRef.current });
+    }
   };
 
   const movingElement = move
@@ -1032,12 +1062,9 @@ export function GridMapEditor({
         style={{ touchAction: 'none' }}
       >
         <div
+          ref={viewportRef}
           data-testid="grid-map-viewport"
           className="absolute left-1/2 top-1/2"
-          style={{
-            transform: `translate(calc(-50% + ${view.tx}px), calc(-50% + ${view.ty}px)) scale(${view.scale})`,
-            transformOrigin: 'center center',
-          }}
         >
           <svg
             ref={worldRef}

@@ -613,6 +613,70 @@ describe('GridMapEditor', () => {
     expect(localStorage.getItem('mygarden.mapBgOpacity.g1.ar1')).toBe('30');
   });
 
+  it('pan tool drags update viewport transform and do not start marquee selection', async () => {
+    const onSelectionComplete = vi.fn();
+    const i18nInstance = await testI18n();
+    render(
+      <I18nextProvider i18n={i18nInstance}>
+        <GridMapEditor
+          gardenId="g1"
+          area={mapArea}
+          elements={[bedElement]}
+          selectedElementId={null}
+          onSelectElement={vi.fn()}
+          onSelectionComplete={onSelectionComplete}
+          tool="pan"
+          onToolChange={vi.fn()}
+        />
+      </I18nextProvider>,
+    );
+
+    const map = screen.getByTestId('grid-map');
+    const viewport = screen.getByTestId('grid-map-viewport');
+    mockGridMapBoundingRect(map, mapArea.gridWidth, mapArea.gridHeight);
+
+    const before = parseMapViewportTransform(viewport);
+    fireEvent.pointerDown(map, {
+      clientX: 50,
+      clientY: 50,
+      pointerId: 1,
+      pointerType: 'mouse',
+      button: 0,
+      buttons: 1,
+    });
+    fireEvent.pointerMove(map, {
+      clientX: 50 + 12,
+      clientY: 50 + 8,
+      pointerId: 1,
+      pointerType: 'mouse',
+      buttons: 1,
+    });
+    fireEvent.pointerMove(map, {
+      clientX: 50 + 24,
+      clientY: 50 + 16,
+      pointerId: 1,
+      pointerType: 'mouse',
+      buttons: 1,
+    });
+    const mid = parseMapViewportTransform(viewport);
+    expect(mid.tx).toBeCloseTo(before.tx + 24, 5);
+    expect(mid.ty).toBeCloseTo(before.ty + 16, 5);
+    expect(screen.queryByTestId('map-selection-preview')).toBeNull();
+
+    fireEvent.pointerUp(map, {
+      clientX: 50 + 24,
+      clientY: 50 + 16,
+      pointerId: 1,
+      pointerType: 'mouse',
+      button: 0,
+      buttons: 0,
+    });
+    const after = parseMapViewportTransform(viewport);
+    expect(after.tx).toBeCloseTo(mid.tx, 5);
+    expect(after.ty).toBeCloseTo(mid.ty, 5);
+    expect(onSelectionComplete).not.toHaveBeenCalled();
+  });
+
   it('Space+drag pans in select mode without starting a selection preview', async () => {
     const i18nInstance = await testI18n();
     render(
