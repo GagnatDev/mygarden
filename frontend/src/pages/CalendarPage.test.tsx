@@ -1,3 +1,5 @@
+// @vitest-environment happy-dom
+// jsdom's AbortSignal is rejected by Node undici Request during React Router navigations (Node 24 CI).
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import i18n from 'i18next';
 import { I18nextProvider, initReactI18next } from 'react-i18next';
