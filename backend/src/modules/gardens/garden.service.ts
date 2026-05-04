@@ -1,4 +1,5 @@
 import type { Garden } from '../../domain/garden.js';
+import type { GardenMembership } from '../../domain/garden-membership.js';
 import { HttpError } from '../../middleware/problem-details.js';
 import type { IActivityLogRepository } from '../../repositories/interfaces/activity-log.repository.interface.js';
 import type { INoteRepository } from '../../repositories/interfaces/note.repository.interface.js';
@@ -65,6 +66,11 @@ export class GardenService {
     if (!m) {
       throw new HttpError(403, 'You are not a member of this garden', 'Forbidden');
     }
+    return this.getForMembership(gardenId, m);
+  }
+
+  async getForMembership(gardenId: string, membership: GardenMembership): Promise<Garden> {
+    this.assertMembershipForGarden(gardenId, membership);
     const garden = await this.gardenRepo.findById(gardenId);
     if (!garden) {
       throw new HttpError(404, 'Garden not found', 'Not Found');
@@ -77,7 +83,19 @@ export class GardenService {
     userId: string,
     patch: Partial<Pick<Garden, 'name'>>,
   ): Promise<Garden> {
-    await this.getForMember(gardenId, userId);
+    const membership = await this.membershipRepo.findByUserAndGarden(userId, gardenId);
+    if (!membership) {
+      throw new HttpError(403, 'You are not a member of this garden', 'Forbidden');
+    }
+    return this.updateForMembership(gardenId, membership, patch);
+  }
+
+  async updateForMembership(
+    gardenId: string,
+    membership: GardenMembership,
+    patch: Partial<Pick<Garden, 'name'>>,
+  ): Promise<Garden> {
+    this.assertMembershipForGarden(gardenId, membership);
     const updated = await this.gardenRepo.update(gardenId, patch);
     if (!updated) {
       throw new HttpError(404, 'Garden not found', 'Not Found');
@@ -90,7 +108,12 @@ export class GardenService {
     if (!m) {
       throw new HttpError(403, 'You are not a member of this garden', 'Forbidden');
     }
-    if (m.role !== 'owner') {
+    return this.deleteAsOwnerForMembership(gardenId, m);
+  }
+
+  async deleteAsOwnerForMembership(gardenId: string, membership: GardenMembership): Promise<void> {
+    this.assertMembershipForGarden(gardenId, membership);
+    if (membership.role !== 'owner') {
       throw new HttpError(403, 'Only the garden owner can delete the garden', 'Forbidden');
     }
     const garden = await this.gardenRepo.findById(gardenId);
@@ -118,6 +141,12 @@ export class GardenService {
     const ok = await this.gardenRepo.delete(gardenId);
     if (!ok) {
       throw new HttpError(404, 'Garden not found', 'Not Found');
+    }
+  }
+
+  private assertMembershipForGarden(gardenId: string, membership: GardenMembership): void {
+    if (membership.gardenId !== gardenId) {
+      throw new HttpError(403, 'You are not a member of this garden', 'Forbidden');
     }
   }
 }

@@ -46,7 +46,7 @@ export function createGardensRouter(env: Env, c: AppContainer): Router {
     '/',
     asyncHandler(async (req, res) => {
       const gardenId = paramString(req.params.gardenId, 'garden id');
-      const garden = await c.gardenService.getForMember(gardenId, req.auth!.id);
+      const garden = await c.gardenService.getForMembership(gardenId, req.gardenMembership!);
       res.json(toPublicGarden(garden));
     }),
   );
@@ -59,7 +59,11 @@ export function createGardensRouter(env: Env, c: AppContainer): Router {
         throw new HttpError(400, parsed.error.errors[0]?.message ?? 'Invalid body', 'Bad Request');
       }
       const gardenId = paramString(req.params.gardenId, 'garden id');
-      const garden = await c.gardenService.updateForMember(gardenId, req.auth!.id, parsed.data);
+      const garden = await c.gardenService.updateForMembership(
+        gardenId,
+        req.gardenMembership!,
+        parsed.data,
+      );
       res.json(toPublicGarden(garden));
     }),
   );
@@ -68,7 +72,7 @@ export function createGardensRouter(env: Env, c: AppContainer): Router {
     '/',
     asyncHandler(async (req, res) => {
       const gardenId = paramString(req.params.gardenId, 'garden id');
-      await c.gardenService.deleteAsOwner(gardenId, req.auth!.id);
+      await c.gardenService.deleteAsOwnerForMembership(gardenId, req.gardenMembership!);
       res.status(204).send();
     }),
   );
