@@ -33,12 +33,14 @@ import { PlantingRepositoryMongo } from '../repositories/mongodb/planting.reposi
 import { SeasonRepositoryMongo } from '../repositories/mongodb/season.repository.mongodb.js';
 import { TaskRepositoryMongo } from '../repositories/mongodb/task.repository.mongodb.js';
 import { UserRepositoryMongo } from '../repositories/mongodb/user.repository.mongodb.js';
+import pino from 'pino';
 import { createFileStorageFromEnv } from './object-storage.js';
 import type { Env } from './env.js';
 import type { IFileStorageService } from '../services/file-storage/file-storage.interface.js';
 
 export interface ContainerBuildOptions {
   fileStorage?: IFileStorageService;
+  logger?: pino.Logger;
 }
 
 export interface AppContainer {
@@ -70,6 +72,7 @@ export interface AppContainer {
 
 export function buildContainer(env: Env, options?: ContainerBuildOptions): AppContainer {
   const fileStorage = options?.fileStorage ?? createFileStorageFromEnv(env);
+  const log = options?.logger ?? pino({ level: 'silent' });
   const userRepo = new UserRepositoryMongo();
   const allowedEmailRepo = new AllowedEmailRepositoryMongo();
   const gardenRepo = new GardenRepositoryMongo();
@@ -83,7 +86,7 @@ export function buildContainer(env: Env, options?: ContainerBuildOptions): AppCo
   const activityLogRepo = new ActivityLogRepositoryMongo();
   const noteRepo = new NoteRepositoryMongo();
   const authService = new AuthService(env, userRepo, allowedEmailRepo);
-  const areaBackgroundService = new AreaBackgroundService(areaRepo, fileStorage);
+  const areaBackgroundService = new AreaBackgroundService(areaRepo, fileStorage, log);
   const gardenService = new GardenService(
     gardenRepo,
     membershipRepo,

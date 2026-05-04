@@ -3,6 +3,7 @@ import { detectImageMimeFromMagicBytes } from '../../lib/image-magic-bytes.js';
 import { HttpError } from '../../middleware/problem-details.js';
 import type { IAreaRepository } from '../../repositories/interfaces/area.repository.interface.js';
 import type { IFileStorageService } from '../../services/file-storage/file-storage.interface.js';
+import type pino from 'pino';
 
 export const AREA_BACKGROUND_MAX_BYTES = 10 * 1024 * 1024;
 
@@ -20,6 +21,7 @@ export class AreaBackgroundService {
   constructor(
     private readonly areaRepo: IAreaRepository,
     private readonly storage: IFileStorageService,
+    private readonly log: pino.Logger,
   ) {}
 
   private async loadAreaInGarden(gardenId: string, areaId: string): Promise<Area> {
@@ -65,10 +67,10 @@ export class AreaBackgroundService {
     try {
       await this.storage.putObject(newKey, buffer, mimeType);
     } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : String(e);
+      this.log.warn({ err: e }, 'area background object storage putObject failed');
       throw new HttpError(
         502,
-        `Could not store image in object storage: ${msg}`,
+        'Could not store the image. Please try again later.',
         'Bad Gateway',
       );
     }
