@@ -1,4 +1,8 @@
-import type { PlantProfile, PlantProfileType } from '../../domain/plant-profile.js';
+import type {
+  PlantProfile,
+  PlantProfileImage,
+  PlantProfileType,
+} from '../../domain/plant-profile.js';
 
 export interface CreatePlantProfileInput {
   userId: string;
@@ -16,5 +20,6 @@ export interface IPlantProfileRepository {
     userId: string,
     patch: Partial<Pick<PlantProfile, 'name' | 'type' | 'notes'>>,
   ): Promise<PlantProfile | null>;
+  replaceImages(id: string, userId: string, images: PlantProfileImage[]): Promise<PlantProfile | null>;
   delete(id: string, userId: string): Promise<boolean>;
 }

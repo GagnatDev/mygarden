@@ -5,6 +5,7 @@ import { AuthService } from '../modules/auth/auth.service.js';
 import { ElementService } from '../modules/elements/element.service.js';
 import { GardenService } from '../modules/gardens/garden.service.js';
 import { NoteService } from '../modules/notes/note.service.js';
+import { PlantProfileImageService } from '../modules/plant-profiles/plant-profile-image.service.js';
 import { PlantProfileService } from '../modules/plant-profiles/plant-profile.service.js';
 import { PlantingService } from '../modules/plantings/planting.service.js';
 import { SeasonService } from '../modules/seasons/season.service.js';
@@ -64,6 +65,7 @@ export interface AppContainer {
   elementService: ElementService;
   seasonService: SeasonService;
   plantProfileService: PlantProfileService;
+  plantProfileImageService: PlantProfileImageService;
   plantingService: PlantingService;
   taskService: TaskService;
   activityLogService: ActivityLogService;
@@ -109,7 +111,8 @@ export function buildContainer(env: Env, options?: ContainerBuildOptions): AppCo
     areaRepo,
     elementRepo,
   );
-  const plantProfileService = new PlantProfileService(plantProfileRepo);
+  const plantProfileService = new PlantProfileService(plantProfileRepo, fileStorage);
+  const plantProfileImageService = new PlantProfileImageService(plantProfileRepo, fileStorage);
   const plantingService = new PlantingService(
     plantingRepo,
     seasonRepo,
@@ -148,6 +151,7 @@ export function buildContainer(env: Env, options?: ContainerBuildOptions): AppCo
     elementService,
     seasonService,
     plantProfileService,
+    plantProfileImageService,
     plantingService,
     taskService,
     activityLogService,

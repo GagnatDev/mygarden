@@ -8,6 +8,19 @@ const plantProfileSchema = new mongoose.Schema(
     name: { type: String, required: true, trim: true },
     type: { type: String, enum: [...PLANT_PROFILE_TYPES], required: true },
     notes: { type: String, default: null },
+    images: {
+      type: [
+        new mongoose.Schema(
+          {
+            id: { type: String, required: true },
+            objectKey: { type: String, required: true },
+            createdAt: { type: Date, required: true },
+          },
+          { _id: false },
+        ),
+      ],
+      default: [],
+    },
   },
   { _id: false, timestamps: true },
 );

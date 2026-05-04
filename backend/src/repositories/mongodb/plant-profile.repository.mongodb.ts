@@ -14,6 +14,11 @@ function toProfile(doc: PlantProfileDoc): PlantProfile {
     name: doc.name,
     type: doc.type as PlantProfileType,
     notes: doc.notes ?? null,
+    images: (doc.images ?? []).map((image) => ({
+      id: image.id,
+      objectKey: image.objectKey,
+      createdAt: image.createdAt,
+    })),
     createdAt: doc.createdAt,
     updatedAt: doc.updatedAt,
   };
@@ -28,6 +33,7 @@ export class PlantProfileRepositoryMongo implements IPlantProfileRepository {
       name: input.name,
       type: input.type,
       notes: input.notes,
+      images: [],
     });
     return toProfile(doc.toObject() as PlantProfileDoc);
   }
@@ -60,5 +66,19 @@ export class PlantProfileRepositoryMongo implements IPlantProfileRepository {
   async delete(id: string, userId: string): Promise<boolean> {
     const res = await PlantProfileModel.deleteOne({ _id: id, userId });
     return res.deletedCount === 1;
+  }
+
+  async replaceImages(
+    id: string,
+    userId: string,
+    images: PlantProfile['images'],
+  ): Promise<PlantProfile | null> {
+    const doc = await PlantProfileModel.findOneAndUpdate(
+      { _id: id, userId },
+      { $set: { images } },
+      { new: true, runValidators: true },
+    ).lean();
+    if (!doc) return null;
+    return toProfile(doc as PlantProfileDoc);
   }
 }

@@ -8,6 +8,7 @@ export interface PlantProfile {
   name: string;
   type: PlantProfileType;
   notes: string | null;
+  images?: Array<{ id: string; url: string }>;
   createdAt: string;
   updatedAt: string;
 }
@@ -53,4 +54,23 @@ export async function patchPlantProfile(
 export async function deletePlantProfile(profileId: string): Promise<void> {
   const res = await apiFetch(`/plant-profiles/${profileId}`, { method: 'DELETE' });
   await throwUnlessOk(res);
+}
+
+export async function uploadPlantProfileImage(profileId: string, file: File): Promise<PlantProfile> {
+  const fd = new FormData();
+  fd.append('file', file);
+  const res = await apiFetch(`/plant-profiles/${profileId}/images`, {
+    method: 'POST',
+    body: fd,
+  });
+  await throwUnlessOk(res);
+  return (await res.json()) as PlantProfile;
+}
+
+export async function deletePlantProfileImage(profileId: string, imageId: string): Promise<PlantProfile> {
+  const res = await apiFetch(`/plant-profiles/${profileId}/images/${imageId}`, {
+    method: 'DELETE',
+  });
+  await throwUnlessOk(res);
+  return (await res.json()) as PlantProfile;
 }
