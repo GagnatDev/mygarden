@@ -23,5 +23,6 @@ describe('GET /health', () => {
     const app = createApp(testEnv, logger, buildContainer(testEnv));
     const res = await request(app).get('/health').expect(200);
     expect(res.body).toEqual({ status: 'ok' });
+    expect(res.headers['x-content-type-options']).toBe('nosniff');
   });
 });
