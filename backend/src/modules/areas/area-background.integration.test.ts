@@ -108,4 +108,30 @@ describe('Area background image API (integration)', () => {
       .set('Authorization', `Bearer ${token}`)
       .expect(404);
   });
+
+  it('rejects upload when declared type does not match file content', async () => {
+    const { token } = await registerWithToken(app, env, 'Spoof');
+    const { gardenId, areaId } = await createGardenAndArea(app, token);
+
+    const res = await request(app)
+      .put(`/api/v1/gardens/${gardenId}/areas/${areaId}/background-image`)
+      .set('Authorization', `Bearer ${token}`)
+      .attach('file', tinyPng, 'disguised.jpg')
+      .expect(400)
+      .expect('Content-Type', /application\/problem\+json/);
+    expect(res.body.detail).toMatch(/does not match declared type/i);
+  });
+
+  it('rejects non-image bytes with allowed image Content-Type', async () => {
+    const { token } = await registerWithToken(app, env, 'BadBytes');
+    const { gardenId, areaId } = await createGardenAndArea(app, token);
+
+    const res = await request(app)
+      .put(`/api/v1/gardens/${gardenId}/areas/${areaId}/background-image`)
+      .set('Authorization', `Bearer ${token}`)
+      .attach('file', Buffer.from('plain text not an image'), 'x.png')
+      .expect(400)
+      .expect('Content-Type', /application\/problem\+json/);
+    expect(res.body.detail).toMatch(/invalid or unsupported image file/i);
+  });
 });

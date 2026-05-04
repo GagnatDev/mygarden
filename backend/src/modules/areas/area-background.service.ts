@@ -1,4 +1,5 @@
 import type { Area } from '../../domain/area.js';
+import { detectImageMimeFromMagicBytes } from '../../lib/image-magic-bytes.js';
 import { HttpError } from '../../middleware/problem-details.js';
 import type { IAreaRepository } from '../../repositories/interfaces/area.repository.interface.js';
 import type { IFileStorageService } from '../../services/file-storage/file-storage.interface.js';
@@ -41,6 +42,14 @@ export class AreaBackgroundService {
     }
     if (buffer.length > AREA_BACKGROUND_MAX_BYTES) {
       throw new HttpError(400, 'Image must be at most 10 MB', 'Bad Request');
+    }
+
+    const detectedMime = detectImageMimeFromMagicBytes(buffer);
+    if (!detectedMime) {
+      throw new HttpError(400, 'Invalid or unsupported image file', 'Bad Request');
+    }
+    if (detectedMime !== mimeType) {
+      throw new HttpError(400, 'Image content does not match declared type', 'Bad Request');
     }
 
     const area = await this.loadAreaInGarden(gardenId, areaId);
