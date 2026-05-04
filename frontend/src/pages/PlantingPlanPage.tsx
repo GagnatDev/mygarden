@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState, type Dispatch, type SetStateAction } from 'react';
+import type { TFunction } from 'i18next';
 import { useTranslation } from 'react-i18next';
 import type { Area } from '../api/areas';
 import { listAreas } from '../api/areas';
@@ -22,6 +23,217 @@ import { QuickLogModal } from '../planning/QuickLogModal';
 type ElementWithArea = Element & { areaTitle: string };
 
 type PlanMode = 'outdoor' | 'indoor';
+
+function formatIsoDateUtc(iso: string | null, locale: string): string | null {
+  if (!iso) return null;
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return null;
+  return d.toLocaleDateString(locale, {
+    timeZone: 'UTC',
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+  });
+}
+
+function IndoorUnassignedPlantingRow({
+  pl,
+  locale,
+  onOpen,
+  t,
+}: {
+  pl: Planting;
+  locale: string;
+  onOpen: (plantingId: string) => void;
+  t: TFunction;
+}) {
+  const dateLine = pl.indoorSowDate
+    ? (formatIsoDateUtc(pl.indoorSowDate, locale) ?? t('planning.indoorSowDateNotSet'))
+    : t('planning.indoorSowDateNotSet');
+  return (
+    <li className="py-2">
+      <button
+        type="button"
+        data-testid={`indoor-unassigned-row-${pl.id}`}
+        className="w-full rounded-lg px-2 py-1.5 text-left text-stone-800 hover:bg-stone-50"
+        onClick={() => onOpen(pl.id)}
+      >
+        <div className="font-medium text-stone-900">
+          {pl.plantName} · {t(`planning.sowing.${pl.sowingMethod}`)}
+        </div>
+        <div className="mt-0.5 text-xs text-stone-500">{dateLine}</div>
+      </button>
+    </li>
+  );
+}
+
+function IndoorPlantingDetailModal({
+  planting,
+  gardenId,
+  seasonId,
+  elementsWithArea,
+  profiles,
+  onClose,
+  onMove,
+  onDelete,
+  t,
+  locale,
+}: {
+  planting: Planting;
+  gardenId: string;
+  seasonId: string;
+  elementsWithArea: ElementWithArea[];
+  profiles: PlantProfile[];
+  onClose: () => void;
+  onMove: (plantingId: string, elementId: string) => Promise<boolean>;
+  onDelete: (plantingId: string) => Promise<boolean>;
+  t: TFunction;
+  locale: string;
+}) {
+  const profileName =
+    planting.plantProfileId != null
+      ? profiles.find((p) => p.id === planting.plantProfileId)?.name
+      : undefined;
+
+  return (
+    <div
+      className="fixed inset-0 z-20 flex items-end justify-center bg-black/40 p-4 md:items-center"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="indoor-planting-detail-title"
+      data-testid="indoor-planting-detail-modal"
+    >
+      <div className="max-h-[90vh] w-full max-w-md overflow-auto rounded-xl bg-white p-4 shadow-lg">
+        <h2 id="indoor-planting-detail-title" className="text-lg font-semibold text-stone-900">
+          {planting.plantName}
+        </h2>
+        <p className="mt-0.5 text-sm text-stone-500">{t('planning.plantingDetailTitle')}</p>
+
+        <dl className="mt-4 space-y-2 text-sm text-stone-700">
+          <div>
+            <dt className="text-xs font-medium uppercase tracking-wide text-stone-500">
+              {t('planning.sowingMethod')}
+            </dt>
+            <dd>{t(`planning.sowing.${planting.sowingMethod}`)}</dd>
+          </div>
+          <div>
+            <dt className="text-xs font-medium uppercase tracking-wide text-stone-500">
+              {t('planning.indoorSowDate')}
+            </dt>
+            <dd>
+              {planting.indoorSowDate
+                ? (formatIsoDateUtc(planting.indoorSowDate, locale) ?? t('planning.indoorSowDateNotSet'))
+                : t('planning.indoorSowDateNotSet')}
+            </dd>
+          </div>
+          {planting.transplantDate ? (
+            <div>
+              <dt className="text-xs font-medium uppercase tracking-wide text-stone-500">
+                {t('planning.transplantDate')}
+              </dt>
+              <dd>{formatIsoDateUtc(planting.transplantDate, locale)}</dd>
+            </div>
+          ) : null}
+          {planting.harvestWindowStart ? (
+            <div>
+              <dt className="text-xs font-medium uppercase tracking-wide text-stone-500">
+                {t('planning.plantingDetailHarvestStart')}
+              </dt>
+              <dd>{formatIsoDateUtc(planting.harvestWindowStart, locale)}</dd>
+            </div>
+          ) : null}
+          {planting.harvestWindowEnd ? (
+            <div>
+              <dt className="text-xs font-medium uppercase tracking-wide text-stone-500">
+                {t('planning.plantingDetailHarvestEnd')}
+              </dt>
+              <dd>{formatIsoDateUtc(planting.harvestWindowEnd, locale)}</dd>
+            </div>
+          ) : null}
+          {planting.quantity != null ? (
+            <div>
+              <dt className="text-xs font-medium uppercase tracking-wide text-stone-500">
+                {t('planning.plantingDetailQuantity')}
+              </dt>
+              <dd>{planting.quantity}</dd>
+            </div>
+          ) : null}
+          {profileName ? (
+            <div>
+              <dt className="text-xs font-medium uppercase tracking-wide text-stone-500">
+                {t('planning.plantProfile')}
+              </dt>
+              <dd>{profileName}</dd>
+            </div>
+          ) : null}
+          {planting.notes?.trim() ? (
+            <div>
+              <dt className="text-xs font-medium uppercase tracking-wide text-stone-500">
+                {t('planning.plantingDetailDescription')}
+              </dt>
+              <dd className="whitespace-pre-wrap">{planting.notes}</dd>
+            </div>
+          ) : null}
+        </dl>
+
+        <label className="mt-4 block text-sm font-medium text-stone-700">
+          {t('planning.moveToElement')}
+          <select
+            data-testid={`indoor-detail-area-select-${planting.id}`}
+            className="mt-1 w-full rounded-lg border border-stone-300 px-3 py-2 text-stone-800"
+            value=""
+            onChange={(e) => {
+              const v = e.target.value;
+              if (!v) return;
+              void (async () => {
+                if (await onMove(planting.id, v)) onClose();
+              })();
+            }}
+          >
+            <option value="">{t('planning.select')}</option>
+            {elementsWithArea.map((el) => (
+              <option key={el.id} value={el.id}>
+                {el.areaTitle} · {el.name}
+              </option>
+            ))}
+          </select>
+        </label>
+
+        <div className="mt-4 border-t border-stone-100 pt-4">
+          <NotesSection
+            gardenId={gardenId}
+            seasonId={seasonId}
+            targetType="planting"
+            targetId={planting.id}
+            className="border-stone-200"
+          />
+        </div>
+
+        <div className="mt-4 flex flex-wrap items-center justify-end gap-2 border-t border-stone-100 pt-4">
+          <button
+            type="button"
+            className="rounded-lg border border-stone-200 px-3 py-2 text-sm font-medium text-stone-700"
+            onClick={onClose}
+          >
+            {t('planning.plantingDetailClose')}
+          </button>
+          <button
+            type="button"
+            data-testid={`indoor-detail-delete-${planting.id}`}
+            className="rounded-lg border border-red-200 px-3 py-2 text-sm font-medium text-red-800 hover:bg-red-50"
+            onClick={() =>
+              void (async () => {
+                if (await onDelete(planting.id)) onClose();
+              })()
+            }
+          >
+            {t('planning.removePlanting')}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 function PlantingListRow({
   pl,
@@ -105,7 +317,7 @@ function PlantingListRow({
 }
 
 export function PlantingPlanPage() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { selectedGarden, loading: gardenLoading, error: gardenError } = useGardenContext();
   const { seasonId, loading: seasonLoading, error: seasonError } = useActiveSeason(
     selectedGarden?.id ?? null,
@@ -131,6 +343,7 @@ export function PlantingPlanPage() {
   const [harvestStart, setHarvestStart] = useState('');
   const [formBusy, setFormBusy] = useState(false);
   const [notesPlantingId, setNotesPlantingId] = useState<string | null>(null);
+  const [indoorDetailPlantingId, setIndoorDetailPlantingId] = useState<string | null>(null);
 
   const loadAll = useCallback(async () => {
     if (!selectedGarden || !seasonId) return;
@@ -181,6 +394,32 @@ export function PlantingPlanPage() {
     [plantings],
   );
 
+  const sortedIndoorUnassigned = useMemo(() => {
+    const list = [...indoorUnassigned];
+    list.sort((a, b) => {
+      const da = a.indoorSowDate;
+      const db = b.indoorSowDate;
+      if (!da && !db) return 0;
+      if (!da) return 1;
+      if (!db) return -1;
+      return da.localeCompare(db);
+    });
+    return list;
+  }, [indoorUnassigned]);
+
+  const indoorDetailPlanting = useMemo(() => {
+    if (!indoorDetailPlantingId) return null;
+    const p = plantings.find((x) => x.id === indoorDetailPlantingId);
+    if (!p || p.elementId != null || p.sowingMethod !== 'indoor') return null;
+    return p;
+  }, [plantings, indoorDetailPlantingId]);
+
+  useEffect(() => {
+    if (indoorDetailPlantingId && !indoorDetailPlanting) {
+      setIndoorDetailPlantingId(null);
+    }
+  }, [indoorDetailPlantingId, indoorDetailPlanting]);
+
   const elementsByAreaId = useMemo(() => {
     const m = new Map<string, ElementWithArea[]>();
     for (const el of elementsWithArea) {
@@ -191,26 +430,30 @@ export function PlantingPlanPage() {
     return m;
   }, [elementsWithArea]);
 
-  async function handleMovePlanting(plantingId: string, newElementId: string) {
-    if (!selectedGarden) return;
+  async function handleMovePlanting(plantingId: string, newElementId: string): Promise<boolean> {
+    if (!selectedGarden) return false;
     setError(null);
     try {
       await patchPlanting(selectedGarden.id, plantingId, { elementId: newElementId });
       await loadAll();
+      return true;
     } catch (e) {
       setError(e instanceof Error ? e.message : t('auth.unknownError'));
+      return false;
     }
   }
 
-  async function handleDeletePlanting(plantingId: string) {
-    if (!selectedGarden) return;
-    if (!window.confirm(t('planning.confirmRemovePlanting'))) return;
+  async function handleDeletePlanting(plantingId: string): Promise<boolean> {
+    if (!selectedGarden) return false;
+    if (!window.confirm(t('planning.confirmRemovePlanting'))) return false;
     setError(null);
     try {
       await deletePlanting(selectedGarden.id, plantingId);
       await loadAll();
+      return true;
     } catch (e) {
       setError(e instanceof Error ? e.message : t('auth.unknownError'));
+      return false;
     }
   }
 
@@ -451,17 +694,40 @@ export function PlantingPlanPage() {
       ) : (
         <>
           <section data-testid="indoor-unassigned-section" className="mt-6 space-y-3">
-            <h2 className="text-lg font-semibold text-stone-900">{t('planning.indoorUnassignedSection')}</h2>
+            <h2 className="text-lg font-semibold text-stone-900">
+              {t('planning.indoorUnassignedSectionWithCount', { count: indoorUnassigned.length })}
+            </h2>
             {indoorUnassigned.length === 0 ? (
               <p className="text-sm text-stone-500">{t('planning.noIndoorUnassigned')}</p>
             ) : (
-              <ul className="divide-y divide-stone-100 rounded-xl border border-stone-200 bg-white px-4 text-sm text-stone-700">
-                {indoorUnassigned.map((pl) => (
-                  <PlantingListRow key={pl.id} pl={pl} {...rowProps} />
+              <ul className="divide-y divide-stone-100 rounded-xl border border-stone-200 bg-white px-2 text-sm text-stone-700">
+                {sortedIndoorUnassigned.map((pl) => (
+                  <IndoorUnassignedPlantingRow
+                    key={pl.id}
+                    pl={pl}
+                    locale={i18n.language}
+                    onOpen={setIndoorDetailPlantingId}
+                    t={t}
+                  />
                 ))}
               </ul>
             )}
           </section>
+
+          {indoorDetailPlanting ? (
+            <IndoorPlantingDetailModal
+              planting={indoorDetailPlanting}
+              gardenId={selectedGarden.id}
+              seasonId={seasonId}
+              elementsWithArea={elementsWithArea}
+              profiles={profiles}
+              locale={i18n.language}
+              onClose={() => setIndoorDetailPlantingId(null)}
+              onMove={handleMovePlanting}
+              onDelete={handleDeletePlanting}
+              t={t}
+            />
+          ) : null}
 
           <section data-testid="plantings-by-area" className="mt-8 space-y-8">
             {areas.map((area) => {

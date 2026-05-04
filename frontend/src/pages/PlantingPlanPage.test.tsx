@@ -129,6 +129,14 @@ const en = {
     planModeOutdoor: 'Outdoor',
     planModeIndoor: 'Indoor mode',
     indoorUnassignedSection: 'Indoor pending',
+    indoorUnassignedSectionWithCount: 'Indoor pending ({{count}})',
+    indoorSowDateNotSet: 'No date',
+    plantingDetailHarvestStart: 'Harvest start',
+    plantingDetailHarvestEnd: 'Harvest end',
+    plantingDetailQuantity: 'Qty',
+    plantingDetailDescription: 'Desc',
+    plantingDetailClose: 'Close',
+    plantingDetailTitle: 'Indoor detail',
     noIndoorUnassigned: 'No pending',
     transplantDateOptional: 'Trans optional',
     quickLog: 'Log',
@@ -306,6 +314,7 @@ describe('PlantingPlanPage', () => {
     );
 
     await waitFor(() => expect(screen.getByTestId('plantings-by-area')).toBeInTheDocument());
+    expect(screen.getByTestId('indoor-unassigned-section')).toHaveTextContent('Indoor pending (0)');
     expect(screen.getByTestId('element-plantings-e1')).toHaveTextContent('Lettuce');
 
     const timeline = screen.getByTestId('activity-timeline');
@@ -377,8 +386,235 @@ describe('PlantingPlanPage', () => {
     );
 
     await waitFor(() => expect(screen.getByTestId('indoor-unassigned-section')).toHaveTextContent('Basil'));
+    expect(screen.getByTestId('indoor-unassigned-section')).toHaveTextContent('Indoor pending (1)');
     expect(screen.getByTestId('element-plantings-e1')).toHaveTextContent('Lettuce');
     expect(screen.getByTestId('element-plantings-e1')).not.toHaveTextContent('Basil');
+  });
+
+  it('sorts unassigned indoor plantings by oldest indoor sow date first, null dates last', async () => {
+    vi.mocked(listPlantings).mockResolvedValue([
+      {
+        id: 'pl1',
+        gardenId: 'g1',
+        seasonId: 's1',
+        elementId: null,
+        plantProfileId: null,
+        plantName: 'Later',
+        sowingMethod: 'indoor',
+        indoorSowDate: '2026-04-01T12:00:00.000Z',
+        transplantDate: null,
+        outdoorSowDate: null,
+        harvestWindowStart: null,
+        harvestWindowEnd: null,
+        quantity: null,
+        notes: null,
+        createdBy: 'u1',
+        createdAt: '',
+        updatedAt: '',
+      },
+      {
+        id: 'pl2',
+        gardenId: 'g1',
+        seasonId: 's1',
+        elementId: null,
+        plantProfileId: null,
+        plantName: 'Earlier',
+        sowingMethod: 'indoor',
+        indoorSowDate: '2026-03-01T12:00:00.000Z',
+        transplantDate: null,
+        outdoorSowDate: null,
+        harvestWindowStart: null,
+        harvestWindowEnd: null,
+        quantity: null,
+        notes: null,
+        createdBy: 'u1',
+        createdAt: '',
+        updatedAt: '',
+      },
+      {
+        id: 'pl3',
+        gardenId: 'g1',
+        seasonId: 's1',
+        elementId: null,
+        plantProfileId: null,
+        plantName: 'NoDate',
+        sowingMethod: 'indoor',
+        indoorSowDate: null,
+        transplantDate: null,
+        outdoorSowDate: null,
+        harvestWindowStart: null,
+        harvestWindowEnd: null,
+        quantity: null,
+        notes: null,
+        createdBy: 'u1',
+        createdAt: '',
+        updatedAt: '',
+      },
+    ]);
+
+    const i18nInstance = await testI18n();
+    render(
+      <I18nextProvider i18n={i18nInstance}>
+        <GardenContext.Provider value={ctx}>
+          <PlantingPlanPage />
+        </GardenContext.Provider>
+      </I18nextProvider>,
+    );
+
+    await waitFor(() => expect(screen.getByTestId('indoor-unassigned-row-pl2')).toBeInTheDocument());
+    const section = screen.getByTestId('indoor-unassigned-section');
+    const rows = section.querySelectorAll('[data-testid^="indoor-unassigned-row-"]');
+    expect(rows).toHaveLength(3);
+    expect(rows[0]).toHaveAttribute('data-testid', 'indoor-unassigned-row-pl2');
+    expect(rows[1]).toHaveAttribute('data-testid', 'indoor-unassigned-row-pl1');
+    expect(rows[2]).toHaveAttribute('data-testid', 'indoor-unassigned-row-pl3');
+  });
+
+  it('opens indoor unassigned detail modal and patches element from move select', async () => {
+    vi.mocked(listPlantings).mockResolvedValue([
+      {
+        id: 'pl9',
+        gardenId: 'g1',
+        seasonId: 's1',
+        elementId: null,
+        plantProfileId: null,
+        plantName: 'Chard',
+        sowingMethod: 'indoor',
+        indoorSowDate: '2026-02-01T12:00:00.000Z',
+        transplantDate: null,
+        outdoorSowDate: null,
+        harvestWindowStart: null,
+        harvestWindowEnd: null,
+        quantity: null,
+        notes: null,
+        createdBy: 'u1',
+        createdAt: '',
+        updatedAt: '',
+      },
+    ]);
+    vi.mocked(patchPlanting).mockResolvedValue({
+      id: 'pl9',
+      gardenId: 'g1',
+      seasonId: 's1',
+      elementId: 'e2',
+      plantProfileId: null,
+      plantName: 'Chard',
+      sowingMethod: 'indoor',
+      indoorSowDate: '2026-02-01T12:00:00.000Z',
+      transplantDate: null,
+      outdoorSowDate: null,
+      harvestWindowStart: null,
+      harvestWindowEnd: null,
+      quantity: null,
+      notes: null,
+      createdBy: 'u1',
+      createdAt: '',
+      updatedAt: '',
+    });
+
+    const i18nInstance = await testI18n();
+    render(
+      <I18nextProvider i18n={i18nInstance}>
+        <GardenContext.Provider value={ctx}>
+          <PlantingPlanPage />
+        </GardenContext.Provider>
+      </I18nextProvider>,
+    );
+
+    await waitFor(() => expect(screen.getByTestId('indoor-unassigned-row-pl9')).toBeInTheDocument());
+    fireEvent.click(screen.getByTestId('indoor-unassigned-row-pl9'));
+    await waitFor(() => expect(screen.getByTestId('indoor-planting-detail-modal')).toBeInTheDocument());
+
+    fireEvent.change(screen.getByTestId('indoor-detail-area-select-pl9'), { target: { value: 'e2' } });
+
+    await waitFor(() => {
+      expect(patchPlanting).toHaveBeenCalledWith('g1', 'pl9', { elementId: 'e2' });
+    });
+  });
+
+  it('shows notes in indoor unassigned detail modal', async () => {
+    vi.mocked(listPlantings).mockResolvedValue([
+      {
+        id: 'pl8',
+        gardenId: 'g1',
+        seasonId: 's1',
+        elementId: null,
+        plantProfileId: null,
+        plantName: 'Mint',
+        sowingMethod: 'indoor',
+        indoorSowDate: '2026-01-15T12:00:00.000Z',
+        transplantDate: null,
+        outdoorSowDate: null,
+        harvestWindowStart: null,
+        harvestWindowEnd: null,
+        quantity: null,
+        notes: null,
+        createdBy: 'u1',
+        createdAt: '',
+        updatedAt: '',
+      },
+    ]);
+
+    const i18nInstance = await testI18n();
+    render(
+      <I18nextProvider i18n={i18nInstance}>
+        <GardenContext.Provider value={ctx}>
+          <PlantingPlanPage />
+        </GardenContext.Provider>
+      </I18nextProvider>,
+    );
+
+    await waitFor(() => expect(screen.getByTestId('indoor-unassigned-row-pl8')).toBeInTheDocument());
+    fireEvent.click(screen.getByTestId('indoor-unassigned-row-pl8'));
+    await waitFor(() => expect(screen.getByTestId('notes-section')).toBeInTheDocument());
+    expect(listNotes).toHaveBeenCalledWith('g1', 's1', { targetType: 'planting', targetId: 'pl8' });
+  });
+
+  it('deletes planting from indoor unassigned detail modal after confirm', async () => {
+    vi.stubGlobal('confirm', () => true);
+    vi.mocked(deletePlanting).mockResolvedValue(undefined);
+    vi.mocked(listPlantings).mockResolvedValue([
+      {
+        id: 'pl7',
+        gardenId: 'g1',
+        seasonId: 's1',
+        elementId: null,
+        plantProfileId: null,
+        plantName: 'Dill',
+        sowingMethod: 'indoor',
+        indoorSowDate: '2026-01-10T12:00:00.000Z',
+        transplantDate: null,
+        outdoorSowDate: null,
+        harvestWindowStart: null,
+        harvestWindowEnd: null,
+        quantity: null,
+        notes: null,
+        createdBy: 'u1',
+        createdAt: '',
+        updatedAt: '',
+      },
+    ]);
+
+    const i18nInstance = await testI18n();
+    render(
+      <I18nextProvider i18n={i18nInstance}>
+        <GardenContext.Provider value={ctx}>
+          <PlantingPlanPage />
+        </GardenContext.Provider>
+      </I18nextProvider>,
+    );
+
+    await waitFor(() => expect(screen.getByTestId('indoor-unassigned-row-pl7')).toBeInTheDocument());
+    fireEvent.click(screen.getByTestId('indoor-unassigned-row-pl7'));
+    await waitFor(() => expect(screen.getByTestId('indoor-detail-delete-pl7')).toBeInTheDocument());
+
+    fireEvent.click(screen.getByTestId('indoor-detail-delete-pl7'));
+
+    await waitFor(() => {
+      expect(deletePlanting).toHaveBeenCalledWith('g1', 'pl7');
+    });
+
+    vi.unstubAllGlobals();
   });
 
   it('patches planting element when move select changes', async () => {
