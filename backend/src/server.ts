@@ -15,7 +15,7 @@ async function main() {
   await mongoose.connect(env.MONGODB_URI);
   logger.info('connected to MongoDB');
 
-  const container = buildContainer(env);
+  const container = buildContainer(env, { logger });
   const app = createApp(env, logger, container);
   const server = http.createServer(app);
 

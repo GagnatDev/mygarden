@@ -1,6 +1,7 @@
 import cookieParser from 'cookie-parser';
 import cors from 'cors';
 import express, { Router } from 'express';
+import helmet from 'helmet';
 import path from 'node:path';
 import type pino from 'pino';
 import type { AppContainer } from './config/container.js';
@@ -16,6 +17,13 @@ import { createUsersRouter } from './modules/users/users.routes.js';
 
 export function createApp(env: Env, logger: pino.Logger, container: AppContainer) {
   const app = express();
+
+  app.use(
+    helmet({
+      contentSecurityPolicy: false,
+      crossOriginResourcePolicy: { policy: 'cross-origin' },
+    }),
+  );
 
   if (env.NODE_ENV !== 'production') {
     app.use(cors({ origin: true, credentials: true }));

@@ -42,6 +42,11 @@ const envSchema = z.object({
     .optional()
     .or(z.literal(''))
     .transform((v) => (v && v.length > 0 ? v : undefined)),
+  AUTH_RATE_LIMIT_WINDOW_MS: z.coerce.number().int().positive().optional(),
+  AUTH_RATE_LIMIT_LOGIN_MAX: z.coerce.number().int().positive().optional(),
+  AUTH_RATE_LIMIT_REGISTER_MAX: z.coerce.number().int().positive().optional(),
+  AUTH_RATE_LIMIT_REFRESH_MAX: z.coerce.number().int().positive().optional(),
+  AUTH_RATE_LIMIT_LOGOUT_MAX: z.coerce.number().int().positive().optional(),
 });
 
 export type Env = z.infer<typeof envSchema>;
