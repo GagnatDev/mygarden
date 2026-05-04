@@ -1,4 +1,5 @@
 import type { Planting, SowingMethod } from '../../domain/planting.js';
+import type { WithMongoSession } from '../mongo-session.js';
 
 export interface CreatePlantingInput {
   gardenId: string;
@@ -41,5 +42,5 @@ export interface IPlantingRepository {
     >,
   ): Promise<Planting | null>;
   delete(id: string): Promise<boolean>;
-  deleteByGardenId(gardenId: string): Promise<number>;
+  deleteByGardenId(gardenId: string, options?: WithMongoSession): Promise<number>;
 }

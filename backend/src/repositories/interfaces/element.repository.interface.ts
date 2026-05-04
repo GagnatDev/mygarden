@@ -1,4 +1,5 @@
 import type { Element, ElementShape, ElementType } from '../../domain/element.js';
+import type { WithMongoSession } from '../mongo-session.js';
 
 export interface CreateElementInput {
   areaId: string;
@@ -27,5 +28,5 @@ export interface IElementRepository {
     >,
   ): Promise<Element | null>;
   delete(id: string): Promise<boolean>;
-  deleteByAreaId(areaId: string): Promise<number>;
+  deleteByAreaId(areaId: string, options?: WithMongoSession): Promise<number>;
 }

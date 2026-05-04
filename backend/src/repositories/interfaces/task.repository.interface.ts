@@ -1,4 +1,5 @@
 import type { Task, TaskAutoKind, TaskSource, TaskStatus } from '../../domain/task.js';
+import type { WithMongoSession } from '../mongo-session.js';
 
 export interface CreateTaskInput {
   gardenId: string;
@@ -26,7 +27,7 @@ export interface ITaskRepository {
   deleteAutoTasksByPlantingId(plantingId: string): Promise<number>;
   /** Removes all tasks linked to a planting (when planting is deleted). */
   deleteAllTasksByPlantingId(plantingId: string): Promise<number>;
-  deleteByGardenId(gardenId: string): Promise<number>;
+  deleteByGardenId(gardenId: string, options?: WithMongoSession): Promise<number>;
   update(
     id: string,
     patch: Partial<

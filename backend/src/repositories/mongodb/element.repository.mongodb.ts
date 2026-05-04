@@ -4,6 +4,7 @@ import type {
   CreateElementInput,
   IElementRepository,
 } from '../interfaces/element.repository.interface.js';
+import type { WithMongoSession } from '../mongo-session.js';
 import type { ElementDoc } from './element.schema.js';
 import { ElementModel } from './element.schema.js';
 
@@ -97,8 +98,8 @@ export class ElementRepositoryMongo implements IElementRepository {
     return res.deletedCount === 1;
   }
 
-  async deleteByAreaId(areaId: string): Promise<number> {
-    const res = await ElementModel.deleteMany({ areaId });
+  async deleteByAreaId(areaId: string, options?: WithMongoSession): Promise<number> {
+    const res = await ElementModel.deleteMany({ areaId }, { session: options?.session });
     return res.deletedCount ?? 0;
   }
 }

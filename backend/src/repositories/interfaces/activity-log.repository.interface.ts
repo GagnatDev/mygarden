@@ -1,4 +1,5 @@
 import type { ActivityLog, ActivityType } from '../../domain/activity-log.js';
+import type { WithMongoSession } from '../mongo-session.js';
 
 export interface CreateActivityLogInput {
   gardenId: string;
@@ -21,7 +22,7 @@ export interface IActivityLogRepository {
     seasonId: string,
     filters?: { dateFrom?: Date; dateTo?: Date },
   ): Promise<ActivityLog[]>;
-  deleteByGardenId(gardenId: string): Promise<number>;
+  deleteByGardenId(gardenId: string, options?: WithMongoSession): Promise<number>;
   update(
     id: string,
     patch: Partial<Pick<ActivityLog, 'note' | 'updatedAt'>>,

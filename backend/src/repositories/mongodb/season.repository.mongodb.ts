@@ -1,6 +1,7 @@
 import { v4 as uuidv4 } from 'uuid';
 import type { Season } from '../../domain/season.js';
 import type { CreateSeasonInput, ISeasonRepository } from '../interfaces/season.repository.interface.js';
+import type { WithMongoSession } from '../mongo-session.js';
 import type { SeasonDoc } from './season.schema.js';
 import { SeasonModel } from './season.schema.js';
 
@@ -62,8 +63,8 @@ export class SeasonRepositoryMongo implements ISeasonRepository {
     return res.deletedCount === 1;
   }
 
-  async deleteByGardenId(gardenId: string): Promise<number> {
-    const res = await SeasonModel.deleteMany({ gardenId });
+  async deleteByGardenId(gardenId: string, options?: WithMongoSession): Promise<number> {
+    const res = await SeasonModel.deleteMany({ gardenId }, { session: options?.session });
     return res.deletedCount ?? 0;
   }
 

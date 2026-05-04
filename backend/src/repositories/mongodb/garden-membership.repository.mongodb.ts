@@ -4,6 +4,7 @@ import type {
   CreateGardenMembershipInput,
   IGardenMembershipRepository,
 } from '../interfaces/garden-membership.repository.interface.js';
+import type { WithMongoSession } from '../mongo-session.js';
 import type { GardenMembershipDoc } from './garden-membership.schema.js';
 import { GardenMembershipModel } from './garden-membership.schema.js';
 
@@ -46,8 +47,8 @@ export class GardenMembershipRepositoryMongo implements IGardenMembershipReposit
     return (docs as GardenMembershipDoc[]).map(toMembership);
   }
 
-  async deleteByGardenId(gardenId: string): Promise<number> {
-    const res = await GardenMembershipModel.deleteMany({ gardenId });
+  async deleteByGardenId(gardenId: string, options?: WithMongoSession): Promise<number> {
+    const res = await GardenMembershipModel.deleteMany({ gardenId }, { session: options?.session });
     return res.deletedCount ?? 0;
   }
 }

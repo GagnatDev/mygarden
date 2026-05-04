@@ -1,4 +1,5 @@
 import type { GardenMembership, GardenRole } from '../../domain/garden-membership.js';
+import type { WithMongoSession } from '../mongo-session.js';
 
 export interface CreateGardenMembershipInput {
   gardenId: string;
@@ -11,5 +12,5 @@ export interface IGardenMembershipRepository {
   findByUserAndGarden(userId: string, gardenId: string): Promise<GardenMembership | null>;
   findByUserId(userId: string): Promise<GardenMembership[]>;
   findByGardenId(gardenId: string): Promise<GardenMembership[]>;
-  deleteByGardenId(gardenId: string): Promise<number>;
+  deleteByGardenId(gardenId: string, options?: WithMongoSession): Promise<number>;
 }
