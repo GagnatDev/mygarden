@@ -13,6 +13,8 @@ export interface Task {
   gardenId: string;
   seasonId: string;
   plantingId: string | null;
+  /** When set without elementId, task is scoped to the area as a whole (manual tasks). */
+  areaId: string | null;
   elementId: string | null;
   /** Denormalized from planting for localized auto-task titles; null for manual or legacy tasks. */
   plantName: string | null;
@@ -34,6 +36,7 @@ export function toPublicTask(t: Task) {
     gardenId: t.gardenId,
     seasonId: t.seasonId,
     plantingId: t.plantingId,
+    areaId: t.areaId,
     elementId: t.elementId,
     plantName: t.plantName,
     title: t.title,

@@ -2,6 +2,8 @@ import type { ActivityType } from '../../domain/activity-log.js';
 import type { Task, TaskAutoKind } from '../../domain/task.js';
 import { HttpError } from '../../middleware/problem-details.js';
 import type { IActivityLogRepository } from '../../repositories/interfaces/activity-log.repository.interface.js';
+import type { IAreaRepository } from '../../repositories/interfaces/area.repository.interface.js';
+import type { IElementRepository } from '../../repositories/interfaces/element.repository.interface.js';
 import type { ISeasonRepository } from '../../repositories/interfaces/season.repository.interface.js';
 import type { ITaskRepository } from '../../repositories/interfaces/task.repository.interface.js';
 
@@ -25,6 +27,8 @@ export class TaskService {
     private readonly taskRepo: ITaskRepository,
     private readonly seasonRepo: ISeasonRepository,
     private readonly activityLogRepo: IActivityLogRepository,
+    private readonly areaRepo: IAreaRepository,
+    private readonly elementRepo: IElementRepository,
   ) {}
 
   async list(
@@ -41,17 +45,50 @@ export class TaskService {
 
   async createManual(
     gardenId: string,
-    input: { seasonId: string; title: string; dueDate: Date; elementId: string | null },
+    input: {
+      seasonId: string;
+      title: string;
+      dueDate: Date;
+      areaId: string | null;
+      elementId: string | null;
+    },
   ): Promise<Task> {
     const season = await this.seasonRepo.findById(input.seasonId);
     if (!season || season.gardenId !== gardenId) {
       throw new HttpError(404, 'Season not found', 'Not Found');
     }
+
+    let areaId: string | null = null;
+    let elementId: string | null = null;
+
+    if (input.elementId) {
+      const element = await this.elementRepo.findById(input.elementId);
+      if (!element) {
+        throw new HttpError(404, 'Element not found', 'Not Found');
+      }
+      const area = await this.areaRepo.findById(element.areaId);
+      if (!area || area.gardenId !== gardenId) {
+        throw new HttpError(400, 'Element does not belong to this garden', 'Bad Request');
+      }
+      if (input.areaId && input.areaId !== element.areaId) {
+        throw new HttpError(400, 'Element is not in the selected area', 'Bad Request');
+      }
+      areaId = element.areaId;
+      elementId = input.elementId;
+    } else if (input.areaId) {
+      const area = await this.areaRepo.findById(input.areaId);
+      if (!area || area.gardenId !== gardenId) {
+        throw new HttpError(404, 'Area not found', 'Not Found');
+      }
+      areaId = input.areaId;
+    }
+
     return this.taskRepo.create({
       gardenId,
       seasonId: input.seasonId,
       plantingId: null,
-      elementId: input.elementId,
+      areaId,
+      elementId,
       plantName: null,
       title: input.title,
       dueDate: input.dueDate,

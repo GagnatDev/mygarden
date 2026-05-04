@@ -7,6 +7,7 @@ const taskSchema = new mongoose.Schema(
     gardenId: { type: String, required: true, index: true },
     seasonId: { type: String, required: true, index: true },
     plantingId: { type: String, default: null },
+    areaId: { type: String, default: null },
     elementId: { type: String, default: null },
     plantName: { type: String, default: null, trim: true },
     title: { type: String, required: true, trim: true },

@@ -7,6 +7,7 @@ export const createManualTaskBodySchema = z.object({
   seasonId: z.string().uuid(),
   title: z.string().trim().min(1, 'Title is required'),
   dueDate: dateField,
+  areaId: z.string().uuid().nullish(),
   elementId: z.string().uuid().nullish(),
 });
 

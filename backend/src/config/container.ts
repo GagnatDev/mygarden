@@ -115,7 +115,7 @@ export function buildContainer(env: Env, options?: ContainerBuildOptions): AppCo
     plantProfileRepo,
     taskRepo,
   );
-  const taskService = new TaskService(taskRepo, seasonRepo, activityLogRepo);
+  const taskService = new TaskService(taskRepo, seasonRepo, activityLogRepo, areaRepo, elementRepo);
   const activityLogService = new ActivityLogService(
     activityLogRepo,
     seasonRepo,

@@ -47,6 +47,7 @@ export function createTasksRouter(c: AppContainer): Router {
         seasonId: parsed.data.seasonId,
         title: parsed.data.title,
         dueDate: parsed.data.dueDate,
+        areaId: parsed.data.areaId ?? null,
         elementId: parsed.data.elementId ?? null,
       });
       res.status(201).json(toPublicTask(task));

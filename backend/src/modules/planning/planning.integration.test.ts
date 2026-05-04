@@ -331,7 +331,7 @@ describe('Planning: plant profiles, plantings, tasks, logs, notes (integration)'
 
   it('task API: filters, mark done with linked log, manual task', async () => {
     const { token, userId } = await registerWithToken(app, env, 'Tasker');
-    const { gardenId, seasonId } = await createGardenWithSeasonAndElement(app, token);
+    const { gardenId, seasonId, areaId, elementId } = await createGardenWithSeasonAndElement(app, token);
 
     const due = new Date('2026-08-01T12:00:00.000Z');
     const manual = await request(app)
@@ -344,6 +344,52 @@ describe('Planning: plant profiles, plantings, tasks, logs, notes (integration)'
       })
       .expect(201);
     expect(manual.body.source).toBe('manual');
+    expect(manual.body.areaId).toBeNull();
+    expect(manual.body.elementId).toBeNull();
+
+    const areaScoped = await request(app)
+      .post(`/api/v1/gardens/${gardenId}/tasks`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        seasonId,
+        title: 'Weed the yard',
+        dueDate: due.toISOString(),
+        areaId,
+      })
+      .expect(201);
+    expect(areaScoped.body.areaId).toBe(areaId);
+    expect(areaScoped.body.elementId).toBeNull();
+
+    const elementScoped = await request(app)
+      .post(`/api/v1/gardens/${gardenId}/tasks`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        seasonId,
+        title: 'Mulch bed',
+        dueDate: due.toISOString(),
+        elementId,
+      })
+      .expect(201);
+    expect(elementScoped.body.elementId).toBe(elementId);
+    expect(elementScoped.body.areaId).toBe(areaId);
+
+    const otherArea = await request(app)
+      .post(`/api/v1/gardens/${gardenId}/areas`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ title: 'Other patch', gridWidth: 4, gridHeight: 4, cellSizeMeters: 1 })
+      .expect(201);
+    const otherAreaId = otherArea.body.id as string;
+    await request(app)
+      .post(`/api/v1/gardens/${gardenId}/tasks`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        seasonId,
+        title: 'Bad link',
+        dueDate: due.toISOString(),
+        areaId: otherAreaId,
+        elementId,
+      })
+      .expect(400);
 
     const pending = await request(app)
       .get(`/api/v1/gardens/${gardenId}/tasks?seasonId=${seasonId}&status=pending`)

@@ -22,6 +22,7 @@ function pushTask(
     gardenId: params.gardenId,
     seasonId: params.seasonId,
     plantingId: params.plantingId,
+    areaId: null,
     elementId: params.elementId,
     plantName: params.plantName,
     title: params.title,
