@@ -213,6 +213,12 @@
     "manualTask": "New manual task",
     "taskTitle": "Title",
     "addTask": "Add task",
+    "autoTaskTitle": {
+      "sow_indoor": "Sow {{plant}} indoors",
+      "sow_outdoor": "Sow {{plant}} outdoors",
+      "transplant": "Transplant {{plant}}",
+      "harvest_start": "Start harvesting {{plant}}"
+    },
     "plantTypes": {
       "vegetable": "Vegetable",
       "herb": "Herb",

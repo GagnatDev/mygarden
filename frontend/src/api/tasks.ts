@@ -9,6 +9,7 @@ export interface GardenTask {
   seasonId: string;
   plantingId: string | null;
   elementId: string | null;
+  plantName: string | null;
   title: string;
   dueDate: string;
   source: TaskSource;

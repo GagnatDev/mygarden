@@ -5,6 +5,7 @@ export interface CreateTaskInput {
   seasonId: string;
   plantingId: string | null;
   elementId: string | null;
+  plantName: string | null;
   title: string;
   dueDate: Date;
   source: TaskSource;

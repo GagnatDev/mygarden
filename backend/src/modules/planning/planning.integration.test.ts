@@ -294,6 +294,9 @@ describe('Planning: plant profiles, plantings, tasks, logs, notes (integration)'
         t.plantingId === plantingId && t.source === 'auto',
     );
     expect(autoForPlanting.length).toBe(2);
+    expect(
+      autoForPlanting.every((t: { plantName: string | null }) => t.plantName === 'Pea'),
+    ).toBe(true);
 
     const newSow = new Date('2026-05-10T12:00:00.000Z');
     await request(app)

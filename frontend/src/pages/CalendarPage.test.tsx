@@ -41,6 +41,12 @@ const en = {
     addTask: 'Add',
     taskClickToDone: 'Done',
     taskClickToUndo: 'Undo',
+    autoTaskTitle: {
+      sow_indoor: 'Sow {{plant}} indoors',
+      sow_outdoor: 'Sow {{plant}} outdoors',
+      transplant: 'Transplant {{plant}}',
+      harvest_start: 'Start harvesting {{plant}}',
+    },
   },
 };
 
@@ -75,7 +81,8 @@ describe('CalendarPage', () => {
       gardenId: 'g1',
       seasonId: 's1',
       plantingId: null,
-      areaId: null,
+      elementId: null,
+      plantName: null,
       title: 'Sow',
       dueDate,
       source: 'manual',
@@ -196,6 +203,100 @@ describe('CalendarPage', () => {
     expect(JSON.parse(String((patchCallsAfter[patchCallsAfter.length - 1]![1] as RequestInit).body))).toEqual({
       status: 'pending',
     });
+
+    vi.unstubAllGlobals();
+  });
+
+  it('shows Norwegian auto-task title when plantName and autoKind are set', async () => {
+    const ref = new Date();
+    const y = ref.getUTCFullYear();
+    const mo = ref.getUTCMonth();
+    const taskDay = 15;
+    const dueDate = new Date(Date.UTC(y, mo, taskDay, 12, 0, 0)).toISOString();
+    const dayKey = `${y}-${String(mo + 1).padStart(2, '0')}-${String(taskDay).padStart(2, '0')}`;
+
+    const autoTask = {
+      id: 't-nb',
+      gardenId: 'g1',
+      seasonId: 's1',
+      plantingId: 'p1',
+      elementId: null,
+      plantName: 'Tomato',
+      title: 'Sow Tomato indoors',
+      dueDate,
+      source: 'auto' as const,
+      status: 'pending' as const,
+      completedAt: null,
+      completedBy: null,
+      linkedLogId: null,
+      autoKind: 'sow_indoor',
+      createdAt: '',
+      updatedAt: '',
+    };
+
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+
+    const nb = {
+      nav: { calendar: 'Kalender' },
+      auth: { loading: 'Laster…', unknownError: 'Feil' },
+      garden: { noGardenHint: 'Ingen' },
+      planning: {
+        ...en.planning,
+        autoTaskTitle: {
+          sow_indoor: 'Så {{plant}} innendørs',
+          sow_outdoor: 'Så {{plant}} utendørs',
+          transplant: 'Omplant {{plant}}',
+          harvest_start: 'Begynn å høste {{plant}}',
+        },
+      },
+    };
+
+    const nbInstance = i18n.createInstance();
+    await nbInstance.use(initReactI18next).init({
+      lng: 'nb',
+      resources: { nb: { translation: nb } },
+      interpolation: { escapeValue: false },
+    });
+
+    fetchMock.mockImplementation((input: RequestInfo | URL) => {
+      const url = typeof input === 'string' ? input : input instanceof Request ? input.url : String(input);
+      if (url.includes('/seasons')) {
+        return Promise.resolve(
+          jsonResponse([
+            {
+              id: 's1',
+              gardenId: 'g1',
+              name: '2026',
+              startDate: '',
+              endDate: '',
+              isActive: true,
+              createdAt: '',
+              updatedAt: '',
+            },
+          ]),
+        );
+      }
+      if (url.includes('/tasks')) {
+        return Promise.resolve(jsonResponse([autoTask]));
+      }
+      return Promise.resolve(jsonResponse([]));
+    });
+
+    render(
+      <I18nextProvider i18n={nbInstance}>
+        <GardenContext.Provider value={ctx}>
+          <CalendarPage />
+        </GardenContext.Provider>
+      </I18nextProvider>,
+    );
+
+    await waitFor(() => expect(screen.getByTestId('calendar-grid')).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByTestId(`calendar-day-${dayKey}`)).toBeInTheDocument());
+
+    const taskBtn = screen.getByTestId('calendar-task-t-nb');
+    expect(taskBtn.textContent).toBe('Så Tomato innendørs');
+    expect(taskBtn.textContent).not.toBe(autoTask.title);
 
     vi.unstubAllGlobals();
   });

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { createManualTask, listTasks, patchTask, type GardenTask } from '../api/tasks';
+import { getTaskDisplayTitle } from '../planning/task-display-title';
 import { LocaleDateField } from '../components/LocaleDateField';
 import { useGardenContext } from '../garden/garden-context';
 import { useActiveSeason } from '../garden/useActiveSeason';
@@ -197,6 +198,7 @@ export function CalendarPage() {
                 <div className="text-[10px] font-medium text-stone-500">{day}</div>
                 <div className="mt-0.5 space-y-0.5">
                   {dayTasks.map((task) => {
+                    const displayTitle = getTaskDisplayTitle(task, t);
                     const vis = taskVisualStatus(task, todayKey);
                     const color =
                       vis === 'done'
@@ -214,12 +216,12 @@ export function CalendarPage() {
                         className={`block w-full truncate rounded px-1 py-0.5 text-left text-[10px] font-medium ${color} disabled:opacity-60`}
                         title={
                           task.status === 'done'
-                            ? `${task.title} — ${t('planning.taskClickToUndo')}`
-                            : `${task.title} — ${t('planning.taskClickToDone')}`
+                            ? `${displayTitle} — ${t('planning.taskClickToUndo')}`
+                            : `${displayTitle} — ${t('planning.taskClickToDone')}`
                         }
                         onClick={() => void toggleTaskDone(task)}
                       >
-                        {task.title}
+                        {displayTitle}
                       </button>
                     );
                   })}

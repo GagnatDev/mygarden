@@ -8,6 +8,7 @@ const taskSchema = new mongoose.Schema(
     seasonId: { type: String, required: true, index: true },
     plantingId: { type: String, default: null },
     elementId: { type: String, default: null },
+    plantName: { type: String, default: null, trim: true },
     title: { type: String, required: true, trim: true },
     dueDate: { type: Date, required: true },
     source: { type: String, enum: [...TASK_SOURCES], required: true },

@@ -52,6 +52,7 @@ export class TaskService {
       seasonId: input.seasonId,
       plantingId: null,
       elementId: input.elementId,
+      plantName: null,
       title: input.title,
       dueDate: input.dueDate,
       source: 'manual',

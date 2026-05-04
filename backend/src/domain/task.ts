@@ -14,6 +14,8 @@ export interface Task {
   seasonId: string;
   plantingId: string | null;
   elementId: string | null;
+  /** Denormalized from planting for localized auto-task titles; null for manual or legacy tasks. */
+  plantName: string | null;
   title: string;
   dueDate: Date;
   source: TaskSource;
@@ -33,6 +35,7 @@ export function toPublicTask(t: Task) {
     seasonId: t.seasonId,
     plantingId: t.plantingId,
     elementId: t.elementId,
+    plantName: t.plantName,
     title: t.title,
     dueDate: t.dueDate.toISOString(),
     source: t.source,

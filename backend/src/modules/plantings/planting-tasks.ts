@@ -12,6 +12,7 @@ function pushTask(
     seasonId: string;
     plantingId: string;
     elementId: string | null;
+    plantName: string;
     title: string;
     dueDate: Date;
     autoKind: TaskAutoKind;
@@ -22,6 +23,7 @@ function pushTask(
     seasonId: params.seasonId,
     plantingId: params.plantingId,
     elementId: params.elementId,
+    plantName: params.plantName,
     title: params.title,
     dueDate: params.dueDate,
     source: 'auto',
@@ -45,6 +47,7 @@ export async function replaceAutoTasksForPlanting(
         seasonId,
         plantingId: id,
         elementId,
+        plantName,
         title: `Sow ${plantName} indoors`,
         dueDate: planting.indoorSowDate,
         autoKind: 'sow_indoor',
@@ -56,6 +59,7 @@ export async function replaceAutoTasksForPlanting(
         seasonId,
         plantingId: id,
         elementId,
+        plantName,
         title: `Transplant ${plantName}`,
         dueDate: planting.transplantDate,
         autoKind: 'transplant',
@@ -68,6 +72,7 @@ export async function replaceAutoTasksForPlanting(
         seasonId,
         plantingId: id,
         elementId,
+        plantName,
         title: `Sow ${plantName} outdoors`,
         dueDate: planting.outdoorSowDate,
         autoKind: 'sow_outdoor',
@@ -81,6 +86,7 @@ export async function replaceAutoTasksForPlanting(
       seasonId,
       plantingId: id,
       elementId,
+      plantName,
       title: `Start harvesting ${plantName}`,
       dueDate: planting.harvestWindowStart,
       autoKind: 'harvest_start',

@@ -213,6 +213,12 @@
     "manualTask": "Ny manuell oppgave",
     "taskTitle": "Tittel",
     "addTask": "Legg til oppgave",
+    "autoTaskTitle": {
+      "sow_indoor": "Så {{plant}} innendørs",
+      "sow_outdoor": "Så {{plant}} utendørs",
+      "transplant": "Plant ut {{plant}}",
+      "harvest_start": "Begynn å høste {{plant}}"
+    },
     "plantTypes": {
       "vegetable": "Grønnsak",
       "herb": "Urt",
