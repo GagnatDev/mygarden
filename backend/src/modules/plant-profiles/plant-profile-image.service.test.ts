@@ -25,7 +25,7 @@ function buildProfile(imageCount = 0) {
 
 describe('PlantProfileImageService', () => {
   it('compresses and stores image as jpeg', async () => {
-    const putObject = vi.fn(async () => undefined);
+    const putObject = vi.fn(async (_key: string, _buffer: Buffer, _mimeType: string) => undefined);
     const replaceImages = vi.fn(async (_id: string, _userId: string, images: unknown[]) => ({
       ...buildProfile(0),
       images: images as {
