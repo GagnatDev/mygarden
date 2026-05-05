@@ -1,4 +1,5 @@
 import type { Note, NoteTargetType } from '../../domain/note.js';
+import type { WithMongoSession } from '../mongo-session.js';
 
 export interface CreateNoteInput {
   gardenId: string;
@@ -19,5 +20,5 @@ export interface INoteRepository {
   ): Promise<Note[]>;
   update(id: string, patch: Partial<Pick<Note, 'body' | 'updatedAt'>>): Promise<Note | null>;
   delete(id: string): Promise<boolean>;
-  deleteByGardenId(gardenId: string): Promise<number>;
+  deleteByGardenId(gardenId: string, options?: WithMongoSession): Promise<number>;
 }

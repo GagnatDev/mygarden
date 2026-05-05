@@ -1,4 +1,5 @@
 import type { Area } from '../../domain/area.js';
+import type { WithMongoSession } from '../mongo-session.js';
 
 export interface CreateAreaInput {
   gardenId: string;
@@ -31,5 +32,5 @@ export interface IAreaRepository {
     >,
   ): Promise<Area | null>;
   delete(id: string): Promise<boolean>;
-  deleteByGardenId(gardenId: string): Promise<number>;
+  deleteByGardenId(gardenId: string, options?: WithMongoSession): Promise<number>;
 }

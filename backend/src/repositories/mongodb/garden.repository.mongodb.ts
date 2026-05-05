@@ -1,6 +1,7 @@
 import { v4 as uuidv4 } from 'uuid';
 import type { Garden } from '../../domain/garden.js';
 import type { CreateGardenInput, IGardenRepository } from '../interfaces/garden.repository.interface.js';
+import type { WithMongoSession } from '../mongo-session.js';
 import type { GardenDoc } from './garden.schema.js';
 import { GardenModel } from './garden.schema.js';
 
@@ -47,8 +48,8 @@ export class GardenRepositoryMongo implements IGardenRepository {
     return toGarden(doc as GardenDoc);
   }
 
-  async delete(id: string): Promise<boolean> {
-    const res = await GardenModel.deleteOne({ _id: id });
+  async delete(id: string, options?: WithMongoSession): Promise<boolean> {
+    const res = await GardenModel.deleteOne({ _id: id }, { session: options?.session });
     return res.deletedCount === 1;
   }
 }

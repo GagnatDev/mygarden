@@ -4,6 +4,7 @@ import type {
   CreatePlantingInput,
   IPlantingRepository,
 } from '../interfaces/planting.repository.interface.js';
+import type { WithMongoSession } from '../mongo-session.js';
 import type { PlantingDoc } from './planting.schema.js';
 import { PlantingModel } from './planting.schema.js';
 
@@ -96,8 +97,8 @@ export class PlantingRepositoryMongo implements IPlantingRepository {
     return res.deletedCount === 1;
   }
 
-  async deleteByGardenId(gardenId: string): Promise<number> {
-    const res = await PlantingModel.deleteMany({ gardenId });
+  async deleteByGardenId(gardenId: string, options?: WithMongoSession): Promise<number> {
+    const res = await PlantingModel.deleteMany({ gardenId }, { session: options?.session });
     return res.deletedCount ?? 0;
   }
 }

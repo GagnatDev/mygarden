@@ -4,6 +4,7 @@ import type {
   CreateActivityLogInput,
   IActivityLogRepository,
 } from '../interfaces/activity-log.repository.interface.js';
+import type { WithMongoSession } from '../mongo-session.js';
 import type { ActivityLogDoc } from './activity-log.schema.js';
 import { ActivityLogModel } from './activity-log.schema.js';
 
@@ -65,8 +66,8 @@ export class ActivityLogRepositoryMongo implements IActivityLogRepository {
     return (docs as ActivityLogDoc[]).map(toLog);
   }
 
-  async deleteByGardenId(gardenId: string): Promise<number> {
-    const res = await ActivityLogModel.deleteMany({ gardenId });
+  async deleteByGardenId(gardenId: string, options?: WithMongoSession): Promise<number> {
+    const res = await ActivityLogModel.deleteMany({ gardenId }, { session: options?.session });
     return res.deletedCount ?? 0;
   }
 

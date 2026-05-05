@@ -1,6 +1,7 @@
 import { v4 as uuidv4 } from 'uuid';
 import type { Task, TaskAutoKind, TaskSource, TaskStatus } from '../../domain/task.js';
 import type { CreateTaskInput, ITaskRepository } from '../interfaces/task.repository.interface.js';
+import type { WithMongoSession } from '../mongo-session.js';
 import type { TaskDoc } from './task.schema.js';
 import { TaskModel } from './task.schema.js';
 
@@ -78,8 +79,8 @@ export class TaskRepositoryMongo implements ITaskRepository {
     return res.deletedCount ?? 0;
   }
 
-  async deleteByGardenId(gardenId: string): Promise<number> {
-    const res = await TaskModel.deleteMany({ gardenId });
+  async deleteByGardenId(gardenId: string, options?: WithMongoSession): Promise<number> {
+    const res = await TaskModel.deleteMany({ gardenId }, { session: options?.session });
     return res.deletedCount ?? 0;
   }
 

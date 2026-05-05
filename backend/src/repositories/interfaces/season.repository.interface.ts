@@ -1,4 +1,5 @@
 import type { Season } from '../../domain/season.js';
+import type { WithMongoSession } from '../mongo-session.js';
 
 export interface CreateSeasonInput {
   gardenId: string;
@@ -18,6 +19,6 @@ export interface ISeasonRepository {
     patch: Partial<Pick<Season, 'name' | 'startDate' | 'endDate' | 'isActive'>>,
   ): Promise<Season | null>;
   delete(id: string): Promise<boolean>;
-  deleteByGardenId(gardenId: string): Promise<number>;
+  deleteByGardenId(gardenId: string, options?: WithMongoSession): Promise<number>;
   deactivateAllInGarden(gardenId: string): Promise<void>;
 }

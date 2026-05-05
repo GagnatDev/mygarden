@@ -11,6 +11,7 @@ import type { IPlantingRepository } from '../../repositories/interfaces/planting
 import type { ISeasonRepository } from '../../repositories/interfaces/season.repository.interface.js';
 import type { ITaskRepository } from '../../repositories/interfaces/task.repository.interface.js';
 import type { IFileStorageService } from '../../services/file-storage/file-storage.interface.js';
+import mongoose from 'mongoose';
 
 export interface CreateGardenDto {
   name: string;
@@ -122,25 +123,37 @@ export class GardenService {
     }
 
     const areas = await this.areaRepo.findByGardenId(gardenId);
-    for (const area of areas) {
-      if (area.backgroundImageKey) {
-        await this.fileStorage.deleteObject(area.backgroundImageKey).catch(() => {
-          /* best-effort */
-        });
-      }
-      await this.elementRepo.deleteByAreaId(area.id);
+    const backgroundImageKeys = areas
+      .map((a) => a.backgroundImageKey)
+      .filter((k): k is string => Boolean(k));
+
+    const session = await mongoose.startSession();
+    try {
+      await session.withTransaction(async () => {
+        const s = { session };
+        for (const area of areas) {
+          await this.elementRepo.deleteByAreaId(area.id, s);
+        }
+        await this.noteRepo.deleteByGardenId(gardenId, s);
+        await this.activityLogRepo.deleteByGardenId(gardenId, s);
+        await this.taskRepo.deleteByGardenId(gardenId, s);
+        await this.plantingRepo.deleteByGardenId(gardenId, s);
+        await this.areaRepo.deleteByGardenId(gardenId, s);
+        await this.seasonRepo.deleteByGardenId(gardenId, s);
+        await this.membershipRepo.deleteByGardenId(gardenId, s);
+        const ok = await this.gardenRepo.delete(gardenId, s);
+        if (!ok) {
+          throw new HttpError(404, 'Garden not found', 'Not Found');
+        }
+      });
+    } finally {
+      await session.endSession();
     }
 
-    await this.noteRepo.deleteByGardenId(gardenId);
-    await this.activityLogRepo.deleteByGardenId(gardenId);
-    await this.taskRepo.deleteByGardenId(gardenId);
-    await this.plantingRepo.deleteByGardenId(gardenId);
-    await this.areaRepo.deleteByGardenId(gardenId);
-    await this.seasonRepo.deleteByGardenId(gardenId);
-    await this.membershipRepo.deleteByGardenId(gardenId);
-    const ok = await this.gardenRepo.delete(gardenId);
-    if (!ok) {
-      throw new HttpError(404, 'Garden not found', 'Not Found');
+    for (const key of backgroundImageKeys) {
+      await this.fileStorage.deleteObject(key).catch(() => {
+        /* best-effort */
+      });
     }
   }
 

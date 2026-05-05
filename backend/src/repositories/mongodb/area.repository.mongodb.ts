@@ -1,6 +1,7 @@
 import { v4 as uuidv4 } from 'uuid';
 import type { Area } from '../../domain/area.js';
 import type { CreateAreaInput, IAreaRepository } from '../interfaces/area.repository.interface.js';
+import type { WithMongoSession } from '../mongo-session.js';
 import type { AreaDoc } from './area.schema.js';
 import { AreaModel } from './area.schema.js';
 
@@ -77,8 +78,8 @@ export class AreaRepositoryMongo implements IAreaRepository {
     return res.deletedCount === 1;
   }
 
-  async deleteByGardenId(gardenId: string): Promise<number> {
-    const res = await AreaModel.deleteMany({ gardenId });
+  async deleteByGardenId(gardenId: string, options?: WithMongoSession): Promise<number> {
+    const res = await AreaModel.deleteMany({ gardenId }, { session: options?.session });
     return res.deletedCount ?? 0;
   }
 }

@@ -1,6 +1,7 @@
 import { v4 as uuidv4 } from 'uuid';
 import type { Note, NoteTargetType } from '../../domain/note.js';
 import type { CreateNoteInput, INoteRepository } from '../interfaces/note.repository.interface.js';
+import type { WithMongoSession } from '../mongo-session.js';
 import type { NoteDoc } from './note.schema.js';
 import { NoteModel } from './note.schema.js';
 
@@ -62,8 +63,8 @@ export class NoteRepositoryMongo implements INoteRepository {
     return res.deletedCount === 1;
   }
 
-  async deleteByGardenId(gardenId: string): Promise<number> {
-    const res = await NoteModel.deleteMany({ gardenId });
+  async deleteByGardenId(gardenId: string, options?: WithMongoSession): Promise<number> {
+    const res = await NoteModel.deleteMany({ gardenId }, { session: options?.session });
     return res.deletedCount ?? 0;
   }
 }

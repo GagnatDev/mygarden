@@ -1,4 +1,5 @@
 import type { Garden } from '../../domain/garden.js';
+import type { WithMongoSession } from '../mongo-session.js';
 
 export interface CreateGardenInput {
   name: string;
@@ -10,5 +11,5 @@ export interface IGardenRepository {
   findById(id: string): Promise<Garden | null>;
   findByIds(ids: string[]): Promise<Garden[]>;
   update(id: string, patch: Partial<Pick<Garden, 'name'>>): Promise<Garden | null>;
-  delete(id: string): Promise<boolean>;
+  delete(id: string, options?: WithMongoSession): Promise<boolean>;
 }
