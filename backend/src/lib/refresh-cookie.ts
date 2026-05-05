@@ -1,17 +1,14 @@
 import type { Response } from 'express';
 import type { Env } from '../config/env.js';
+import { compactDurationToMs } from './compact-duration.js';
 
 export const REFRESH_COOKIE_NAME = 'refresh_token';
 
 /** Best-effort maxAge from REFRESH_TOKEN_EXPIRES (e.g. 7d, 24h). Defaults to 7 days. */
 export function refreshCookieMaxAgeMs(expiresIn: string): number {
-  const m = /^(\d+)([smhd])$/i.exec(expiresIn.trim());
-  if (!m?.[1] || !m[2]) return 7 * 24 * 60 * 60 * 1000;
-  const n = Number(m[1]);
-  const u = m[2].toLowerCase();
-  const mult =
-    u === 's' ? 1000 : u === 'm' ? 60_000 : u === 'h' ? 3_600_000 : 24 * 3_600_000;
-  return n * mult;
+  const ms = compactDurationToMs(expiresIn);
+  if (ms === null) return 7 * 24 * 60 * 60 * 1000;
+  return ms;
 }
 
 export function setRefreshCookie(res: Response, env: Env, token: string): void {

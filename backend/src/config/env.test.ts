@@ -15,6 +15,35 @@ describe('loadEnv', () => {
     expect(env.NODE_ENV).toBe('test');
     expect(env.JWT_SECRET).toHaveLength(32);
     expect(env.ACCESS_TOKEN_EXPIRES).toBe('15m');
+    expect(env.REFRESH_TOKEN_EXPIRES).toBe('7d');
+  });
+
+  it('accepts compact ACCESS_TOKEN_EXPIRES / REFRESH_TOKEN_EXPIRES', () => {
+    const env = loadEnv({
+      ...base,
+      ACCESS_TOKEN_EXPIRES: '1h',
+      REFRESH_TOKEN_EXPIRES: '24h',
+    });
+    expect(env.ACCESS_TOKEN_EXPIRES).toBe('1h');
+    expect(env.REFRESH_TOKEN_EXPIRES).toBe('24h');
+  });
+
+  it('rejects invalid ACCESS_TOKEN_EXPIRES', () => {
+    expect(() =>
+      loadEnv({
+        ...base,
+        ACCESS_TOKEN_EXPIRES: '15 minutes',
+      }),
+    ).toThrow(/Invalid environment/);
+  });
+
+  it('rejects invalid REFRESH_TOKEN_EXPIRES', () => {
+    expect(() =>
+      loadEnv({
+        ...base,
+        REFRESH_TOKEN_EXPIRES: '1w',
+      }),
+    ).toThrow(/Invalid environment/);
   });
 
   it('parses PORT as number', () => {

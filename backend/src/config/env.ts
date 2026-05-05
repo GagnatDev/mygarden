@@ -1,4 +1,8 @@
 import { z } from 'zod';
+import { isCompactDuration } from '../lib/compact-duration.js';
+
+const compactDurationError =
+  'Must be a compact duration: digits followed by s, m, h, or d (e.g. 15m, 24h, 7d).';
 
 const envSchema = z.object({
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
@@ -8,8 +12,14 @@ const envSchema = z.object({
   JWT_REFRESH_SECRET: z
     .string()
     .min(32, 'JWT_REFRESH_SECRET must be at least 32 characters'),
-  ACCESS_TOKEN_EXPIRES: z.string().default('15m'),
-  REFRESH_TOKEN_EXPIRES: z.string().default('7d'),
+  ACCESS_TOKEN_EXPIRES: z
+    .string()
+    .default('15m')
+    .refine(isCompactDuration, { message: `ACCESS_TOKEN_EXPIRES: ${compactDurationError}` }),
+  REFRESH_TOKEN_EXPIRES: z
+    .string()
+    .default('7d')
+    .refine(isCompactDuration, { message: `REFRESH_TOKEN_EXPIRES: ${compactDurationError}` }),
   ADMIN_EMAIL: z
     .string()
     .email()
