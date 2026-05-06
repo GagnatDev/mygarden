@@ -675,7 +675,7 @@ describe('PlantingPlanPage', () => {
       expect(createLog).toHaveBeenCalled();
     });
 
-    const [, body] = vi.mocked(createLog).mock.calls[0];
+    const [, body] = vi.mocked(createLog).mock.calls[0]!;
     expect(body).toMatchObject({
       seasonId: 's1',
       plantingId: 'pl9',
@@ -686,7 +686,7 @@ describe('PlantingPlanPage', () => {
     expect(body.date).toBe(body.clientTimestamp);
 
     await waitFor(() => expect(patchPlanting).toHaveBeenCalled());
-    const [, , patch] = vi.mocked(patchPlanting).mock.calls[0];
+    const [, , patch] = vi.mocked(patchPlanting).mock.calls[0]!;
     expect(patch).toEqual({ transplantDate: body.date });
   });
 
