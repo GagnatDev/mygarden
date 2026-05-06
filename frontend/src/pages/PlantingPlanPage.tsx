@@ -6,7 +6,10 @@ import { useActiveSeason } from '../garden/useActiveSeason';
 import { ActivityTimelineSection } from '../planning/planting-plan/ActivityTimelineSection';
 import { AddPlantingForm } from '../planning/planting-plan/AddPlantingForm';
 import { IndoorPlantingDetailModal } from '../planning/planting-plan/IndoorPlantingDetailModal';
-import { IndoorUnassignedSection } from '../planning/planting-plan/IndoorUnassignedSection';
+import {
+  IndoorSection,
+  type IndoorSectionAssignmentFilter,
+} from '../planning/planting-plan/IndoorSection';
 import { PlantingsByAreaSection } from '../planning/planting-plan/PlantingsByAreaSection';
 import { usePlantingPlanResources } from '../planning/planting-plan/usePlantingPlanResources';
 import { QuickLogModal } from '../planning/QuickLogModal';
@@ -34,6 +37,8 @@ export function PlantingPlanPage() {
   const [quickLogOpen, setQuickLogOpen] = useState(false);
   const [notesPlantingId, setNotesPlantingId] = useState<string | null>(null);
   const [indoorDetailPlantingId, setIndoorDetailPlantingId] = useState<string | null>(null);
+  const [indoorAssignmentFilter, setIndoorAssignmentFilter] = useState<IndoorSectionAssignmentFilter>('all');
+  const [indoorIncludeTransplanted, setIndoorIncludeTransplanted] = useState(false);
 
   const byElement = useMemo(() => {
     const m = new Map<string, typeof plantings>();
@@ -46,28 +51,12 @@ export function PlantingPlanPage() {
     return m;
   }, [plantings]);
 
-  const indoorUnassigned = useMemo(
-    () => plantings.filter((p) => p.sowingMethod === 'indoor' && p.elementId == null),
-    [plantings],
-  );
-
-  const sortedIndoorUnassigned = useMemo(() => {
-    const list = [...indoorUnassigned];
-    list.sort((a, b) => {
-      const da = a.indoorSowDate;
-      const db = b.indoorSowDate;
-      if (!da && !db) return 0;
-      if (!da) return 1;
-      if (!db) return -1;
-      return da.localeCompare(db);
-    });
-    return list;
-  }, [indoorUnassigned]);
+  const indoorAll = useMemo(() => plantings.filter((p) => p.sowingMethod === 'indoor'), [plantings]);
 
   const indoorDetailPlanting = useMemo(() => {
     if (!indoorDetailPlantingId) return null;
     const p = plantings.find((x) => x.id === indoorDetailPlantingId);
-    if (!p || p.elementId != null || p.sowingMethod !== 'indoor') return null;
+    if (!p || p.sowingMethod !== 'indoor') return null;
     return p;
   }, [plantings, indoorDetailPlantingId]);
 
@@ -83,6 +72,14 @@ export function PlantingPlanPage() {
       const list = m.get(el.areaId) ?? [];
       list.push(el);
       m.set(el.areaId, list);
+    }
+    return m;
+  }, [elementsWithArea]);
+
+  const elementLabelById = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const el of elementsWithArea) {
+      m.set(el.id, `${el.areaTitle} · ${el.name}`);
     }
     return m;
   }, [elementsWithArea]);
@@ -216,10 +213,14 @@ export function PlantingPlanPage() {
         <p className="mt-4 text-stone-600">{t('auth.loading')}</p>
       ) : (
         <>
-          <IndoorUnassignedSection
-            indoorUnassignedCount={indoorUnassigned.length}
-            sortedIndoorUnassigned={sortedIndoorUnassigned}
+          <IndoorSection
+            indoorPlantings={indoorAll}
             locale={i18n.language}
+            elementLabelById={elementLabelById}
+            assignmentFilter={indoorAssignmentFilter}
+            setAssignmentFilter={setIndoorAssignmentFilter}
+            includeTransplanted={indoorIncludeTransplanted}
+            setIncludeTransplanted={setIndoorIncludeTransplanted}
             onOpenRow={setIndoorDetailPlantingId}
           />
 
@@ -245,6 +246,7 @@ export function PlantingPlanPage() {
             gardenId={selectedGarden.id}
             seasonId={seasonId}
             elementsWithArea={elementsWithArea}
+            locale={i18n.language}
             notesPlantingId={notesPlantingId}
             setNotesPlantingId={setNotesPlantingId}
             onMovePlanting={onMovePlantingRow}

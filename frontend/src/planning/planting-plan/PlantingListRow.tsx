@@ -3,12 +3,14 @@ import type { TFunction } from 'i18next';
 import type { Planting } from '../../api/plantings';
 import { NotesSection } from '../../components/NotesSection';
 import type { ElementWithArea } from './types';
+import { formatIsoDateUtc } from './format-iso-date-utc';
 
 export const PlantingListRow = memo(function PlantingListRow({
   pl,
   gardenId,
   seasonId,
   elementsWithArea,
+  locale,
   notesPlantingId,
   setNotesPlantingId,
   onMove,
@@ -19,20 +21,47 @@ export const PlantingListRow = memo(function PlantingListRow({
   gardenId: string;
   seasonId: string;
   elementsWithArea: ElementWithArea[];
+  locale: string;
   notesPlantingId: string | null;
   setNotesPlantingId: Dispatch<SetStateAction<string | null>>;
   onMove: (plantingId: string, elementId: string) => void;
   onDelete: (plantingId: string) => void;
   t: TFunction;
 }) {
+  const sowDate =
+    pl.sowingMethod === 'indoor'
+      ? pl.indoorSowDate
+      : pl.sowingMethod === 'direct_outdoor'
+        ? pl.outdoorSowDate
+        : null;
+
+  const sowLabel = pl.sowingMethod === 'indoor' ? t('planning.indoorSowDate') : t('planning.outdoorSowDate');
+
+  const sowLine = sowDate
+    ? (formatIsoDateUtc(sowDate, locale) ?? t('planning.dateNotSet'))
+    : t('planning.dateNotSet');
+
+  const transplantLine =
+    pl.sowingMethod === 'indoor'
+      ? pl.transplantDate
+        ? `${t('planning.transplantDate')}: ${formatIsoDateUtc(pl.transplantDate, locale)}`
+        : t('planning.notTransplantedYet')
+      : null;
+
   return (
     <li
       data-testid={`planting-row-${pl.id}`}
       className="flex flex-col gap-2 py-2 sm:flex-row sm:items-center sm:justify-between"
     >
-      <span>
-        {pl.plantName} · {t(`planning.sowing.${pl.sowingMethod}`)}
-      </span>
+      <div>
+        <div>
+          {pl.plantName} · {t(`planning.sowing.${pl.sowingMethod}`)}
+        </div>
+        <div className="mt-0.5 text-xs text-stone-500">
+          {sowLabel}: {sowLine}
+          {transplantLine ? <span className="ml-2">· {transplantLine}</span> : null}
+        </div>
+      </div>
       <div className="flex flex-wrap items-center gap-2">
         <button
           type="button"

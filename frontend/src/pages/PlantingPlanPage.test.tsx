@@ -128,6 +128,18 @@ const en = {
     planHint: 'Hint',
     planModeOutdoor: 'Outdoor',
     planModeIndoor: 'Indoor mode',
+    indoorSectionTitleWithCount: 'Indoor sowings ({{count}})',
+    indoorSectionHint: 'Hint indoor section',
+    indoorFilterAssignment: 'Show',
+    indoorFilterAllPending: 'All pending',
+    indoorFilterUnassigned: 'Unassigned only',
+    indoorFilterAssigned: 'Assigned only',
+    indoorFilterIncludeTransplanted: 'Include transplanted',
+    noIndoorForFilter: 'No indoor',
+    indoorAssigned: 'Assigned',
+    indoorUnassigned: 'Unassigned',
+    notTransplantedYet: 'Not transplanted yet',
+    dateNotSet: 'Date not set',
     indoorUnassignedSection: 'Indoor pending',
     indoorUnassignedSectionWithCount: 'Indoor pending ({{count}})',
     indoorSowDateNotSet: 'No date',
@@ -314,8 +326,10 @@ describe('PlantingPlanPage', () => {
     );
 
     await waitFor(() => expect(screen.getByTestId('plantings-by-area')).toBeInTheDocument());
-    expect(screen.getByTestId('indoor-unassigned-section')).toHaveTextContent('Indoor pending (0)');
+    expect(screen.getByTestId('indoor-section')).toHaveTextContent('Indoor sowings (1)');
     expect(screen.getByTestId('element-plantings-e1')).toHaveTextContent('Lettuce');
+    expect(screen.getByTestId('element-plantings-e1')).toHaveTextContent('In');
+    expect(screen.getByTestId('element-plantings-e1')).toHaveTextContent('Not transplanted yet');
 
     const timeline = screen.getByTestId('activity-timeline');
     const entries = timeline.querySelectorAll('[data-testid^="log-entry-"]');
@@ -334,7 +348,7 @@ describe('PlantingPlanPage', () => {
     expect(screen.getByTestId('add-form-element')).toBeInTheDocument();
   });
 
-  it('lists indoor plantings without an element in the unassigned section', async () => {
+  it('lists indoor plantings awaiting transplant in the indoor section (assigned + unassigned)', async () => {
     vi.mocked(listPlantings).mockResolvedValue([
       {
         id: 'pl1',
@@ -385,13 +399,13 @@ describe('PlantingPlanPage', () => {
       </I18nextProvider>,
     );
 
-    await waitFor(() => expect(screen.getByTestId('indoor-unassigned-section')).toHaveTextContent('Basil'));
-    expect(screen.getByTestId('indoor-unassigned-section')).toHaveTextContent('Indoor pending (1)');
+    await waitFor(() => expect(screen.getByTestId('indoor-section')).toHaveTextContent('Basil'));
+    expect(screen.getByTestId('indoor-section')).toHaveTextContent('Lettuce');
+    expect(screen.getByTestId('indoor-section')).toHaveTextContent('Indoor sowings (2)');
     expect(screen.getByTestId('element-plantings-e1')).toHaveTextContent('Lettuce');
-    expect(screen.getByTestId('element-plantings-e1')).not.toHaveTextContent('Basil');
   });
 
-  it('sorts unassigned indoor plantings by oldest indoor sow date first, null dates last', async () => {
+  it('sorts indoor plantings by oldest indoor sow date first, null dates last', async () => {
     vi.mocked(listPlantings).mockResolvedValue([
       {
         id: 'pl1',
@@ -461,13 +475,109 @@ describe('PlantingPlanPage', () => {
       </I18nextProvider>,
     );
 
-    await waitFor(() => expect(screen.getByTestId('indoor-unassigned-row-pl2')).toBeInTheDocument());
-    const section = screen.getByTestId('indoor-unassigned-section');
-    const rows = section.querySelectorAll('[data-testid^="indoor-unassigned-row-"]');
+    await waitFor(() => expect(screen.getByTestId('indoor-row-pl2')).toBeInTheDocument());
+    const section = screen.getByTestId('indoor-section');
+    const rows = section.querySelectorAll('[data-testid^="indoor-row-"]');
     expect(rows).toHaveLength(3);
-    expect(rows[0]).toHaveAttribute('data-testid', 'indoor-unassigned-row-pl2');
-    expect(rows[1]).toHaveAttribute('data-testid', 'indoor-unassigned-row-pl1');
-    expect(rows[2]).toHaveAttribute('data-testid', 'indoor-unassigned-row-pl3');
+    expect(rows[0]).toHaveAttribute('data-testid', 'indoor-row-pl2');
+    expect(rows[1]).toHaveAttribute('data-testid', 'indoor-row-pl1');
+    expect(rows[2]).toHaveAttribute('data-testid', 'indoor-row-pl3');
+  });
+
+  it('filters indoor list by assignment and can include transplanted indoor sowings', async () => {
+    vi.mocked(listPlantings).mockResolvedValue([
+      {
+        id: 'pl1',
+        gardenId: 'g1',
+        seasonId: 's1',
+        elementId: null,
+        plantProfileId: null,
+        plantName: 'UnassignedPending',
+        sowingMethod: 'indoor',
+        indoorSowDate: '2026-03-01T12:00:00.000Z',
+        transplantDate: null,
+        outdoorSowDate: null,
+        harvestWindowStart: null,
+        harvestWindowEnd: null,
+        quantity: null,
+        notes: null,
+        createdBy: 'u1',
+        createdAt: '',
+        updatedAt: '',
+      },
+      {
+        id: 'pl2',
+        gardenId: 'g1',
+        seasonId: 's1',
+        elementId: 'e1',
+        plantProfileId: null,
+        plantName: 'AssignedPending',
+        sowingMethod: 'indoor',
+        indoorSowDate: '2026-03-02T12:00:00.000Z',
+        transplantDate: null,
+        outdoorSowDate: null,
+        harvestWindowStart: null,
+        harvestWindowEnd: null,
+        quantity: null,
+        notes: null,
+        createdBy: 'u1',
+        createdAt: '',
+        updatedAt: '',
+      },
+      {
+        id: 'pl3',
+        gardenId: 'g1',
+        seasonId: 's1',
+        elementId: 'e1',
+        plantProfileId: null,
+        plantName: 'AssignedTransplanted',
+        sowingMethod: 'indoor',
+        indoorSowDate: '2026-03-03T12:00:00.000Z',
+        transplantDate: '2026-04-01T12:00:00.000Z',
+        outdoorSowDate: null,
+        harvestWindowStart: null,
+        harvestWindowEnd: null,
+        quantity: null,
+        notes: null,
+        createdBy: 'u1',
+        createdAt: '',
+        updatedAt: '',
+      },
+    ]);
+
+    const i18nInstance = await testI18n();
+    render(
+      <I18nextProvider i18n={i18nInstance}>
+        <GardenContext.Provider value={ctx}>
+          <PlantingPlanPage />
+        </GardenContext.Provider>
+      </I18nextProvider>,
+    );
+
+    await waitFor(() => expect(screen.getByTestId('indoor-section')).toBeInTheDocument());
+
+    // Default: includeTransplanted=false, assignment=all -> only pending (pl1 + pl2)
+    expect(screen.getByTestId('indoor-section')).toHaveTextContent('Indoor sowings (2)');
+    expect(screen.getByTestId('indoor-section')).toHaveTextContent('UnassignedPending');
+    expect(screen.getByTestId('indoor-section')).toHaveTextContent('AssignedPending');
+    expect(screen.getByTestId('indoor-section')).not.toHaveTextContent('AssignedTransplanted');
+
+    // Unassigned only
+    fireEvent.change(screen.getByTestId('indoor-filter-assignment'), { target: { value: 'unassigned' } });
+    expect(screen.getByTestId('indoor-section')).toHaveTextContent('Indoor sowings (1)');
+    expect(screen.getByTestId('indoor-section')).toHaveTextContent('UnassignedPending');
+    expect(screen.getByTestId('indoor-section')).not.toHaveTextContent('AssignedPending');
+
+    // Assigned only
+    fireEvent.change(screen.getByTestId('indoor-filter-assignment'), { target: { value: 'assigned' } });
+    expect(screen.getByTestId('indoor-section')).toHaveTextContent('Indoor sowings (1)');
+    expect(screen.getByTestId('indoor-section')).toHaveTextContent('AssignedPending');
+
+    // Include transplanted adds pl3 (still assigned-only)
+    fireEvent.click(screen.getByTestId('indoor-filter-include-transplanted'));
+    expect(screen.getByTestId('indoor-section')).toHaveTextContent('Indoor sowings (2)');
+    expect(screen.getByTestId('indoor-section')).toHaveTextContent('AssignedPending');
+    expect(screen.getByTestId('indoor-section')).toHaveTextContent('AssignedTransplanted');
   });
 
   it('opens indoor unassigned detail modal and patches element from move select', async () => {
@@ -521,8 +631,8 @@ describe('PlantingPlanPage', () => {
       </I18nextProvider>,
     );
 
-    await waitFor(() => expect(screen.getByTestId('indoor-unassigned-row-pl9')).toBeInTheDocument());
-    fireEvent.click(screen.getByTestId('indoor-unassigned-row-pl9'));
+    await waitFor(() => expect(screen.getByTestId('indoor-row-pl9')).toBeInTheDocument());
+    fireEvent.click(screen.getByTestId('indoor-row-pl9'));
     await waitFor(() => expect(screen.getByTestId('indoor-planting-detail-modal')).toBeInTheDocument());
 
     fireEvent.change(screen.getByTestId('indoor-detail-area-select-pl9'), { target: { value: 'e2' } });
@@ -564,8 +674,8 @@ describe('PlantingPlanPage', () => {
       </I18nextProvider>,
     );
 
-    await waitFor(() => expect(screen.getByTestId('indoor-unassigned-row-pl8')).toBeInTheDocument());
-    fireEvent.click(screen.getByTestId('indoor-unassigned-row-pl8'));
+    await waitFor(() => expect(screen.getByTestId('indoor-row-pl8')).toBeInTheDocument());
+    fireEvent.click(screen.getByTestId('indoor-row-pl8'));
     await waitFor(() => expect(screen.getByTestId('notes-section')).toBeInTheDocument());
     expect(listNotes).toHaveBeenCalledWith('g1', 's1', { targetType: 'planting', targetId: 'pl8' });
   });
@@ -604,8 +714,8 @@ describe('PlantingPlanPage', () => {
       </I18nextProvider>,
     );
 
-    await waitFor(() => expect(screen.getByTestId('indoor-unassigned-row-pl7')).toBeInTheDocument());
-    fireEvent.click(screen.getByTestId('indoor-unassigned-row-pl7'));
+    await waitFor(() => expect(screen.getByTestId('indoor-row-pl7')).toBeInTheDocument());
+    fireEvent.click(screen.getByTestId('indoor-row-pl7'));
     await waitFor(() => expect(screen.getByTestId('indoor-detail-delete-pl7')).toBeInTheDocument());
 
     fireEvent.click(screen.getByTestId('indoor-detail-delete-pl7'));

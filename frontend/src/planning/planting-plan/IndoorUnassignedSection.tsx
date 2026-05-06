@@ -1,9 +1,7 @@
-import { useTranslation } from 'react-i18next';
 import type { Planting } from '../../api/plantings';
-import { IndoorUnassignedPlantingRow } from './IndoorUnassignedPlantingRow';
+import { IndoorSection, type IndoorSectionAssignmentFilter } from './IndoorSection';
 
 export function IndoorUnassignedSection({
-  indoorUnassignedCount,
   sortedIndoorUnassigned,
   locale,
   onOpenRow,
@@ -13,22 +11,17 @@ export function IndoorUnassignedSection({
   locale: string;
   onOpenRow: (plantingId: string) => void;
 }) {
-  const { t } = useTranslation();
-
+  // Backwards-compatible wrapper; the page should use IndoorSection directly.
   return (
-    <section data-testid="indoor-unassigned-section" className="mt-6 space-y-3">
-      <h2 className="text-lg font-semibold text-stone-900">
-        {t('planning.indoorUnassignedSectionWithCount', { count: indoorUnassignedCount })}
-      </h2>
-      {indoorUnassignedCount === 0 ? (
-        <p className="text-sm text-stone-500">{t('planning.noIndoorUnassigned')}</p>
-      ) : (
-        <ul className="divide-y divide-stone-100 rounded-xl border border-stone-200 bg-white px-2 text-sm text-stone-700">
-          {sortedIndoorUnassigned.map((pl) => (
-            <IndoorUnassignedPlantingRow key={pl.id} pl={pl} locale={locale} onOpen={onOpenRow} t={t} />
-          ))}
-        </ul>
-      )}
-    </section>
+    <IndoorSection
+      indoorPlantings={sortedIndoorUnassigned}
+      locale={locale}
+      elementLabelById={new Map<string, string>()}
+      assignmentFilter={'unassigned' satisfies IndoorSectionAssignmentFilter}
+      setAssignmentFilter={() => {}}
+      includeTransplanted={true}
+      setIncludeTransplanted={() => {}}
+      onOpenRow={onOpenRow}
+    />
   );
 }

@@ -11,6 +11,7 @@ const ElementPlantingsBlock = memo(function ElementPlantingsBlock({
   gardenId,
   seasonId,
   elementsWithArea,
+  locale,
   notesPlantingId,
   setNotesPlantingId,
   onMovePlanting,
@@ -22,6 +23,7 @@ const ElementPlantingsBlock = memo(function ElementPlantingsBlock({
   gardenId: string;
   seasonId: string;
   elementsWithArea: ElementWithArea[];
+  locale: string;
   notesPlantingId: string | null;
   setNotesPlantingId: Dispatch<SetStateAction<string | null>>;
   onMovePlanting: (plantingId: string, elementId: string) => void;
@@ -48,6 +50,7 @@ const ElementPlantingsBlock = memo(function ElementPlantingsBlock({
               gardenId={gardenId}
               seasonId={seasonId}
               elementsWithArea={elementsWithArea}
+              locale={locale}
               notesPlantingId={notesPlantingId}
               setNotesPlantingId={setNotesPlantingId}
               onMove={onMovePlanting}
@@ -68,6 +71,7 @@ export const PlantingsByAreaSection = memo(function PlantingsByAreaSection({
   gardenId,
   seasonId,
   elementsWithArea,
+  locale,
   notesPlantingId,
   setNotesPlantingId,
   onMovePlanting,
@@ -80,6 +84,7 @@ export const PlantingsByAreaSection = memo(function PlantingsByAreaSection({
   gardenId: string;
   seasonId: string;
   elementsWithArea: ElementWithArea[];
+  locale: string;
   notesPlantingId: string | null;
   setNotesPlantingId: Dispatch<SetStateAction<string | null>>;
   onMovePlanting: (plantingId: string, elementId: string) => void;
@@ -104,6 +109,7 @@ export const PlantingsByAreaSection = memo(function PlantingsByAreaSection({
                   gardenId={gardenId}
                   seasonId={seasonId}
                   elementsWithArea={elementsWithArea}
+                  locale={locale}
                   notesPlantingId={notesPlantingId}
                   setNotesPlantingId={setNotesPlantingId}
                   onMovePlanting={onMovePlanting}
