@@ -15,6 +15,7 @@ export function IndoorUnassignedSection({
   return (
     <IndoorSection
       indoorPlantings={sortedIndoorUnassigned}
+      transplantedPlantingIds={new Set<string>()}
       locale={locale}
       elementLabelById={new Map<string, string>()}
       assignmentFilter={'unassigned' satisfies IndoorSectionAssignmentFilter}

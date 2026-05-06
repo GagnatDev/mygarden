@@ -4,7 +4,7 @@ import { I18nextProvider, initReactI18next } from 'react-i18next';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { listAreas } from '../api/areas';
 import { listElements } from '../api/elements';
-import { listLogs } from '../api/logs';
+import { createLog, listLogs } from '../api/logs';
 import { listNotes } from '../api/notes';
 import { deletePlanting, listPlantings, patchPlanting } from '../api/plantings';
 import { listPlantProfiles } from '../api/plantProfiles';
@@ -61,6 +61,7 @@ vi.mock('../api/plantProfiles', () => ({
 
 vi.mock('../api/logs', () => ({
   listLogs: vi.fn(),
+  createLog: vi.fn(),
 }));
 
 vi.mock('../api/notes', () => ({
@@ -544,6 +545,23 @@ describe('PlantingPlanPage', () => {
         updatedAt: '',
       },
     ]);
+    vi.mocked(listLogs).mockResolvedValue([
+      {
+        id: 'lt1',
+        gardenId: 'g1',
+        seasonId: 's1',
+        plantingId: 'pl3',
+        elementId: 'e1',
+        activity: 'transplanted',
+        date: '2026-04-15T12:00:00.000Z',
+        note: null,
+        quantity: null,
+        createdBy: 'u1',
+        clientTimestamp: '',
+        createdAt: '',
+        updatedAt: '',
+      },
+    ]);
 
     const i18nInstance = await testI18n();
     render(
@@ -578,6 +596,98 @@ describe('PlantingPlanPage', () => {
     expect(screen.getByTestId('indoor-section')).toHaveTextContent('Indoor sowings (2)');
     expect(screen.getByTestId('indoor-section')).toHaveTextContent('AssignedPending');
     expect(screen.getByTestId('indoor-section')).toHaveTextContent('AssignedTransplanted');
+  });
+
+  it('marks an indoor sowing as actually transplanted from the detail modal', async () => {
+    vi.mocked(listPlantings).mockResolvedValue([
+      {
+        id: 'pl9',
+        gardenId: 'g1',
+        seasonId: 's1',
+        elementId: null,
+        plantProfileId: null,
+        plantName: 'Chard',
+        sowingMethod: 'indoor',
+        indoorSowDate: '2026-02-01T12:00:00.000Z',
+        transplantDate: '2026-05-01T12:00:00.000Z',
+        outdoorSowDate: null,
+        harvestWindowStart: null,
+        harvestWindowEnd: null,
+        quantity: null,
+        notes: null,
+        createdBy: 'u1',
+        createdAt: '',
+        updatedAt: '',
+      },
+    ]);
+    vi.mocked(listLogs).mockResolvedValue([]);
+    vi.mocked(createLog).mockResolvedValue({
+      id: 'lg1',
+      gardenId: 'g1',
+      seasonId: 's1',
+      plantingId: 'pl9',
+      elementId: null,
+      activity: 'transplanted',
+      date: '2026-04-20T10:00:00.000Z',
+      note: null,
+      quantity: null,
+      createdBy: 'u1',
+      clientTimestamp: '',
+      createdAt: '',
+      updatedAt: '',
+    });
+    vi.mocked(patchPlanting).mockResolvedValue({
+      id: 'pl9',
+      gardenId: 'g1',
+      seasonId: 's1',
+      elementId: null,
+      plantProfileId: null,
+      plantName: 'Chard',
+      sowingMethod: 'indoor',
+      indoorSowDate: '2026-02-01T12:00:00.000Z',
+      transplantDate: '2026-04-20T10:00:00.000Z',
+      outdoorSowDate: null,
+      harvestWindowStart: null,
+      harvestWindowEnd: null,
+      quantity: null,
+      notes: null,
+      createdBy: 'u1',
+      createdAt: '',
+      updatedAt: '',
+    });
+
+    const i18nInstance = await testI18n();
+    render(
+      <I18nextProvider i18n={i18nInstance}>
+        <GardenContext.Provider value={ctx}>
+          <PlantingPlanPage />
+        </GardenContext.Provider>
+      </I18nextProvider>,
+    );
+
+    await waitFor(() => expect(screen.getByTestId('indoor-row-pl9')).toBeInTheDocument());
+    fireEvent.click(screen.getByTestId('indoor-row-pl9'));
+    await waitFor(() => expect(screen.getByTestId('indoor-planting-detail-modal')).toBeInTheDocument());
+
+    fireEvent.click(screen.getByTestId('indoor-detail-mark-transplanted-pl9'));
+
+    await waitFor(() => {
+      expect(createLog).toHaveBeenCalled();
+    });
+
+    const [, body] = vi.mocked(createLog).mock.calls[0];
+    expect(body).toMatchObject({
+      seasonId: 's1',
+      plantingId: 'pl9',
+      activity: 'transplanted',
+      note: null,
+      quantity: null,
+    });
+    expect(body.date).toBe(body.clientTimestamp);
+
+    await waitFor(() => expect(patchPlanting).toHaveBeenCalled());
+    const [, , patch] = vi.mocked(patchPlanting).mock.calls[0];
+    expect(patch).toEqual({ transplantDate: body.date });
   });
 
   it('opens indoor unassigned detail modal and patches element from move select', async () => {

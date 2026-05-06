@@ -7,6 +7,7 @@ export type IndoorSectionAssignmentFilter = 'all' | 'unassigned' | 'assigned';
 
 export function IndoorSection({
   indoorPlantings,
+  transplantedPlantingIds,
   locale,
   elementLabelById,
   assignmentFilter,
@@ -16,6 +17,7 @@ export function IndoorSection({
   onOpenRow,
 }: {
   indoorPlantings: Planting[];
+  transplantedPlantingIds: ReadonlySet<string>;
   locale: string;
   elementLabelById: Map<string, string>;
   assignmentFilter: IndoorSectionAssignmentFilter;
@@ -29,7 +31,7 @@ export function IndoorSection({
   const filtered = useMemo(() => {
     let list = indoorPlantings;
     if (!includeTransplanted) {
-      list = list.filter((p) => p.transplantDate == null);
+      list = list.filter((p) => !transplantedPlantingIds.has(p.id));
     }
     if (assignmentFilter === 'unassigned') {
       list = list.filter((p) => p.elementId == null);
@@ -37,7 +39,7 @@ export function IndoorSection({
       list = list.filter((p) => p.elementId != null);
     }
     return list;
-  }, [indoorPlantings, includeTransplanted, assignmentFilter]);
+  }, [indoorPlantings, transplantedPlantingIds, includeTransplanted, assignmentFilter]);
 
   const sorted = useMemo(() => {
     const list = [...filtered];

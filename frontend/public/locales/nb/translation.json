@@ -195,6 +195,7 @@
     "plantingDetailDescription": "Beskrivelse",
     "plantingDetailClose": "Lukk",
     "plantingDetailTitle": "Forkultivering",
+    "markAsTransplanted": "Marker som utplantet",
     "noIndoorUnassigned": "Ingen innesådd uten bed ennå.",
     "transplantDateOptional": "Utplantingsdato (valgfritt)",
     "noSeason": "Ingen aktiv sesong for denne hagen.",

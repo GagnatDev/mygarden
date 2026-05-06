@@ -195,6 +195,7 @@
     "plantingDetailDescription": "Description",
     "plantingDetailClose": "Close",
     "plantingDetailTitle": "Indoor sowing",
+    "markAsTransplanted": "Mark as transplanted",
     "noIndoorUnassigned": "No indoor sowings without a bed yet.",
     "transplantDateOptional": "Transplant date (optional)",
     "noSeason": "No active season found for this garden.",

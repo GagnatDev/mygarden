@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { deletePlanting, patchPlanting } from '../api/plantings';
+import { createLog } from '../api/logs';
 import { useGardenContext } from '../garden/garden-context';
 import { useActiveSeason } from '../garden/useActiveSeason';
 import { ActivityTimelineSection } from '../planning/planting-plan/ActivityTimelineSection';
@@ -52,6 +53,14 @@ export function PlantingPlanPage() {
   }, [plantings]);
 
   const indoorAll = useMemo(() => plantings.filter((p) => p.sowingMethod === 'indoor'), [plantings]);
+
+  const transplantedPlantingIds = useMemo(() => {
+    const set = new Set<string>();
+    for (const l of logs) {
+      if (l.activity === 'transplanted' && l.plantingId) set.add(l.plantingId);
+    }
+    return set;
+  }, [logs]);
 
   const indoorDetailPlanting = useMemo(() => {
     if (!indoorDetailPlantingId) return null;
@@ -115,6 +124,33 @@ export function PlantingPlanPage() {
       }
     },
     [selectedGarden, loadAll, t, setError],
+  );
+
+  const handleMarkTransplanted = useCallback(
+    async (plantingId: string): Promise<boolean> => {
+      if (!selectedGarden) return false;
+      if (!seasonId) return false;
+      setError(null);
+      const now = new Date().toISOString();
+      try {
+        await createLog(selectedGarden.id, {
+          seasonId,
+          plantingId,
+          activity: 'transplanted',
+          date: now,
+          note: null,
+          quantity: null,
+          clientTimestamp: now,
+        });
+        await patchPlanting(selectedGarden.id, plantingId, { transplantDate: now });
+        await loadAll();
+        return true;
+      } catch (e) {
+        setError(e instanceof Error ? e.message : t('auth.unknownError'));
+        return false;
+      }
+    },
+    [selectedGarden, seasonId, loadAll, t, setError],
   );
 
   const onMovePlantingRow = useCallback(
@@ -215,6 +251,7 @@ export function PlantingPlanPage() {
         <>
           <IndoorSection
             indoorPlantings={indoorAll}
+            transplantedPlantingIds={transplantedPlantingIds}
             locale={i18n.language}
             elementLabelById={elementLabelById}
             assignmentFilter={indoorAssignmentFilter}
@@ -234,6 +271,8 @@ export function PlantingPlanPage() {
               locale={i18n.language}
               onClose={closeIndoorDetail}
               onMove={handleMovePlanting}
+              onMarkTransplanted={handleMarkTransplanted}
+              isActuallyTransplanted={transplantedPlantingIds.has(indoorDetailPlanting.id)}
               onDelete={handleDeletePlanting}
               t={t}
             />

@@ -14,6 +14,8 @@ export const IndoorPlantingDetailModal = memo(function IndoorPlantingDetailModal
   profiles,
   onClose,
   onMove,
+  onMarkTransplanted,
+  isActuallyTransplanted,
   onDelete,
   t,
   locale,
@@ -25,6 +27,8 @@ export const IndoorPlantingDetailModal = memo(function IndoorPlantingDetailModal
   profiles: PlantProfile[];
   onClose: () => void;
   onMove: (plantingId: string, elementId: string) => Promise<boolean>;
+  onMarkTransplanted: (plantingId: string) => Promise<boolean>;
+  isActuallyTransplanted: boolean;
   onDelete: (plantingId: string) => Promise<boolean>;
   t: TFunction;
   locale: string;
@@ -149,6 +153,20 @@ export const IndoorPlantingDetailModal = memo(function IndoorPlantingDetailModal
         </div>
 
         <div className="mt-4 flex flex-wrap items-center justify-end gap-2 border-t border-stone-100 pt-4">
+          {!isActuallyTransplanted ? (
+            <button
+              type="button"
+              data-testid={`indoor-detail-mark-transplanted-${planting.id}`}
+              className="rounded-lg bg-emerald-700 px-3 py-2 text-sm font-medium text-white hover:bg-emerald-800"
+              onClick={() =>
+                void (async () => {
+                  if (await onMarkTransplanted(planting.id)) onClose();
+                })()
+              }
+            >
+              {t('planning.markAsTransplanted')}
+            </button>
+          ) : null}
           <button
             type="button"
             className="rounded-lg border border-stone-200 px-3 py-2 text-sm font-medium text-stone-700"
