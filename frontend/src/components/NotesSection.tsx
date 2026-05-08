@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   createNote,
@@ -35,7 +35,11 @@ export function NotesSection({
   hideHeading = false,
   className = '',
 }: NotesSectionProps) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const dateTimeFormatter = useMemo(
+    () => new Intl.DateTimeFormat(i18n.resolvedLanguage || i18n.language || undefined, { dateStyle: 'medium', timeStyle: 'short' }),
+    [i18n.language, i18n.resolvedLanguage],
+  );
   const { user } = useAuth();
   const [notes, setNotes] = useState<Note[]>([]);
   const [loading, setLoading] = useState(true);
@@ -171,6 +175,15 @@ export function NotesSection({
               ) : (
                 <>
                   <p className="whitespace-pre-wrap">{n.body}</p>
+                  {n.createdAt ? (
+                    <time
+                      className="mt-1 block text-xs text-stone-600"
+                      dateTime={n.createdAt}
+                      data-testid={`note-created-at-${n.id}`}
+                    >
+                      {dateTimeFormatter.format(new Date(n.createdAt))}
+                    </time>
+                  ) : null}
                   {n.photo ? (
                     <button
                       type="button"

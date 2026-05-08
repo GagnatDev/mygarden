@@ -21,7 +21,7 @@ describe('NotesSection', () => {
         body: 'First',
         photo: null,
         createdBy: 'u1',
-        createdAt: '',
+        createdAt: '2026-05-08T19:30:00.000Z',
         updatedAt: '',
       },
     ]);
@@ -61,6 +61,7 @@ describe('NotesSection', () => {
     );
 
     await waitFor(() => expect(screen.getByTestId('note-item-n1')).toHaveTextContent('First'));
+    expect(screen.getByTestId('note-created-at-n1')).toHaveAttribute('dateTime', '2026-05-08T19:30:00.000Z');
     expect(screen.getByTestId('note-add-form')).toBeInTheDocument();
     fireEvent.click(screen.getByTestId('note-edit-btn-n1'));
     expect(screen.getByTestId('note-edit-n1')).toBeInTheDocument();
@@ -76,7 +77,7 @@ describe('NotesSection', () => {
       body: 'Second',
       photo: null,
       createdBy: 'u1',
-      createdAt: '',
+      createdAt: '2026-05-08T19:31:00.000Z',
       updatedAt: '',
     });
     const uploadSpy = vi.spyOn(notesApi, 'uploadNotePhoto').mockResolvedValue({
@@ -88,7 +89,7 @@ describe('NotesSection', () => {
       body: 'Second',
       photo: { id: 'n2', mimeType: 'image/png', createdAt: '' },
       createdBy: 'u1',
-      createdAt: '',
+      createdAt: '2026-05-08T19:31:00.000Z',
       updatedAt: '',
     });
 
