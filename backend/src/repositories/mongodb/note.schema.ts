@@ -1,6 +1,16 @@
 import mongoose from 'mongoose';
 import { NOTE_TARGET_TYPES } from '../../domain/note.js';
 
+const notePhotoSchema = new mongoose.Schema(
+  {
+    id: { type: String, required: true },
+    objectKey: { type: String, required: true },
+    mimeType: { type: String, required: true },
+    createdAt: { type: Date, required: true },
+  },
+  { _id: false },
+);
+
 const noteSchema = new mongoose.Schema(
   {
     _id: { type: String, required: true },
@@ -9,6 +19,7 @@ const noteSchema = new mongoose.Schema(
     targetType: { type: String, enum: [...NOTE_TARGET_TYPES], required: true },
     targetId: { type: String, required: true },
     body: { type: String, required: true },
+    photo: { type: notePhotoSchema, required: false, default: null },
     createdBy: { type: String, required: true },
   },
   { _id: false, timestamps: true },

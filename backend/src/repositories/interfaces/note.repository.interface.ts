@@ -1,4 +1,4 @@
-import type { Note, NoteTargetType } from '../../domain/note.js';
+import type { Note, NotePhoto, NoteTargetType } from '../../domain/note.js';
 import type { WithMongoSession } from '../mongo-session.js';
 
 export interface CreateNoteInput {
@@ -10,6 +10,11 @@ export interface CreateNoteInput {
   createdBy: string;
 }
 
+export interface SetNotePhotoInput {
+  noteId: string;
+  photo: NotePhoto | null;
+}
+
 export interface INoteRepository {
   create(input: CreateNoteInput): Promise<Note>;
   findById(id: string): Promise<Note | null>;
@@ -19,6 +24,7 @@ export interface INoteRepository {
     filters?: { targetType?: NoteTargetType; targetId?: string },
   ): Promise<Note[]>;
   update(id: string, patch: Partial<Pick<Note, 'body' | 'updatedAt'>>): Promise<Note | null>;
+  setPhoto(input: SetNotePhotoInput): Promise<Note | null>;
   delete(id: string): Promise<boolean>;
   deleteByGardenId(gardenId: string, options?: WithMongoSession): Promise<number>;
 }

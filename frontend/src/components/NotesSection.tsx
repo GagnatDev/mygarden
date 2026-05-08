@@ -4,11 +4,16 @@ import {
   createNote,
   deleteNote,
   listNotes,
+  notePhotoUrl,
   patchNote,
+  uploadNotePhoto,
   type Note,
   type NoteTargetType,
 } from '../api/notes';
 import { useAuth } from '../auth/useAuth';
+import { PlantProfileImageGallery } from '../pages/plantProfiles/PlantProfileImageGallery';
+import type { GalleryImage } from '../pages/plantProfiles/types';
+import { PlantProfileImageThumb } from '../pages/plantProfiles/PlantProfileImageThumb';
 
 export interface NotesSectionProps {
   gardenId: string;
@@ -39,6 +44,8 @@ export function NotesSection({
   const [error, setError] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editBody, setEditBody] = useState('');
+  const [draftPhoto, setDraftPhoto] = useState<File | null>(null);
+  const [gallery, setGallery] = useState<{ images: GalleryImage[]; startIndex: number } | null>(null);
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -65,8 +72,18 @@ export function NotesSection({
     setBusy(true);
     setError(null);
     try {
-      await createNote(gardenId, { seasonId, targetType, targetId, body });
+      const created = await createNote(gardenId, { seasonId, targetType, targetId, body });
+      if ('queued' in created) {
+        setDraft('');
+        setDraftPhoto(null);
+        await refresh();
+        return;
+      }
+      if (draftPhoto) {
+        await uploadNotePhoto(gardenId, created.id, draftPhoto);
+      }
       setDraft('');
+      setDraftPhoto(null);
       await refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : t('auth.unknownError'));
@@ -154,6 +171,21 @@ export function NotesSection({
               ) : (
                 <>
                   <p className="whitespace-pre-wrap">{n.body}</p>
+                  {n.photo ? (
+                    <button
+                      type="button"
+                      className="mt-2 block rounded-lg focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-700"
+                      onClick={() =>
+                        setGallery({
+                          images: [{ id: n.id, url: notePhotoUrl(gardenId, n.id) }],
+                          startIndex: 0,
+                        })
+                      }
+                      aria-label="View photo"
+                    >
+                      <PlantProfileImageThumb url={notePhotoUrl(gardenId, n.id)} alt="Note photo" />
+                    </button>
+                  ) : null}
                   {!readOnly && user?.id === n.createdBy ? (
                     <div className="mt-2 flex gap-2">
                       <button
@@ -194,6 +226,17 @@ export function NotesSection({
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
           />
+          <input
+            data-testid="note-photo-input"
+            className="block w-full text-sm text-stone-700 file:mr-3 file:rounded-md file:border-0 file:bg-stone-200 file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-stone-800"
+            type="file"
+            accept="image/*"
+            disabled={busy}
+            onChange={(e) => {
+              const f = e.target.files?.[0] ?? null;
+              setDraftPhoto(f);
+            }}
+          />
           <button
             type="submit"
             disabled={busy || !draft.trim()}
@@ -202,6 +245,20 @@ export function NotesSection({
             {busy ? t('auth.submitting') : t('notes.add')}
           </button>
         </form>
+      ) : null}
+
+      {gallery ? (
+        <PlantProfileImageGallery
+          images={gallery.images}
+          startIndex={gallery.startIndex}
+          onClose={() => setGallery(null)}
+          labels={{
+            back: t('planning.imageGalleryBack', { defaultValue: 'Back' }),
+            close: t('planning.imageGalleryClose', { defaultValue: 'Close' }),
+            slideAlt: 'Note photo',
+            galleryAria: 'Note photos',
+          }}
+        />
       ) : null}
     </section>
   );

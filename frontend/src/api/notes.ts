@@ -2,6 +2,12 @@ import { apiFetch, readProblemDetails } from './client';
 
 export type NoteTargetType = 'planting' | 'element' | 'season';
 
+export interface NotePhoto {
+  id: string;
+  mimeType: string;
+  createdAt: string;
+}
+
 export interface Note {
   id: string;
   gardenId: string;
@@ -9,6 +15,7 @@ export interface Note {
   targetType: NoteTargetType;
   targetId: string;
   body: string;
+  photo: NotePhoto | null;
   createdBy: string;
   createdAt: string;
   updatedAt: string;
@@ -65,4 +72,23 @@ export async function deleteNote(gardenId: string, noteId: string): Promise<void
   const res = await apiFetch(`/gardens/${gardenId}/notes/${noteId}`, { method: 'DELETE' });
   await throwUnlessOk(res);
   if (res.status === 202) return { queued: true };
+}
+
+export function notePhotoUrl(gardenId: string, noteId: string): string {
+  return `/gardens/${gardenId}/notes/${noteId}/photo`;
+}
+
+export async function uploadNotePhoto(
+  gardenId: string,
+  noteId: string,
+  file: File,
+): Promise<Note> {
+  const fd = new FormData();
+  fd.append('file', file);
+  const res = await apiFetch(`/gardens/${gardenId}/notes/${noteId}/photo`, {
+    method: 'POST',
+    body: fd,
+  });
+  await throwUnlessOk(res);
+  return (await res.json()) as Note;
 }

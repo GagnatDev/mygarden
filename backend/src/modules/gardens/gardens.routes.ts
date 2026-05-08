@@ -82,7 +82,7 @@ export function createGardensRouter(env: Env, c: AppContainer): Router {
   scoped.use('/plantings', createPlantingsRouter(c));
   scoped.use('/tasks', createTasksRouter(c));
   scoped.use('/logs', createActivityLogsRouter(c));
-  scoped.use('/notes', createNotesRouter(c));
+  scoped.use('/notes', createNotesRouter(env, c));
 
   r.use('/:gardenId', scoped);
 

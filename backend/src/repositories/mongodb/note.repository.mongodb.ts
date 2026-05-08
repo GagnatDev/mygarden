@@ -1,11 +1,20 @@
 import { v4 as uuidv4 } from 'uuid';
-import type { Note, NoteTargetType } from '../../domain/note.js';
-import type { CreateNoteInput, INoteRepository } from '../interfaces/note.repository.interface.js';
+import type { Note, NotePhoto, NoteTargetType } from '../../domain/note.js';
+import type { CreateNoteInput, INoteRepository, SetNotePhotoInput } from '../interfaces/note.repository.interface.js';
 import type { WithMongoSession } from '../mongo-session.js';
 import type { NoteDoc } from './note.schema.js';
 import { NoteModel } from './note.schema.js';
 
 function toNote(doc: NoteDoc): Note {
+  const photo: NotePhoto | null =
+    doc.photo && typeof doc.photo === 'object'
+      ? {
+          id: doc.photo.id,
+          objectKey: doc.photo.objectKey,
+          mimeType: doc.photo.mimeType,
+          createdAt: doc.photo.createdAt,
+        }
+      : null;
   return {
     id: doc._id,
     gardenId: doc.gardenId,
@@ -13,6 +22,7 @@ function toNote(doc: NoteDoc): Note {
     targetType: doc.targetType as NoteTargetType,
     targetId: doc.targetId,
     body: doc.body,
+    photo,
     createdBy: doc.createdBy,
     createdAt: doc.createdAt,
     updatedAt: doc.updatedAt,
@@ -29,6 +39,7 @@ export class NoteRepositoryMongo implements INoteRepository {
       targetType: input.targetType,
       targetId: input.targetId,
       body: input.body,
+      photo: null,
       createdBy: input.createdBy,
     });
     return toNote(doc.toObject() as NoteDoc);
@@ -54,6 +65,16 @@ export class NoteRepositoryMongo implements INoteRepository {
 
   async update(id: string, patch: Partial<Pick<Note, 'body' | 'updatedAt'>>): Promise<Note | null> {
     const doc = await NoteModel.findByIdAndUpdate(id, { $set: patch }, { new: true, runValidators: true }).lean();
+    if (!doc) return null;
+    return toNote(doc as NoteDoc);
+  }
+
+  async setPhoto(input: SetNotePhotoInput): Promise<Note | null> {
+    const doc = await NoteModel.findByIdAndUpdate(
+      input.noteId,
+      { $set: { photo: input.photo } },
+      { new: true, runValidators: true },
+    ).lean();
     if (!doc) return null;
     return toNote(doc as NoteDoc);
   }

@@ -129,7 +129,7 @@ export function buildContainer(env: Env, options?: ContainerBuildOptions): AppCo
     elementRepo,
     areaRepo,
   );
-  const noteService = new NoteService(noteRepo, seasonRepo, plantingRepo, elementRepo, areaRepo);
+  const noteService = new NoteService(noteRepo, seasonRepo, plantingRepo, elementRepo, areaRepo, fileStorage);
   return {
     env,
     userRepo,
