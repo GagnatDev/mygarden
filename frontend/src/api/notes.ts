@@ -92,3 +92,10 @@ export async function uploadNotePhoto(
   await throwUnlessOk(res);
   return (await res.json()) as Note;
 }
+
+export async function deleteNotePhoto(gardenId: string, noteId: string): Promise<Note | { queued: true }> {
+  const res = await apiFetch(`/gardens/${gardenId}/notes/${noteId}/photo`, { method: 'DELETE' });
+  await throwUnlessOk(res);
+  if (res.status === 202) return { queued: true };
+  return (await res.json()) as Note;
+}

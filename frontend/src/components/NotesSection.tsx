@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import {
   createNote,
   deleteNote,
+  deleteNotePhoto,
   listNotes,
   notePhotoUrl,
   patchNote,
@@ -49,6 +50,8 @@ export function NotesSection({
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editBody, setEditBody] = useState('');
   const [draftPhoto, setDraftPhoto] = useState<File | null>(null);
+  const [editPhoto, setEditPhoto] = useState<File | null>(null);
+  const [editRemovePhoto, setEditRemovePhoto] = useState(false);
   const [gallery, setGallery] = useState<{ images: GalleryImage[]; startIndex: number } | null>(null);
 
   const refresh = useCallback(async () => {
@@ -103,7 +106,14 @@ export function NotesSection({
     setError(null);
     try {
       await patchNote(gardenId, id, body);
+      if (editRemovePhoto) {
+        await deleteNotePhoto(gardenId, id);
+      } else if (editPhoto) {
+        await uploadNotePhoto(gardenId, id, editPhoto);
+      }
       setEditingId(null);
+      setEditPhoto(null);
+      setEditRemovePhoto(false);
       await refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : t('auth.unknownError'));
@@ -153,6 +163,49 @@ export function NotesSection({
                     value={editBody}
                     onChange={(e) => setEditBody(e.target.value)}
                   />
+                  {n.photo ? (
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        className="rounded-lg focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-700"
+                        onClick={() =>
+                          setGallery({
+                            images: [{ id: n.id, url: notePhotoUrl(gardenId, n.id) }],
+                            startIndex: 0,
+                          })
+                        }
+                        aria-label="View photo"
+                      >
+                        <PlantProfileImageThumb url={notePhotoUrl(gardenId, n.id)} alt="Note photo" />
+                      </button>
+                      <label className="flex items-center gap-2 text-xs text-stone-700">
+                        <input
+                          data-testid={`note-edit-remove-photo-${n.id}`}
+                          type="checkbox"
+                          checked={editRemovePhoto}
+                          disabled={busy}
+                          onChange={(e) => {
+                            const checked = e.target.checked;
+                            setEditRemovePhoto(checked);
+                            if (checked) setEditPhoto(null);
+                          }}
+                        />
+                        {t('notes.removePhoto', { defaultValue: 'Remove photo' })}
+                      </label>
+                    </div>
+                  ) : null}
+                  <input
+                    data-testid={`note-edit-photo-input-${n.id}`}
+                    className="block w-full text-sm text-stone-700 file:mr-3 file:rounded-md file:border-0 file:bg-stone-200 file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-stone-800"
+                    type="file"
+                    accept="image/*"
+                    disabled={busy || editRemovePhoto}
+                    onChange={(e) => {
+                      const f = e.target.files?.[0] ?? null;
+                      setEditPhoto(f);
+                      if (f) setEditRemovePhoto(false);
+                    }}
+                  />
                   <div className="flex gap-2">
                     <button
                       type="button"
@@ -166,7 +219,11 @@ export function NotesSection({
                       type="button"
                       className="rounded border border-stone-200 px-2 py-1 text-xs"
                       disabled={busy}
-                      onClick={() => setEditingId(null)}
+                      onClick={() => {
+                        setEditingId(null);
+                        setEditPhoto(null);
+                        setEditRemovePhoto(false);
+                      }}
                     >
                       {t('garden.cancel')}
                     </button>
@@ -208,6 +265,8 @@ export function NotesSection({
                         onClick={() => {
                           setEditingId(n.id);
                           setEditBody(n.body);
+                        setEditPhoto(null);
+                        setEditRemovePhoto(false);
                         }}
                       >
                         {t('notes.edit')}
