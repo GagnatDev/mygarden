@@ -148,6 +148,7 @@ const en = {
     plantingDetailHarvestEnd: 'Harvest end',
     plantingDetailQuantity: 'Qty',
     plantingDetailDescription: 'Desc',
+    plantingDetailLocation: 'In',
     plantingDetailClose: 'Close',
     plantingDetailTitle: 'Indoor detail',
     noIndoorUnassigned: 'No pending',
@@ -750,6 +751,108 @@ describe('PlantingPlanPage', () => {
     await waitFor(() => {
       expect(patchPlanting).toHaveBeenCalledWith('g1', 'pl9', { elementId: 'e2' });
     });
+  });
+
+  it('shows assigned area and element in the indoor detail modal when assigned, and hides it when unassigned', async () => {
+    vi.mocked(listPlantings).mockResolvedValue([
+      {
+        id: 'pl-assigned',
+        gardenId: 'g1',
+        seasonId: 's1',
+        elementId: 'e2',
+        plantProfileId: null,
+        plantName: 'Tomato',
+        sowingMethod: 'indoor',
+        indoorSowDate: '2026-02-01T12:00:00.000Z',
+        transplantDate: null,
+        outdoorSowDate: null,
+        harvestWindowStart: null,
+        harvestWindowEnd: null,
+        quantity: null,
+        notes: null,
+        createdBy: 'u1',
+        createdAt: '',
+        updatedAt: '',
+      },
+      {
+        id: 'pl-unassigned',
+        gardenId: 'g1',
+        seasonId: 's1',
+        elementId: null,
+        plantProfileId: null,
+        plantName: 'Basil',
+        sowingMethod: 'indoor',
+        indoorSowDate: '2026-02-02T12:00:00.000Z',
+        transplantDate: null,
+        outdoorSowDate: null,
+        harvestWindowStart: null,
+        harvestWindowEnd: null,
+        quantity: null,
+        notes: null,
+        createdBy: 'u1',
+        createdAt: '',
+        updatedAt: '',
+      },
+    ]);
+
+    const i18nInstance = await testI18n();
+    render(
+      <I18nextProvider i18n={i18nInstance}>
+        <GardenContext.Provider value={ctx}>
+          <PlantingPlanPage />
+        </GardenContext.Provider>
+      </I18nextProvider>,
+    );
+
+    await waitFor(() => expect(screen.getByTestId('indoor-row-pl-assigned')).toBeInTheDocument());
+    fireEvent.click(screen.getByTestId('indoor-row-pl-assigned'));
+    await waitFor(() =>
+      expect(screen.getByTestId('indoor-planting-detail-modal')).toBeInTheDocument(),
+    );
+
+    const assignedLocation = screen.getByTestId('indoor-detail-location-pl-assigned');
+    expect(assignedLocation).toHaveTextContent('Back · Bed B');
+  });
+
+  it('omits the location row in the indoor detail modal for unassigned plantings', async () => {
+    vi.mocked(listPlantings).mockResolvedValue([
+      {
+        id: 'pl-unassigned',
+        gardenId: 'g1',
+        seasonId: 's1',
+        elementId: null,
+        plantProfileId: null,
+        plantName: 'Basil',
+        sowingMethod: 'indoor',
+        indoorSowDate: '2026-02-02T12:00:00.000Z',
+        transplantDate: null,
+        outdoorSowDate: null,
+        harvestWindowStart: null,
+        harvestWindowEnd: null,
+        quantity: null,
+        notes: null,
+        createdBy: 'u1',
+        createdAt: '',
+        updatedAt: '',
+      },
+    ]);
+
+    const i18nInstance = await testI18n();
+    render(
+      <I18nextProvider i18n={i18nInstance}>
+        <GardenContext.Provider value={ctx}>
+          <PlantingPlanPage />
+        </GardenContext.Provider>
+      </I18nextProvider>,
+    );
+
+    await waitFor(() => expect(screen.getByTestId('indoor-row-pl-unassigned')).toBeInTheDocument());
+    fireEvent.click(screen.getByTestId('indoor-row-pl-unassigned'));
+    await waitFor(() =>
+      expect(screen.getByTestId('indoor-planting-detail-modal')).toBeInTheDocument(),
+    );
+
+    expect(screen.queryByTestId('indoor-detail-location-pl-unassigned')).not.toBeInTheDocument();
   });
 
   it('shows notes in indoor unassigned detail modal', async () => {

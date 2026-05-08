@@ -193,6 +193,7 @@
     "plantingDetailHarvestEnd": "Høstvindu slutter",
     "plantingDetailQuantity": "Antall",
     "plantingDetailDescription": "Beskrivelse",
+    "plantingDetailLocation": "Plassert i",
     "plantingDetailClose": "Lukk",
     "plantingDetailTitle": "Forkultivering",
     "markAsTransplanted": "Marker som utplantet",

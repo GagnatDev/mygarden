@@ -38,6 +38,14 @@ export const IndoorPlantingDetailModal = memo(function IndoorPlantingDetailModal
       ? profiles.find((p) => p.id === planting.plantProfileId)?.name
       : undefined;
 
+  const assignedElement =
+    planting.elementId != null
+      ? elementsWithArea.find((el) => el.id === planting.elementId)
+      : undefined;
+  const locationLabel = assignedElement
+    ? `${assignedElement.areaTitle} · ${assignedElement.name}`
+    : undefined;
+
   return (
     <div
       className="fixed inset-0 z-20 flex items-end justify-center bg-black/40 p-4 md:items-center"
@@ -59,6 +67,14 @@ export const IndoorPlantingDetailModal = memo(function IndoorPlantingDetailModal
             </dt>
             <dd>{t(`planning.sowing.${planting.sowingMethod}`)}</dd>
           </div>
+          {locationLabel ? (
+            <div>
+              <dt className="text-xs font-medium uppercase tracking-wide text-stone-500">
+                {t('planning.plantingDetailLocation')}
+              </dt>
+              <dd data-testid={`indoor-detail-location-${planting.id}`}>{locationLabel}</dd>
+            </div>
+          ) : null}
           <div>
             <dt className="text-xs font-medium uppercase tracking-wide text-stone-500">
               {t('planning.indoorSowDate')}

@@ -193,6 +193,7 @@
     "plantingDetailHarvestEnd": "Harvest window ends",
     "plantingDetailQuantity": "Quantity",
     "plantingDetailDescription": "Description",
+    "plantingDetailLocation": "Currently in",
     "plantingDetailClose": "Close",
     "plantingDetailTitle": "Indoor sowing",
     "markAsTransplanted": "Mark as transplanted",
