@@ -1,6 +1,5 @@
 import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import type { Area } from '../../api/areas';
 import type { SitePlant } from '../../api/sitePlants';
 import {
   filterAndSortPermanentPlants,
@@ -14,7 +13,6 @@ import type { ElementWithArea } from './types';
 
 export function usePermanentPlantInventory(
   sitePlants: SitePlant[],
-  areas: Area[],
   elementsWithArea: ElementWithArea[],
 ) {
   const { t } = useTranslation();

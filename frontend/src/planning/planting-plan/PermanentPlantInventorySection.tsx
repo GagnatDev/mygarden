@@ -32,7 +32,7 @@ export function PermanentPlantInventorySection({
 }) {
   const { t } = useTranslation();
   const [notesSitePlantId, setNotesSitePlantId] = useState<string | null>(null);
-  const inv = usePermanentPlantInventory(sitePlants, areas, elementsWithArea);
+  const inv = usePermanentPlantInventory(sitePlants, elementsWithArea);
 
   async function handleDelete(id: string) {
     if (!window.confirm(t('planning.confirmRemoveSitePlant'))) return;
