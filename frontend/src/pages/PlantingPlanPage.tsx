@@ -6,7 +6,7 @@ import { createLog } from '../api/logs';
 import { useGardenContext } from '../garden/garden-context';
 import { useActiveSeason } from '../garden/useActiveSeason';
 import { ActivityTimelineSection } from '../planning/planting-plan/ActivityTimelineSection';
-import { AddPlantingForm } from '../planning/planting-plan/AddPlantingForm';
+import { AddPlantForm } from '../planning/planting-plan/AddPlantForm';
 import { SitePlantsSection } from '../planning/planting-plan/SitePlantsSection';
 import { IndoorPlantingDetailModal } from '../planning/planting-plan/IndoorPlantingDetailModal';
 import {
@@ -283,7 +283,7 @@ export function PlantingPlanPage() {
 
       {error ? <p className="mt-2 text-sm text-red-600">{error}</p> : null}
 
-      <AddPlantingForm
+      <AddPlantForm
         gardenId={selectedGarden.id}
         seasonId={seasonId}
         areas={areas}
@@ -297,9 +297,7 @@ export function PlantingPlanPage() {
       <SitePlantsSection
         gardenId={selectedGarden.id}
         seasonId={seasonId}
-        areas={areas}
         elementsByAreaId={elementsByAreaId}
-        profiles={profiles}
         sitePlants={sitePlants}
         onRefresh={() => void refreshAll()}
         onMoveSitePlant={handleMoveSitePlant}

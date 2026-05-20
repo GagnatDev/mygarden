@@ -62,6 +62,7 @@ vi.mock('../api/plantProfiles', () => ({
 
 vi.mock('../api/sitePlants', () => ({
   listSitePlants: vi.fn(),
+  createSitePlant: vi.fn(),
   updateSitePlant: vi.fn(),
 }));
 
@@ -164,6 +165,11 @@ const en = {
     quickLog: 'Log',
     noPlantingsInArea: 'Empty',
     noElementsInArea: 'No elements',
+    addPlant: 'Add plant',
+    addPlantCollapse: 'Close',
+    addPlantTypePermanent: 'Permanent',
+    addPlantTypeOutdoor: 'Outdoor',
+    addPlantTypeIndoor: 'Indoor mode',
     addPlanting: 'Add',
     plantSource: 'Source',
     fromProfile: 'Profile',
@@ -364,6 +370,7 @@ describe('PlantingPlanPage', () => {
     expect(entries[0]).toHaveTextContent('newer');
     expect(entries[1]).toHaveTextContent('older');
 
+    fireEvent.click(screen.getByTestId('add-plant-expand'));
     fireEvent.click(screen.getByTestId('plan-mode-indoor'));
     expect(screen.getByTestId('indoor-sow-date')).toBeInTheDocument();
     expect(screen.getByTestId('transplant-date')).toBeInTheDocument();
