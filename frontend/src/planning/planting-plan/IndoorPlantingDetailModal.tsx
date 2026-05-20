@@ -3,6 +3,8 @@ import type { TFunction } from 'i18next';
 import type { Planting } from '../../api/plantings';
 import type { PlantProfile } from '../../api/plantProfiles';
 import { NotesSection } from '../../components/NotesSection';
+import type { Area } from '../../api/areas';
+import { ElementMoveSelect } from './ElementMoveSelect';
 import { formatIsoDateUtc } from './format-iso-date-utc';
 import type { ElementWithArea } from './types';
 
@@ -10,6 +12,8 @@ export const IndoorPlantingDetailModal = memo(function IndoorPlantingDetailModal
   planting,
   gardenId,
   seasonId,
+  areas,
+  elementsByAreaId,
   elementsWithArea,
   profiles,
   onClose,
@@ -23,6 +27,8 @@ export const IndoorPlantingDetailModal = memo(function IndoorPlantingDetailModal
   planting: Planting;
   gardenId: string;
   seasonId: string;
+  areas: Area[];
+  elementsByAreaId: Map<string, ElementWithArea[]>;
   elementsWithArea: ElementWithArea[];
   profiles: PlantProfile[];
   onClose: () => void;
@@ -135,27 +141,20 @@ export const IndoorPlantingDetailModal = memo(function IndoorPlantingDetailModal
           ) : null}
         </dl>
 
-        <label className="mt-4 block text-sm font-medium text-stone-700">
+        <label className="mt-4 flex flex-col gap-1 text-sm font-medium text-stone-700">
           {t('planning.moveToElement')}
-          <select
-            data-testid={`indoor-detail-area-select-${planting.id}`}
-            className="mt-1 w-full rounded-lg border border-stone-300 px-3 py-2 text-stone-800"
-            value=""
-            onChange={(e) => {
-              const v = e.target.value;
-              if (!v) return;
+          <ElementMoveSelect
+            testId={`indoor-detail-area-select-${planting.id}`}
+            value={planting.elementId}
+            areas={areas}
+            elementsByAreaId={elementsByAreaId}
+            allowEmptyOption={!planting.elementId}
+            onChange={(elementId) => {
               void (async () => {
-                if (await onMove(planting.id, v)) onClose();
+                if (await onMove(planting.id, elementId)) onClose();
               })();
             }}
-          >
-            <option value="">{t('planning.select')}</option>
-            {elementsWithArea.map((el) => (
-              <option key={el.id} value={el.id}>
-                {el.areaTitle} · {el.name}
-              </option>
-            ))}
-          </select>
+          />
         </label>
 
         <div className="mt-4 border-t border-stone-100 pt-4">
