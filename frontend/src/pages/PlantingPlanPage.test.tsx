@@ -207,6 +207,31 @@ const en = {
     hideNotes: 'Hide',
     refreshing: 'Updating…',
     savingMove: 'Saving…',
+    seasonPlantsTitleWithCount: 'Season plants ({{count}})',
+    filterArea: 'Area',
+    filterElement: 'Element',
+    filterSowingMethod: 'Sowing',
+    filterAssignment: 'Assignment',
+    filterTransplant: 'Transplant',
+    filterSearch: 'Search',
+    filterAll: 'All',
+    filterAreaUnassigned: 'Unassigned',
+    filterAssigned: 'Assigned',
+    filterUnassigned: 'Unassigned',
+    filterNotTransplanted: 'Not transplanted',
+    filterTransplanted: 'Transplanted',
+    noPlantsForFilter: 'No match',
+    sortBy: 'Sort by',
+    sortDirection: 'Order',
+    sortSowDate: 'Sow date',
+    sortName: 'Name',
+    sortLocation: 'Location',
+    sortTransplantDate: 'Transplant date',
+    sortAsc: 'Ascending',
+    sortDesc: 'Descending',
+    unassignedLocation: 'Unassigned',
+    locationLabel: 'Location',
+    plantDetails: 'Details',
     activityTimeline: 'Timeline',
     activities: {
       sown_indoors: 'Si',
@@ -359,11 +384,11 @@ describe('PlantingPlanPage', () => {
       </I18nextProvider>,
     );
 
-    await waitFor(() => expect(screen.getByTestId('plantings-by-area')).toBeInTheDocument());
-    expect(screen.getByTestId('indoor-section')).toHaveTextContent('Indoor sowings (1)');
-    expect(screen.getByTestId('element-plantings-e1')).toHaveTextContent('Lettuce');
-    expect(screen.getByTestId('element-plantings-e1')).toHaveTextContent('In');
-    expect(screen.getByTestId('element-plantings-e1')).toHaveTextContent('Not transplanted yet');
+    await waitFor(() => expect(screen.getByTestId('season-plant-inventory')).toBeInTheDocument());
+    expect(screen.getByTestId('season-plant-inventory')).toHaveTextContent('Season plants (1)');
+    expect(screen.getByTestId('season-plant-row-pl1')).toHaveTextContent('Lettuce');
+    expect(screen.getByTestId('season-plant-row-pl1')).toHaveTextContent('In');
+    expect(screen.getByTestId('season-plant-row-pl1')).toHaveTextContent('Not transplanted yet');
 
     const timeline = screen.getByTestId('activity-timeline');
     const entries = timeline.querySelectorAll('[data-testid^="log-entry-"]');
@@ -434,10 +459,10 @@ describe('PlantingPlanPage', () => {
       </I18nextProvider>,
     );
 
-    await waitFor(() => expect(screen.getByTestId('indoor-section')).toHaveTextContent('Basil'));
-    expect(screen.getByTestId('indoor-section')).toHaveTextContent('Lettuce');
-    expect(screen.getByTestId('indoor-section')).toHaveTextContent('Indoor sowings (2)');
-    expect(screen.getByTestId('element-plantings-e1')).toHaveTextContent('Lettuce');
+    await waitFor(() => expect(screen.getByTestId('season-plant-inventory')).toHaveTextContent('Basil'));
+    expect(screen.getByTestId('season-plant-inventory')).toHaveTextContent('Lettuce');
+    expect(screen.getByTestId('season-plant-inventory')).toHaveTextContent('Season plants (2)');
+    expect(screen.getByTestId('season-plant-row-pl1')).toHaveTextContent('Lettuce');
   });
 
   it('sorts indoor plantings by oldest indoor sow date first, null dates last', async () => {
@@ -510,13 +535,13 @@ describe('PlantingPlanPage', () => {
       </I18nextProvider>,
     );
 
-    await waitFor(() => expect(screen.getByTestId('indoor-row-pl2')).toBeInTheDocument());
-    const section = screen.getByTestId('indoor-section');
-    const rows = section.querySelectorAll('[data-testid^="indoor-row-"]');
+    await waitFor(() => expect(screen.getByTestId('season-plant-row-pl2')).toBeInTheDocument());
+    const section = screen.getByTestId('season-plant-inventory');
+    const rows = section.querySelectorAll('[data-testid^="season-plant-row-"]');
     expect(rows).toHaveLength(3);
-    expect(rows[0]).toHaveAttribute('data-testid', 'indoor-row-pl2');
-    expect(rows[1]).toHaveAttribute('data-testid', 'indoor-row-pl1');
-    expect(rows[2]).toHaveAttribute('data-testid', 'indoor-row-pl3');
+    expect(rows[0]).toHaveAttribute('data-testid', 'season-plant-row-pl2');
+    expect(rows[1]).toHaveAttribute('data-testid', 'season-plant-row-pl1');
+    expect(rows[2]).toHaveAttribute('data-testid', 'season-plant-row-pl3');
   });
 
   it('filters indoor list by assignment and can include transplanted indoor sowings', async () => {
@@ -606,30 +631,27 @@ describe('PlantingPlanPage', () => {
       </I18nextProvider>,
     );
 
-    await waitFor(() => expect(screen.getByTestId('indoor-section')).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByTestId('season-plant-inventory')).toBeInTheDocument());
 
-    // Default: includeTransplanted=false, assignment=all -> only pending (pl1 + pl2)
-    expect(screen.getByTestId('indoor-section')).toHaveTextContent('Indoor sowings (2)');
-    expect(screen.getByTestId('indoor-section')).toHaveTextContent('UnassignedPending');
-    expect(screen.getByTestId('indoor-section')).toHaveTextContent('AssignedPending');
-    expect(screen.getByTestId('indoor-section')).not.toHaveTextContent('AssignedTransplanted');
+    expect(screen.getByTestId('season-plant-inventory')).toHaveTextContent('Season plants (3)');
 
-    // Unassigned only
-    fireEvent.change(screen.getByTestId('indoor-filter-assignment'), { target: { value: 'unassigned' } });
-    expect(screen.getByTestId('indoor-section')).toHaveTextContent('Indoor sowings (1)');
-    expect(screen.getByTestId('indoor-section')).toHaveTextContent('UnassignedPending');
-    expect(screen.getByTestId('indoor-section')).not.toHaveTextContent('AssignedPending');
+    fireEvent.change(screen.getByTestId('season-filter-transplant'), {
+      target: { value: 'not_transplanted' },
+    });
+    expect(screen.getByTestId('season-plant-inventory')).toHaveTextContent('Season plants (2)');
+    expect(screen.getByTestId('season-plant-inventory')).toHaveTextContent('UnassignedPending');
+    expect(screen.getByTestId('season-plant-inventory')).toHaveTextContent('AssignedPending');
+    expect(screen.getByTestId('season-plant-inventory')).not.toHaveTextContent('AssignedTransplanted');
 
-    // Assigned only
-    fireEvent.change(screen.getByTestId('indoor-filter-assignment'), { target: { value: 'assigned' } });
-    expect(screen.getByTestId('indoor-section')).toHaveTextContent('Indoor sowings (1)');
-    expect(screen.getByTestId('indoor-section')).toHaveTextContent('AssignedPending');
+    fireEvent.change(screen.getByTestId('season-filter-assignment'), { target: { value: 'unassigned' } });
+    expect(screen.getByTestId('season-plant-inventory')).toHaveTextContent('Season plants (1)');
+    expect(screen.getByTestId('season-plant-inventory')).toHaveTextContent('UnassignedPending');
 
-    // Include transplanted adds pl3 (still assigned-only)
-    fireEvent.click(screen.getByTestId('indoor-filter-include-transplanted'));
-    expect(screen.getByTestId('indoor-section')).toHaveTextContent('Indoor sowings (2)');
-    expect(screen.getByTestId('indoor-section')).toHaveTextContent('AssignedPending');
-    expect(screen.getByTestId('indoor-section')).toHaveTextContent('AssignedTransplanted');
+    fireEvent.change(screen.getByTestId('season-filter-assignment'), { target: { value: 'assigned' } });
+    fireEvent.change(screen.getByTestId('season-filter-transplant'), { target: { value: 'all' } });
+    expect(screen.getByTestId('season-plant-inventory')).toHaveTextContent('Season plants (2)');
+    expect(screen.getByTestId('season-plant-inventory')).toHaveTextContent('AssignedPending');
+    expect(screen.getByTestId('season-plant-inventory')).toHaveTextContent('AssignedTransplanted');
   });
 
   it('marks an indoor sowing as actually transplanted from the detail modal', async () => {
@@ -700,8 +722,8 @@ describe('PlantingPlanPage', () => {
       </I18nextProvider>,
     );
 
-    await waitFor(() => expect(screen.getByTestId('indoor-row-pl9')).toBeInTheDocument());
-    fireEvent.click(screen.getByTestId('indoor-row-pl9'));
+    await waitFor(() => expect(screen.getByTestId('season-plant-name-pl9')).toBeInTheDocument());
+    fireEvent.click(screen.getByTestId('season-plant-name-pl9'));
     await waitFor(() => expect(screen.getByTestId('indoor-planting-detail-modal')).toBeInTheDocument());
 
     fireEvent.click(screen.getByTestId('indoor-detail-mark-transplanted-pl9'));
@@ -776,8 +798,8 @@ describe('PlantingPlanPage', () => {
       </I18nextProvider>,
     );
 
-    await waitFor(() => expect(screen.getByTestId('indoor-row-pl9')).toBeInTheDocument());
-    fireEvent.click(screen.getByTestId('indoor-row-pl9'));
+    await waitFor(() => expect(screen.getByTestId('season-plant-name-pl9')).toBeInTheDocument());
+    fireEvent.click(screen.getByTestId('season-plant-name-pl9'));
     await waitFor(() => expect(screen.getByTestId('indoor-planting-detail-modal')).toBeInTheDocument());
 
     fireEvent.change(screen.getByTestId('indoor-detail-area-select-pl9'), { target: { value: 'e2' } });
@@ -838,8 +860,8 @@ describe('PlantingPlanPage', () => {
       </I18nextProvider>,
     );
 
-    await waitFor(() => expect(screen.getByTestId('indoor-row-pl-assigned')).toBeInTheDocument());
-    fireEvent.click(screen.getByTestId('indoor-row-pl-assigned'));
+    await waitFor(() => expect(screen.getByTestId('season-plant-name-pl-assigned')).toBeInTheDocument());
+    fireEvent.click(screen.getByTestId('season-plant-name-pl-assigned'));
     await waitFor(() =>
       expect(screen.getByTestId('indoor-planting-detail-modal')).toBeInTheDocument(),
     );
@@ -880,8 +902,8 @@ describe('PlantingPlanPage', () => {
       </I18nextProvider>,
     );
 
-    await waitFor(() => expect(screen.getByTestId('indoor-row-pl-unassigned')).toBeInTheDocument());
-    fireEvent.click(screen.getByTestId('indoor-row-pl-unassigned'));
+    await waitFor(() => expect(screen.getByTestId('season-plant-name-pl-unassigned')).toBeInTheDocument());
+    fireEvent.click(screen.getByTestId('season-plant-name-pl-unassigned'));
     await waitFor(() =>
       expect(screen.getByTestId('indoor-planting-detail-modal')).toBeInTheDocument(),
     );
@@ -921,8 +943,8 @@ describe('PlantingPlanPage', () => {
       </I18nextProvider>,
     );
 
-    await waitFor(() => expect(screen.getByTestId('indoor-row-pl8')).toBeInTheDocument());
-    fireEvent.click(screen.getByTestId('indoor-row-pl8'));
+    await waitFor(() => expect(screen.getByTestId('season-plant-name-pl8')).toBeInTheDocument());
+    fireEvent.click(screen.getByTestId('season-plant-name-pl8'));
     await waitFor(() => expect(screen.getByTestId('notes-section')).toBeInTheDocument());
     expect(listNotes).toHaveBeenCalledWith('g1', 's1', { targetType: 'planting', targetId: 'pl8' });
   });
@@ -961,8 +983,8 @@ describe('PlantingPlanPage', () => {
       </I18nextProvider>,
     );
 
-    await waitFor(() => expect(screen.getByTestId('indoor-row-pl7')).toBeInTheDocument());
-    fireEvent.click(screen.getByTestId('indoor-row-pl7'));
+    await waitFor(() => expect(screen.getByTestId('season-plant-name-pl7')).toBeInTheDocument());
+    fireEvent.click(screen.getByTestId('season-plant-name-pl7'));
     await waitFor(() => expect(screen.getByTestId('indoor-detail-delete-pl7')).toBeInTheDocument());
 
     fireEvent.click(screen.getByTestId('indoor-detail-delete-pl7'));
@@ -986,7 +1008,7 @@ describe('PlantingPlanPage', () => {
       </I18nextProvider>,
     );
 
-    await waitFor(() => expect(screen.getByTestId('plantings-by-area')).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByTestId('season-plant-inventory')).toBeInTheDocument());
     expect(screen.queryByTestId('planting-plan-initial-loading')).not.toBeInTheDocument();
 
     fireEvent.change(screen.getByTestId('planting-area-select-pl1'), { target: { value: 'e2' } });
@@ -994,8 +1016,7 @@ describe('PlantingPlanPage', () => {
     await waitFor(() =>
       expect(patchPlanting).toHaveBeenCalledWith('g1', 'pl1', { elementId: 'e2' }),
     );
-    expect(screen.getByTestId('plantings-by-area')).toBeInTheDocument();
-    expect(screen.getByTestId('indoor-section')).toBeInTheDocument();
+    expect(screen.getByTestId('season-plant-inventory')).toBeInTheDocument();
     expect(screen.queryByTestId('planting-plan-initial-loading')).not.toBeInTheDocument();
   });
 

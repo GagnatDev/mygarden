@@ -9,11 +9,7 @@ import { ActivityTimelineSection } from '../planning/planting-plan/ActivityTimel
 import { AddPlantForm } from '../planning/planting-plan/AddPlantForm';
 import { SitePlantsSection } from '../planning/planting-plan/SitePlantsSection';
 import { IndoorPlantingDetailModal } from '../planning/planting-plan/IndoorPlantingDetailModal';
-import {
-  IndoorSection,
-  type IndoorSectionAssignmentFilter,
-} from '../planning/planting-plan/IndoorSection';
-import { PlantingsByAreaSection } from '../planning/planting-plan/PlantingsByAreaSection';
+import { SeasonPlantInventorySection } from '../planning/planting-plan/SeasonPlantInventorySection';
 import { usePlantingPlanResources } from '../planning/planting-plan/usePlantingPlanResources';
 import { QuickLogModal } from '../planning/QuickLogModal';
 
@@ -47,21 +43,6 @@ export function PlantingPlanPage() {
   const [quickLogOpen, setQuickLogOpen] = useState(false);
   const [notesPlantingId, setNotesPlantingId] = useState<string | null>(null);
   const [indoorDetailPlantingId, setIndoorDetailPlantingId] = useState<string | null>(null);
-  const [indoorAssignmentFilter, setIndoorAssignmentFilter] = useState<IndoorSectionAssignmentFilter>('all');
-  const [indoorIncludeTransplanted, setIndoorIncludeTransplanted] = useState(false);
-
-  const byElement = useMemo(() => {
-    const m = new Map<string, typeof plantings>();
-    for (const pl of plantings) {
-      if (!pl.elementId) continue;
-      const list = m.get(pl.elementId) ?? [];
-      list.push(pl);
-      m.set(pl.elementId, list);
-    }
-    return m;
-  }, [plantings]);
-
-  const indoorAll = useMemo(() => plantings.filter((p) => p.sowingMethod === 'indoor'), [plantings]);
 
   const transplantedPlantingIds = useMemo(() => {
     const set = new Set<string>();
@@ -90,14 +71,6 @@ export function PlantingPlanPage() {
       const list = m.get(el.areaId) ?? [];
       list.push(el);
       m.set(el.areaId, list);
-    }
-    return m;
-  }, [elementsWithArea]);
-
-  const elementLabelById = useMemo(() => {
-    const m = new Map<string, string>();
-    for (const el of elementsWithArea) {
-      m.set(el.id, `${el.areaTitle} · ${el.name}`);
     }
     return m;
   }, [elementsWithArea]);
@@ -316,16 +289,22 @@ export function PlantingPlanPage() {
               {t('planning.refreshing')}
             </p>
           ) : null}
-          <IndoorSection
-            indoorPlantings={indoorAll}
+          <SeasonPlantInventorySection
+            plantings={plantings}
+            areas={areas}
+            elementsWithArea={elementsWithArea}
+            elementsByAreaId={elementsByAreaId}
             transplantedPlantingIds={transplantedPlantingIds}
+            gardenId={selectedGarden.id}
+            seasonId={seasonId}
             locale={i18n.language}
-            elementLabelById={elementLabelById}
-            assignmentFilter={indoorAssignmentFilter}
-            setAssignmentFilter={setIndoorAssignmentFilter}
-            includeTransplanted={indoorIncludeTransplanted}
-            setIncludeTransplanted={setIndoorIncludeTransplanted}
-            onOpenRow={setIndoorDetailPlantingId}
+            notesPlantingId={notesPlantingId}
+            setNotesPlantingId={setNotesPlantingId}
+            onMovePlanting={onMovePlantingRow}
+            onDeletePlanting={onDeletePlantingRow}
+            onOpenIndoorDetail={setIndoorDetailPlantingId}
+            movingPlantingId={movingPlantingId}
+            t={t}
           />
 
           {indoorDetailPlanting ? (
@@ -344,22 +323,6 @@ export function PlantingPlanPage() {
               t={t}
             />
           ) : null}
-
-          <PlantingsByAreaSection
-            areas={areas}
-            elementsByAreaId={elementsByAreaId}
-            byElement={byElement}
-            gardenId={selectedGarden.id}
-            seasonId={seasonId}
-            elementsWithArea={elementsWithArea}
-            locale={i18n.language}
-            notesPlantingId={notesPlantingId}
-            setNotesPlantingId={setNotesPlantingId}
-            onMovePlanting={onMovePlantingRow}
-            onDeletePlanting={onDeletePlantingRow}
-            movingPlantingId={movingPlantingId}
-            t={t}
-          />
         </>
       )}
 
