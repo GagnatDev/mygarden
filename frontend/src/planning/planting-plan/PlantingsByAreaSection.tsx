@@ -16,6 +16,7 @@ const ElementPlantingsBlock = memo(function ElementPlantingsBlock({
   setNotesPlantingId,
   onMovePlanting,
   onDeletePlanting,
+  movingPlantingId,
   t,
 }: {
   element: ElementWithArea;
@@ -28,6 +29,7 @@ const ElementPlantingsBlock = memo(function ElementPlantingsBlock({
   setNotesPlantingId: Dispatch<SetStateAction<string | null>>;
   onMovePlanting: (plantingId: string, elementId: string) => void;
   onDeletePlanting: (plantingId: string) => void;
+  movingPlantingId: string | null;
   t: TFunction;
 }) {
   return (
@@ -55,6 +57,7 @@ const ElementPlantingsBlock = memo(function ElementPlantingsBlock({
               setNotesPlantingId={setNotesPlantingId}
               onMove={onMovePlanting}
               onDelete={onDeletePlanting}
+              isMoving={movingPlantingId === pl.id}
               t={t}
             />
           ))}
@@ -76,6 +79,7 @@ export const PlantingsByAreaSection = memo(function PlantingsByAreaSection({
   setNotesPlantingId,
   onMovePlanting,
   onDeletePlanting,
+  movingPlantingId,
   t,
 }: {
   areas: Area[];
@@ -89,6 +93,7 @@ export const PlantingsByAreaSection = memo(function PlantingsByAreaSection({
   setNotesPlantingId: Dispatch<SetStateAction<string | null>>;
   onMovePlanting: (plantingId: string, elementId: string) => void;
   onDeletePlanting: (plantingId: string) => void;
+  movingPlantingId: string | null;
   t: TFunction;
 }) {
   return (
@@ -114,6 +119,7 @@ export const PlantingsByAreaSection = memo(function PlantingsByAreaSection({
                   setNotesPlantingId={setNotesPlantingId}
                   onMovePlanting={onMovePlanting}
                   onDeletePlanting={onDeletePlanting}
+                  movingPlantingId={movingPlantingId}
                   t={t}
                 />
               ))

@@ -199,6 +199,8 @@ const en = {
     remove: 'Del',
     showNotes: 'Notes',
     hideNotes: 'Hide',
+    refreshing: 'Updating…',
+    savingMove: 'Saving…',
     activityTimeline: 'Timeline',
     activities: {
       sown_indoors: 'Si',
@@ -335,6 +337,9 @@ describe('PlantingPlanPage', () => {
 
   afterEach(() => {
     vi.clearAllMocks();
+    vi.mocked(patchPlanting).mockReset();
+    vi.mocked(updateSitePlant).mockReset();
+    vi.mocked(listPlantings).mockReset();
   });
 
   it('shows plantings grouped by area and element, timeline order, and sowing method fields', async () => {
@@ -960,6 +965,31 @@ describe('PlantingPlanPage', () => {
     });
 
     vi.unstubAllGlobals();
+  });
+
+  it('keeps list sections mounted during move refresh', async () => {
+    vi.mocked(patchPlanting).mockImplementationOnce(() => new Promise(() => {}));
+
+    const i18nInstance = await testI18n();
+    render(
+      <I18nextProvider i18n={i18nInstance}>
+        <GardenContext.Provider value={ctx}>
+          <PlantingPlanPage />
+        </GardenContext.Provider>
+      </I18nextProvider>,
+    );
+
+    await waitFor(() => expect(screen.getByTestId('plantings-by-area')).toBeInTheDocument());
+    expect(screen.queryByTestId('planting-plan-initial-loading')).not.toBeInTheDocument();
+
+    fireEvent.change(screen.getByTestId('planting-area-select-pl1'), { target: { value: 'e2' } });
+
+    await waitFor(() =>
+      expect(patchPlanting).toHaveBeenCalledWith('g1', 'pl1', { elementId: 'e2' }),
+    );
+    expect(screen.getByTestId('plantings-by-area')).toBeInTheDocument();
+    expect(screen.getByTestId('indoor-section')).toBeInTheDocument();
+    expect(screen.queryByTestId('planting-plan-initial-loading')).not.toBeInTheDocument();
   });
 
   it('patches planting element when move select changes', async () => {

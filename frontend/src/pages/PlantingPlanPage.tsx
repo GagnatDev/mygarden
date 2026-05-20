@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { deletePlanting, patchPlanting } from '../api/plantings';
+import { updateSitePlant } from '../api/sitePlants';
 import { createLog } from '../api/logs';
 import { useGardenContext } from '../garden/garden-context';
 import { useActiveSeason } from '../garden/useActiveSeason';
@@ -28,14 +29,20 @@ export function PlantingPlanPage() {
     areas,
     elementsWithArea,
     plantings,
+    setPlantings,
     sitePlants,
+    setSitePlants,
     profiles,
     logs,
     loading,
+    isRefreshing,
     error,
     setError,
-    loadAll,
+    refreshAll,
   } = usePlantingPlanResources(gardenId, seasonId);
+
+  const [movingPlantingId, setMovingPlantingId] = useState<string | null>(null);
+  const [movingSitePlantId, setMovingSitePlantId] = useState<string | null>(null);
 
   const [quickLogOpen, setQuickLogOpen] = useState(false);
   const [notesPlantingId, setNotesPlantingId] = useState<string | null>(null);
@@ -99,16 +106,56 @@ export function PlantingPlanPage() {
     async (plantingId: string, newElementId: string): Promise<boolean> => {
       if (!selectedGarden) return false;
       setError(null);
+      const previous = plantings.find((p) => p.id === plantingId);
+      if (!previous) return false;
+      setPlantings((prev) =>
+        prev.map((p) => (p.id === plantingId ? { ...p, elementId: newElementId } : p)),
+      );
+      setMovingPlantingId(plantingId);
       try {
         await patchPlanting(selectedGarden.id, plantingId, { elementId: newElementId });
-        await loadAll();
+        await refreshAll();
         return true;
       } catch (e) {
+        setPlantings((prev) =>
+          prev.map((p) => (p.id === plantingId ? previous! : p)),
+        );
         setError(e instanceof Error ? e.message : t('auth.unknownError'));
         return false;
+      } finally {
+        setMovingPlantingId(null);
       }
     },
-    [selectedGarden, loadAll, t, setError],
+    [selectedGarden, plantings, refreshAll, t, setError, setPlantings],
+  );
+
+  const handleMoveSitePlant = useCallback(
+    async (sitePlantId: string, newElementId: string): Promise<boolean> => {
+      if (!selectedGarden) return false;
+      setError(null);
+      const previous = sitePlants.find((sp) => sp.id === sitePlantId);
+      if (!previous) return false;
+      setSitePlants((prev) =>
+        prev.map((sp) =>
+          sp.id === sitePlantId ? { ...sp, elementId: newElementId } : sp,
+        ),
+      );
+      setMovingSitePlantId(sitePlantId);
+      try {
+        await updateSitePlant(selectedGarden.id, sitePlantId, { elementId: newElementId });
+        await refreshAll();
+        return true;
+      } catch (e) {
+        setSitePlants((prev) =>
+          prev.map((sp) => (sp.id === sitePlantId ? previous! : sp)),
+        );
+        setError(e instanceof Error ? e.message : t('auth.unknownError'));
+        return false;
+      } finally {
+        setMovingSitePlantId(null);
+      }
+    },
+    [selectedGarden, sitePlants, refreshAll, t, setError, setSitePlants],
   );
 
   const handleDeletePlanting = useCallback(
@@ -118,14 +165,14 @@ export function PlantingPlanPage() {
       setError(null);
       try {
         await deletePlanting(selectedGarden.id, plantingId);
-        await loadAll();
+        await refreshAll();
         return true;
       } catch (e) {
         setError(e instanceof Error ? e.message : t('auth.unknownError'));
         return false;
       }
     },
-    [selectedGarden, loadAll, t, setError],
+    [selectedGarden, refreshAll, t, setError],
   );
 
   const handleMarkTransplanted = useCallback(
@@ -145,14 +192,14 @@ export function PlantingPlanPage() {
           clientTimestamp: now,
         });
         await patchPlanting(selectedGarden.id, plantingId, { transplantDate: now });
-        await loadAll();
+        await refreshAll();
         return true;
       } catch (e) {
         setError(e instanceof Error ? e.message : t('auth.unknownError'));
         return false;
       }
     },
-    [selectedGarden, seasonId, loadAll, t, setError],
+    [selectedGarden, seasonId, refreshAll, t, setError],
   );
 
   const onMovePlantingRow = useCallback(
@@ -197,8 +244,8 @@ export function PlantingPlanPage() {
   );
 
   const onQuickLogged = useCallback(() => {
-    void loadAll();
-  }, [loadAll]);
+    void refreshAll();
+  }, [refreshAll]);
 
   const clearPageError = useCallback(() => {
     setError(null);
@@ -242,7 +289,7 @@ export function PlantingPlanPage() {
         areas={areas}
         elementsByAreaId={elementsByAreaId}
         profiles={profiles}
-        onCreated={loadAll}
+        onCreated={() => void refreshAll()}
         onError={setError}
         onBeginSubmit={clearPageError}
       />
@@ -254,14 +301,23 @@ export function PlantingPlanPage() {
         elementsByAreaId={elementsByAreaId}
         profiles={profiles}
         sitePlants={sitePlants}
-        onRefresh={loadAll}
+        onRefresh={() => void refreshAll()}
+        onMoveSitePlant={handleMoveSitePlant}
+        movingSitePlantId={movingSitePlantId}
         onError={setError}
       />
 
       {loading ? (
-        <p className="mt-4 text-stone-600">{t('auth.loading')}</p>
+        <p className="mt-4 text-stone-600" data-testid="planting-plan-initial-loading">
+          {t('auth.loading')}
+        </p>
       ) : (
         <>
+          {isRefreshing ? (
+            <p className="mt-2 text-xs text-stone-500" data-testid="planting-plan-refreshing" aria-live="polite">
+              {t('planning.refreshing')}
+            </p>
+          ) : null}
           <IndoorSection
             indoorPlantings={indoorAll}
             transplantedPlantingIds={transplantedPlantingIds}
@@ -303,6 +359,7 @@ export function PlantingPlanPage() {
             setNotesPlantingId={setNotesPlantingId}
             onMovePlanting={onMovePlantingRow}
             onDeletePlanting={onDeletePlantingRow}
+            movingPlantingId={movingPlantingId}
             t={t}
           />
         </>

@@ -15,6 +15,7 @@ export const PlantingListRow = memo(function PlantingListRow({
   setNotesPlantingId,
   onMove,
   onDelete,
+  isMoving,
   t,
 }: {
   pl: Planting;
@@ -26,6 +27,7 @@ export const PlantingListRow = memo(function PlantingListRow({
   setNotesPlantingId: Dispatch<SetStateAction<string | null>>;
   onMove: (plantingId: string, elementId: string) => void;
   onDelete: (plantingId: string) => void;
+  isMoving?: boolean;
   t: TFunction;
 }) {
   const sowDate =
@@ -51,6 +53,7 @@ export const PlantingListRow = memo(function PlantingListRow({
   return (
     <li
       data-testid={`planting-row-${pl.id}`}
+      aria-busy={isMoving || undefined}
       className="flex flex-col gap-2 py-2 sm:flex-row sm:items-center sm:justify-between"
     >
       <div>
@@ -77,6 +80,7 @@ export const PlantingListRow = memo(function PlantingListRow({
             data-testid={`planting-area-select-${pl.id}`}
             className="max-w-[14rem] rounded border border-stone-300 px-2 py-1 text-sm text-stone-800"
             value={pl.elementId ?? ''}
+            disabled={isMoving}
             onChange={(e) => {
               const v = e.target.value;
               if (!v) return;
@@ -90,6 +94,11 @@ export const PlantingListRow = memo(function PlantingListRow({
               </option>
             ))}
           </select>
+          {isMoving ? (
+            <span className="text-stone-500" data-testid={`planting-move-saving-${pl.id}`}>
+              {t('planning.savingMove')}
+            </span>
+          ) : null}
         </label>
         <button
           type="button"

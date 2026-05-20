@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { Area } from '../../api/areas';
-import { createSitePlant, deleteSitePlant, updateSitePlant, type SitePlant } from '../../api/sitePlants';
+import { createSitePlant, deleteSitePlant, type SitePlant } from '../../api/sitePlants';
 import type { PlantProfile } from '../../api/plantProfiles';
 import { NotesSection } from '../../components/NotesSection';
 import { LocaleDateField } from '../../components/LocaleDateField';
@@ -15,6 +15,8 @@ export function SitePlantsSection({
   profiles,
   sitePlants = [],
   onRefresh,
+  onMoveSitePlant,
+  movingSitePlantId = null,
   onError,
 }: {
   gardenId: string;
@@ -24,6 +26,8 @@ export function SitePlantsSection({
   profiles: PlantProfile[];
   sitePlants: SitePlant[];
   onRefresh: () => void | Promise<void>;
+  onMoveSitePlant: (sitePlantId: string, newElementId: string) => Promise<boolean>;
+  movingSitePlantId?: string | null;
   onError: (message: string) => void;
 }) {
   const { t } = useTranslation();
@@ -65,15 +69,6 @@ export function SitePlantsSection({
       onError(err instanceof Error ? err.message : t('auth.unknownError'));
     } finally {
       setFormBusy(false);
-    }
-  }
-
-  async function handleMove(sitePlantId: string, newElementId: string) {
-    try {
-      await updateSitePlant(gardenId, sitePlantId, { elementId: newElementId });
-      await onRefresh();
-    } catch (err) {
-      onError(err instanceof Error ? err.message : t('auth.unknownError'));
     }
   }
 
@@ -209,10 +204,12 @@ export function SitePlantsSection({
                       data-testid={`site-plant-element-select-${sp.id}`}
                       className="max-w-[14rem] rounded border border-stone-300 px-2 py-1 text-sm text-stone-800"
                       value={sp.elementId}
+                      disabled={movingSitePlantId === sp.id}
+                      aria-busy={movingSitePlantId === sp.id || undefined}
                       onChange={(e) => {
                         const v = e.target.value;
                         if (!v || v === sp.elementId) return;
-                        void handleMove(sp.id, v);
+                        void onMoveSitePlant(sp.id, v);
                       }}
                     >
                       {elementsFlat.map((el) => (
@@ -221,6 +218,11 @@ export function SitePlantsSection({
                         </option>
                       ))}
                     </select>
+                    {movingSitePlantId === sp.id ? (
+                      <span className="text-stone-500" data-testid={`site-plant-move-saving-${sp.id}`}>
+                        {t('planning.savingMove')}
+                      </span>
+                    ) : null}
                   </label>
                   <button
                     type="button"
