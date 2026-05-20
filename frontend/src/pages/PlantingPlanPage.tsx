@@ -7,7 +7,7 @@ import { useGardenContext } from '../garden/garden-context';
 import { useActiveSeason } from '../garden/useActiveSeason';
 import { ActivityTimelineSection } from '../planning/planting-plan/ActivityTimelineSection';
 import { AddPlantForm } from '../planning/planting-plan/AddPlantForm';
-import { SitePlantsSection } from '../planning/planting-plan/SitePlantsSection';
+import { PermanentPlantInventorySection } from '../planning/planting-plan/PermanentPlantInventorySection';
 import { IndoorPlantingDetailModal } from '../planning/planting-plan/IndoorPlantingDetailModal';
 import { SeasonPlantInventorySection } from '../planning/planting-plan/SeasonPlantInventorySection';
 import { usePlantingPlanResources } from '../planning/planting-plan/usePlantingPlanResources';
@@ -267,9 +267,11 @@ export function PlantingPlanPage() {
         onBeginSubmit={clearPageError}
       />
 
-      <SitePlantsSection
+      <PermanentPlantInventorySection
         gardenId={selectedGarden.id}
         seasonId={seasonId}
+        areas={areas}
+        elementsWithArea={elementsWithArea}
         elementsByAreaId={elementsByAreaId}
         sitePlants={sitePlants}
         onRefresh={() => void refreshAll()}
@@ -312,6 +314,8 @@ export function PlantingPlanPage() {
               planting={indoorDetailPlanting}
               gardenId={selectedGarden.id}
               seasonId={seasonId}
+              areas={areas}
+              elementsByAreaId={elementsByAreaId}
               elementsWithArea={elementsWithArea}
               profiles={profiles}
               locale={i18n.language}

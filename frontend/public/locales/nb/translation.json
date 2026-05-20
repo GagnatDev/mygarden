@@ -328,6 +328,8 @@
       "harvested": "Høstet",
       "problem_noted": "Problem notert"
     },
+    "permanentPlantsTitleWithCount": "Permanente planter ({{count}})",
+    "sortEstablished": "Etablert dato",
     "permanentPlantings": "Varige planter (trær og busker)",
     "permanentPlantingsHint": "Disse vises på kartet år etter år. Sesongnotater lagres på aktiv sesong.",
     "addSitePlant": "Legg til varig plante",

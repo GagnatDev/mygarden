@@ -328,6 +328,8 @@
       "harvested": "Harvested",
       "problem_noted": "Problem noted"
     },
+    "permanentPlantsTitleWithCount": "Permanent plants ({{count}})",
+    "sortEstablished": "Established date",
     "permanentPlantings": "Permanent plantings (trees and shrubs)",
     "permanentPlantingsHint": "These stay on the map year after year. Season notes are stored under the active season.",
     "addSitePlant": "Add permanent plant",

@@ -193,6 +193,8 @@ const en = {
     removePlanting: 'Remove',
     confirmRemovePlanting: 'Sure remove?',
     noSeason: 'No season',
+    permanentPlantsTitleWithCount: 'Permanent plants ({{count}})',
+    sortEstablished: 'Established',
     permanentPlantings: 'Permanent',
     permanentPlantingsHint: 'Hint perm',
     addSitePlant: 'Add perm',
@@ -332,6 +334,7 @@ describe('PlantingPlanPage', () => {
       },
     ]);
     vi.mocked(listPlantProfiles).mockResolvedValue([]);
+    vi.mocked(listSitePlants).mockResolvedValue([]);
     vi.mocked(listLogs).mockResolvedValue([
       {
         id: 'l2',
