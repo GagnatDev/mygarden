@@ -12,12 +12,19 @@ export interface ElementPlantingSummary {
   sowingMethod: string;
 }
 
+export interface ElementSitePlantSummary {
+  id: string;
+  plantName: string;
+  establishedDate: string | null;
+}
+
 export interface ElementDetailPanelProps {
   gardenId: string;
   areaId: string;
   seasonId: string;
   element: Element;
   plantings?: ElementPlantingSummary[];
+  sitePlants?: ElementSitePlantSummary[];
   onClose: () => void;
   onChanged: () => Promise<void>;
 }
@@ -28,6 +35,7 @@ export function ElementDetailPanel({
   seasonId,
   element,
   plantings = [],
+  sitePlants = [],
   onClose,
   onChanged,
 }: ElementDetailPanelProps) {
@@ -88,6 +96,38 @@ export function ElementDetailPanel({
       <p className="mt-1 text-sm text-stone-500">
         {t(`garden.areaTypes.${element.type}`)} · {element.gridWidth}×{element.gridHeight} {t('garden.cells')}
       </p>
+
+      {sitePlants.length > 0 ? (
+        <section className="mt-4 border-t border-stone-100 pt-4" data-testid="area-site-plants-section">
+          <h3 className="text-sm font-semibold text-stone-800">{t('garden.permanentPlantings')}</h3>
+          <ul className="mt-2 space-y-3 text-sm text-stone-700">
+            {sitePlants.map((sp) => (
+              <li key={sp.id} data-testid={`area-site-plant-${sp.id}`}>
+                <details className="rounded-lg border border-stone-100 bg-stone-50/80 p-2">
+                  <summary className="cursor-pointer font-medium text-stone-900">
+                    {sp.plantName}
+                    {sp.establishedDate ? (
+                      <span className="ml-2 text-xs font-normal text-stone-500">
+                        ({t('planning.establishedLabel')}: {sp.establishedDate})
+                      </span>
+                    ) : null}
+                  </summary>
+                  <p className="mt-1 text-xs text-stone-500">{t('garden.seasonNotesForPlant')}</p>
+                  <div className="mt-2">
+                    <NotesSection
+                      gardenId={gardenId}
+                      seasonId={seasonId}
+                      targetType="site_plant"
+                      targetId={sp.id}
+                      hideHeading
+                    />
+                  </div>
+                </details>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
 
       {plantings.length > 0 ? (
         <section className="mt-4 border-t border-stone-100 pt-4" data-testid="area-plantings-section">

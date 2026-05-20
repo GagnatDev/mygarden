@@ -277,6 +277,31 @@ A concrete instance of a plant in a specific area during a specific season. This
 - `plantName` is denormalized from the PlantProfile so that planting records remain meaningful even if the profile is later deleted or renamed.
 - Date fields are conditionally required based on `sowingMethod`. Validation enforced at the service layer.
 
+
+### 2.8a SitePlant (permanent plot plant)
+
+Long-lived stock (trees, berry bushes) tied to a map **element**, not to a season. Survives season changes without copying rows.
+
+| Field              | Type   | Required | Description                                      |
+| ------------------ | ------ | -------- | ------------------------------------------------ |
+| `_id`              | UUID   | yes      | Primary key                                      |
+| `gardenId`         | UUID   | yes      | Ref → Garden                                     |
+| `elementId`        | UUID   | yes      | Ref → Element                                    |
+| `plantProfileId`   | UUID   | no       | Ref → PlantProfile (optional)                    |
+| `plantName`        | string | yes      | Denormalized name (from profile or ad-hoc)       |
+| `establishedDate`  | Date   | no       | Approximate plant date (optional)                |
+| `notes`            | string | no       | Static notes on the plant (optional)             |
+| `createdBy`        | UUID   | yes      | Ref → User                                       |
+| `createdAt`        | Date   | auto     |                                                  |
+| `updatedAt`        | Date   | auto     |                                                  |
+
+**Indexes:** `(gardenId)`, `(elementId)`, compound `(gardenId, elementId)`.
+
+**API:** `GET/POST /gardens/:gardenId/site-plants`, `PATCH/DELETE .../site-plants/:id`.
+
+**Notes (season-scoped):** Use `Note` with `targetType: "site_plant"` and `targetId` = site plant id; each note still carries `seasonId` for the active season.
+
+
 ---
 
 ### 2.9 ActivityLog
@@ -360,8 +385,8 @@ Free-text notes attached to a plant, area, or the season in general.
 | `_id`        | UUID   | yes      | Primary key (v4, application-generated)                    |
 | `gardenId`   | UUID   | yes      | Ref → Garden                                               |
 | `seasonId`   | UUID   | yes      | Ref → Season                                               |
-| `targetType` | string | yes      | `"planting"`, `"area"`, or `"season"`                      |
-| `targetId`   | UUID   | no       | Ref → Planting or Area (null if `targetType` = `"season"`) |
+| `targetType` | string | yes      | `"planting"`, `"element"`, `"season"`, or `"site_plant"`     |
+| `targetId`   | UUID   | yes      | Ref → target entity (for `season`, must equal `seasonId`)  |
 | `content`    | string | yes      | Note text (markdown supported)                             |
 | `fileIds`    | UUID[] | no       | Refs → File (attached images)                              |
 | `createdBy`  | UUID   | yes      | Ref → User                                                 |

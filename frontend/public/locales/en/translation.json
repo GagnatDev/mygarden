@@ -152,7 +152,9 @@
     "backgroundRemove": "Remove photo",
     "backgroundOpacity": "Photo opacity",
     "backgroundUploading": "Uploading…",
-    "backgroundUploadFailed": "Could not update the map photo."
+    "backgroundUploadFailed": "Could not update the map photo.",
+    "permanentPlantings": "Permanent plantings",
+    "seasonNotesForPlant": "Notes (this season)"
   },
   "planning": {
     "profilesHint": "Save plants you grow often, then pick them when planning beds.",
@@ -292,7 +294,19 @@
       "pruned": "Pruned",
       "harvested": "Harvested",
       "problem_noted": "Problem noted"
-    }
+    },
+    "permanentPlantings": "Permanent plantings (trees and shrubs)",
+    "permanentPlantingsHint": "These stay on the map year after year. Season notes are stored under the active season.",
+    "addSitePlant": "Add permanent plant",
+    "saveSitePlant": "Save permanent plant",
+    "establishedDateOptional": "Planted or established (optional)",
+    "sitePlantNotesField": "Notes about this plant (optional)",
+    "establishedLabel": "Established",
+    "noSitePlants": "No permanent plantings yet.",
+    "confirmRemoveSitePlant": "Remove this permanent plant from the garden?",
+    "remove": "Remove",
+    "showNotes": "Season notes",
+    "hideNotes": "Hide notes"
   },
   "notes": {
     "title": "Notes",

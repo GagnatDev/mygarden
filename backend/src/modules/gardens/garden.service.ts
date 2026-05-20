@@ -5,6 +5,7 @@ import type { IActivityLogRepository } from '../../repositories/interfaces/activ
 import type { INoteRepository } from '../../repositories/interfaces/note.repository.interface.js';
 import type { IAreaRepository } from '../../repositories/interfaces/area.repository.interface.js';
 import type { IElementRepository } from '../../repositories/interfaces/element.repository.interface.js';
+import type { ISitePlantRepository } from '../../repositories/interfaces/site-plant.repository.interface.js';
 import type { IGardenMembershipRepository } from '../../repositories/interfaces/garden-membership.repository.interface.js';
 import type { IGardenRepository } from '../../repositories/interfaces/garden.repository.interface.js';
 import type { IPlantingRepository } from '../../repositories/interfaces/planting.repository.interface.js';
@@ -24,6 +25,7 @@ export class GardenService {
     private readonly seasonRepo: ISeasonRepository,
     private readonly areaRepo: IAreaRepository,
     private readonly elementRepo: IElementRepository,
+    private readonly sitePlantRepo: ISitePlantRepository,
     private readonly plantingRepo: IPlantingRepository,
     private readonly taskRepo: ITaskRepository,
     private readonly activityLogRepo: IActivityLogRepository,
@@ -131,6 +133,7 @@ export class GardenService {
     try {
       await session.withTransaction(async () => {
         const s = { session };
+        await this.sitePlantRepo.deleteByGardenId(gardenId, s);
         for (const area of areas) {
           await this.elementRepo.deleteByAreaId(area.id, s);
         }

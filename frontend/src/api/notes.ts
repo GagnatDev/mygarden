@@ -1,6 +1,6 @@
 import { apiFetch, readProblemDetails } from './client';
 
-export type NoteTargetType = 'planting' | 'element' | 'season';
+export type NoteTargetType = 'planting' | 'element' | 'season' | 'site_plant';
 
 export interface NotePhoto {
   id: string;

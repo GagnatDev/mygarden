@@ -9,6 +9,7 @@ import { PlantProfileImageService } from '../modules/plant-profiles/plant-profil
 import { PlantProfileService } from '../modules/plant-profiles/plant-profile.service.js';
 import { PlantingService } from '../modules/plantings/planting.service.js';
 import { SeasonService } from '../modules/seasons/season.service.js';
+import { SitePlantService } from '../modules/site-plants/site-plant.service.js';
 import { TaskService } from '../modules/tasks/task.service.js';
 import type { IActivityLogRepository } from '../repositories/interfaces/activity-log.repository.interface.js';
 import type { INoteRepository } from '../repositories/interfaces/note.repository.interface.js';
@@ -20,6 +21,7 @@ import type { IGardenRepository } from '../repositories/interfaces/garden.reposi
 import type { IPlantProfileRepository } from '../repositories/interfaces/plant-profile.repository.interface.js';
 import type { IPlantingRepository } from '../repositories/interfaces/planting.repository.interface.js';
 import type { ISeasonRepository } from '../repositories/interfaces/season.repository.interface.js';
+import type { ISitePlantRepository } from '../repositories/interfaces/site-plant.repository.interface.js';
 import type { ITaskRepository } from '../repositories/interfaces/task.repository.interface.js';
 import type { IUserRepository } from '../repositories/interfaces/user.repository.interface.js';
 import { ActivityLogRepositoryMongo } from '../repositories/mongodb/activity-log.repository.mongodb.js';
@@ -32,6 +34,7 @@ import { GardenRepositoryMongo } from '../repositories/mongodb/garden.repository
 import { PlantProfileRepositoryMongo } from '../repositories/mongodb/plant-profile.repository.mongodb.js';
 import { PlantingRepositoryMongo } from '../repositories/mongodb/planting.repository.mongodb.js';
 import { SeasonRepositoryMongo } from '../repositories/mongodb/season.repository.mongodb.js';
+import { SitePlantRepositoryMongo } from '../repositories/mongodb/site-plant.repository.mongodb.js';
 import { TaskRepositoryMongo } from '../repositories/mongodb/task.repository.mongodb.js';
 import { UserRepositoryMongo } from '../repositories/mongodb/user.repository.mongodb.js';
 import pino from 'pino';
@@ -52,6 +55,7 @@ export interface AppContainer {
   membershipRepo: IGardenMembershipRepository;
   areaRepo: IAreaRepository;
   elementRepo: IElementRepository;
+  sitePlantRepo: ISitePlantRepository;
   seasonRepo: ISeasonRepository;
   plantProfileRepo: IPlantProfileRepository;
   plantingRepo: IPlantingRepository;
@@ -70,6 +74,7 @@ export interface AppContainer {
   taskService: TaskService;
   activityLogService: ActivityLogService;
   noteService: NoteService;
+  sitePlantService: SitePlantService;
 }
 
 export function buildContainer(env: Env, options?: ContainerBuildOptions): AppContainer {
@@ -81,6 +86,7 @@ export function buildContainer(env: Env, options?: ContainerBuildOptions): AppCo
   const membershipRepo = new GardenMembershipRepositoryMongo();
   const areaRepo = new AreaRepositoryMongo();
   const elementRepo = new ElementRepositoryMongo();
+  const sitePlantRepo = new SitePlantRepositoryMongo();
   const seasonRepo = new SeasonRepositoryMongo();
   const plantProfileRepo = new PlantProfileRepositoryMongo();
   const plantingRepo = new PlantingRepositoryMongo();
@@ -95,6 +101,7 @@ export function buildContainer(env: Env, options?: ContainerBuildOptions): AppCo
     seasonRepo,
     areaRepo,
     elementRepo,
+    sitePlantRepo,
     plantingRepo,
     taskRepo,
     activityLogRepo,
@@ -102,7 +109,7 @@ export function buildContainer(env: Env, options?: ContainerBuildOptions): AppCo
     fileStorage,
   );
   const areaService = new AreaService(areaRepo, gardenRepo, elementRepo, fileStorage);
-  const elementService = new ElementService(elementRepo, areaRepo);
+  const elementService = new ElementService(elementRepo, areaRepo, sitePlantRepo);
   const seasonService = new SeasonService(
     seasonRepo,
     plantingRepo,
@@ -129,7 +136,22 @@ export function buildContainer(env: Env, options?: ContainerBuildOptions): AppCo
     elementRepo,
     areaRepo,
   );
-  const noteService = new NoteService(noteRepo, seasonRepo, plantingRepo, elementRepo, areaRepo, fileStorage);
+  const noteService = new NoteService(
+    noteRepo,
+    seasonRepo,
+    plantingRepo,
+    elementRepo,
+    areaRepo,
+    sitePlantRepo,
+    fileStorage,
+  );
+  const sitePlantService = new SitePlantService(
+    sitePlantRepo,
+    elementRepo,
+    areaRepo,
+    plantProfileRepo,
+    noteService,
+  );
   return {
     env,
     userRepo,
@@ -138,6 +160,7 @@ export function buildContainer(env: Env, options?: ContainerBuildOptions): AppCo
     membershipRepo,
     areaRepo,
     elementRepo,
+    sitePlantRepo,
     seasonRepo,
     plantProfileRepo,
     plantingRepo,
@@ -156,5 +179,6 @@ export function buildContainer(env: Env, options?: ContainerBuildOptions): AppCo
     taskService,
     activityLogService,
     noteService,
+    sitePlantService,
   };
 }

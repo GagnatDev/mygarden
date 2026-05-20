@@ -10,6 +10,7 @@ import { listElements, patchElement } from '../api/elements';
 import type { ActivityLog } from '../api/logs';
 import { listLogs } from '../api/logs';
 import { listPlantings } from '../api/plantings';
+import { listSitePlants, type SitePlant } from '../api/sitePlants';
 import type { SeasonSnapshot } from '../api/seasons';
 import { getSeasonSnapshot } from '../api/seasons';
 import { CreateElementDialog } from '../garden/CreateElementDialog';
@@ -44,6 +45,7 @@ export function AreaMapPage() {
 
   const { seasonId } = useActiveSeason(gardenId || null);
   const [mapPlantings, setMapPlantings] = useState<Awaited<ReturnType<typeof listPlantings>>>([]);
+  const [mapSitePlants, setMapSitePlants] = useState<SitePlant[]>([]);
   const [mapLogs, setMapLogs] = useState<ActivityLog[]>([]);
   const [seasons, setSeasons] = useState<Season[]>([]);
   const [comparisonSeasonId, setComparisonSeasonId] = useState<string | null>(null);
@@ -58,10 +60,12 @@ export function AreaMapPage() {
   const refreshMapPlantings = useCallback(async () => {
     if (!gardenId || !seasonId) return;
     try {
-      const list = await listPlantings(gardenId, seasonId);
+      const [list, site] = await Promise.all([listPlantings(gardenId, seasonId), listSitePlants(gardenId)]);
       setMapPlantings(list);
+      setMapSitePlants(site);
     } catch {
       setMapPlantings([]);
+      setMapSitePlants([]);
     }
   }, [gardenId, seasonId]);
 
@@ -100,6 +104,7 @@ export function AreaMapPage() {
       setElements([]);
       setSelectedElementId(null);
       setMapPlantings([]);
+      setMapSitePlants([]);
       setMapLogs([]);
       setSeasons([]);
       setComparisonSeasonId(null);
@@ -114,6 +119,7 @@ export function AreaMapPage() {
   useEffect(() => {
     if (!gardenId || !seasonId) {
       setMapPlantings([]);
+      setMapSitePlants([]);
       setMapLogs([]);
       return;
     }
@@ -189,10 +195,13 @@ export function AreaMapPage() {
 
   const selectedElement = elements.find((e) => e.id === selectedElementId) ?? null;
 
-  const elementIdsWithPlantings = useMemo(
-    () => new Set(mapPlantings.filter((p) => p.elementId).map((p) => p.elementId!)),
-    [mapPlantings],
-  );
+  const elementIdsWithPlantings = useMemo(() => {
+      const s = new Set(mapPlantings.filter((p) => p.elementId).map((p) => p.elementId!));
+      for (const sp of mapSitePlants) {
+        s.add(sp.elementId);
+      }
+      return s;
+    }, [mapPlantings, mapSitePlants]);
 
   const layerComputed = useMemo(() => {
     const elementColorById: Record<string, string> = {};
@@ -301,6 +310,16 @@ export function AreaMapPage() {
       .filter((p) => p.elementId === selectedElementId)
       .map((p) => ({ id: p.id, plantName: p.plantName, sowingMethod: p.sowingMethod }));
   }, [mapPlantings, selectedElementId]);
+  const sitePlantsForSelectedElement = useMemo(() => {
+    if (!selectedElementId) return [];
+    return mapSitePlants
+      .filter((sp) => sp.elementId === selectedElementId)
+      .map((sp) => ({
+        id: sp.id,
+        plantName: sp.plantName,
+        establishedDate: sp.establishedDate,
+      }));
+  }, [mapSitePlants, selectedElementId]);
 
   const quickLogProps = useMemo(() => {
     if (!gardenId || !seasonId) return null;
@@ -453,6 +472,7 @@ export function AreaMapPage() {
             seasonId={seasonId}
             element={selectedElement}
             plantings={plantingsForSelectedElement}
+            sitePlants={sitePlantsForSelectedElement}
             onClose={() => setSelectedElementId(null)}
             onChanged={async () => {
               await loadAreaAndElements({ soft: true });

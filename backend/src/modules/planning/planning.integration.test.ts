@@ -564,4 +564,92 @@ describe('Planning: plant profiles, plantings, tasks, logs, notes (integration)'
       .set('Authorization', `Bearer ${token}`)
       .expect(204);
   });
+
+  it('site plants: garden-scoped CRUD and season-scoped notes on site_plant target', async () => {
+    const { token } = await registerWithToken(app, env, 'SitePlants');
+    const { gardenId, seasonId, areaId, elementId } = await createGardenWithSeasonAndElement(app, token);
+
+    const profile = await request(app)
+      .post('/api/v1/plant-profiles')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ name: 'Apple Tree', type: 'tree_shrub' })
+      .expect(201);
+
+    const created = await request(app)
+      .post(`/api/v1/gardens/${gardenId}/site-plants`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        elementId,
+        plantProfileId: profile.body.id,
+        establishedDate: '2018-04-15',
+        notes: 'Rootstock M9',
+      })
+      .expect(201);
+    expect(created.body.plantName).toBe('Apple Tree');
+    expect(created.body.elementId).toBe(elementId);
+    const sitePlantId = created.body.id as string;
+
+    const list = await request(app)
+      .get(`/api/v1/gardens/${gardenId}/site-plants`)
+      .set('Authorization', `Bearer ${token}`)
+      .expect(200);
+    expect(list.body).toHaveLength(1);
+
+    const n = await request(app)
+      .post(`/api/v1/gardens/${gardenId}/notes`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        seasonId,
+        targetType: 'site_plant',
+        targetId: sitePlantId,
+        body: 'Pruned today',
+      })
+      .expect(201);
+
+    await request(app)
+      .get(
+        `/api/v1/gardens/${gardenId}/notes?seasonId=${seasonId}&targetType=site_plant&targetId=${sitePlantId}`,
+      )
+      .set('Authorization', `Bearer ${token}`)
+      .expect(200)
+      .expect((res) => {
+        expect(res.body).toHaveLength(1);
+        expect(res.body[0].id).toBe(n.body.id);
+      });
+
+    const el2 = await request(app)
+      .post(`/api/v1/gardens/${gardenId}/areas/${areaId}/elements`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        name: 'Bed 2',
+        type: 'raised_bed',
+        color: '#663333',
+        gridX: 3,
+        gridY: 0,
+        gridWidth: 2,
+        gridHeight: 2,
+      })
+      .expect(201);
+    const elementId2 = el2.body.id as string;
+
+    const moved = await request(app)
+      .patch(`/api/v1/gardens/${gardenId}/site-plants/${sitePlantId}`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ elementId: elementId2 })
+      .expect(200);
+    expect(moved.body.elementId).toBe(elementId2);
+
+    await request(app)
+      .delete(`/api/v1/gardens/${gardenId}/site-plants/${sitePlantId}`)
+      .set('Authorization', `Bearer ${token}`)
+      .expect(204);
+
+    await request(app)
+      .get(`/api/v1/gardens/${gardenId}/site-plants`)
+      .set('Authorization', `Bearer ${token}`)
+      .expect(200)
+      .expect((res) => {
+        expect(res.body).toHaveLength(0);
+      });
+  });
 });

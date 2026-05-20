@@ -24,6 +24,7 @@ function createService() {
     { create: vi.fn(), findById: vi.fn(), findByGardenId: vi.fn(), findActiveByGardenId: vi.fn(), update: vi.fn(), delete: vi.fn(), deleteByGardenId: vi.fn(), deactivateAllInGarden: vi.fn() } as any,
     { create: vi.fn(), findById: vi.fn(), findByGardenId: vi.fn(), update: vi.fn(), delete: vi.fn(), deleteByGardenId: vi.fn() } as any,
     { create: vi.fn(), findById: vi.fn(), findByAreaId: vi.fn(), findByAreaIds: vi.fn(), update: vi.fn(), delete: vi.fn(), deleteByAreaId: vi.fn() } as any,
+    { deleteByGardenId: vi.fn() } as any,
     { create: vi.fn(), findById: vi.fn(), findByGardenAndSeason: vi.fn(), update: vi.fn(), delete: vi.fn(), deleteByGardenId: vi.fn() } as any,
     { create: vi.fn(), findById: vi.fn(), findByGardenSeason: vi.fn(), deleteAutoTasksByPlantingId: vi.fn(), deleteAllTasksByPlantingId: vi.fn(), deleteByGardenId: vi.fn(), update: vi.fn() } as any,
     { create: vi.fn(), findById: vi.fn(), findByGardenSeason: vi.fn(), deleteByGardenId: vi.fn(), update: vi.fn() } as any,

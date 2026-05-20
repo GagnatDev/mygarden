@@ -152,7 +152,9 @@
     "backgroundRemove": "Fjern bilde",
     "backgroundOpacity": "Bildegjennomsikt",
     "backgroundUploading": "Laster opp…",
-    "backgroundUploadFailed": "Kunne ikke oppdatere kartbildet."
+    "backgroundUploadFailed": "Kunne ikke oppdatere kartbildet.",
+    "permanentPlantings": "Varige planter",
+    "seasonNotesForPlant": "Notater (denne sesongen)"
   },
   "planning": {
     "profilesHint": "Lagre planter du ofte dyrker, og velg dem når du planlegger bed.",
@@ -292,7 +294,19 @@
       "pruned": "Beskjært",
       "harvested": "Høstet",
       "problem_noted": "Problem notert"
-    }
+    },
+    "permanentPlantings": "Varige planter (trær og busker)",
+    "permanentPlantingsHint": "Disse vises på kartet år etter år. Sesongnotater lagres på aktiv sesong.",
+    "addSitePlant": "Legg til varig plante",
+    "saveSitePlant": "Lagre varig plante",
+    "establishedDateOptional": "Plantet eller etablert (valgfritt)",
+    "sitePlantNotesField": "Notater om planten (valgfritt)",
+    "establishedLabel": "Etablert",
+    "noSitePlants": "Ingen varige planter ennå.",
+    "confirmRemoveSitePlant": "Fjerne denne varige planten fra hagen?",
+    "remove": "Fjern",
+    "showNotes": "Sesongnotater",
+    "hideNotes": "Skjul notater"
   },
   "notes": {
     "title": "Notater",

@@ -10,6 +10,7 @@ import { createActivityLogsRouter } from '../activity-logs/activity-log.routes.j
 import { createAreasRouter } from '../areas/area.routes.js';
 import { createNotesRouter } from '../notes/note.routes.js';
 import { createPlantingsRouter } from '../plantings/planting.routes.js';
+import { createSitePlantsRouter } from '../site-plants/site-plant.routes.js';
 import { createSeasonsRouter } from '../seasons/season.routes.js';
 import { createTasksRouter } from '../tasks/task.routes.js';
 import { requireGardenMember } from './garden.middleware.js';
@@ -80,6 +81,7 @@ export function createGardensRouter(env: Env, c: AppContainer): Router {
   scoped.use('/areas', createAreasRouter(env, c));
   scoped.use('/seasons', createSeasonsRouter(c));
   scoped.use('/plantings', createPlantingsRouter(c));
+  scoped.use('/site-plants', createSitePlantsRouter(c));
   scoped.use('/tasks', createTasksRouter(c));
   scoped.use('/logs', createActivityLogsRouter(c));
   scoped.use('/notes', createNotesRouter(env, c));

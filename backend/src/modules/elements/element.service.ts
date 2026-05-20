@@ -4,6 +4,7 @@ import { gridRectsOverlap, rectWithinGarden } from '../../lib/grid-rect.js';
 import { HttpError } from '../../middleware/problem-details.js';
 import type { IAreaRepository } from '../../repositories/interfaces/area.repository.interface.js';
 import type { IElementRepository } from '../../repositories/interfaces/element.repository.interface.js';
+import type { ISitePlantRepository } from '../../repositories/interfaces/site-plant.repository.interface.js';
 
 export interface CreateElementDto {
   name: string;
@@ -66,6 +67,7 @@ export class ElementService {
   constructor(
     private readonly elementRepo: IElementRepository,
     private readonly areaRepo: IAreaRepository,
+    private readonly sitePlantRepo: ISitePlantRepository,
   ) {}
 
   async listByArea(gardenId: string, areaId: string): Promise<Element[]> {
@@ -191,6 +193,7 @@ export class ElementService {
     if (!current || current.areaId !== areaId) {
       throw new HttpError(404, 'Element not found', 'Not Found');
     }
+    await this.sitePlantRepo.deleteByElementId(elementId);
     const ok = await this.elementRepo.delete(elementId);
     if (!ok) {
       throw new HttpError(404, 'Element not found', 'Not Found');

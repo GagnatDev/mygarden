@@ -23,6 +23,17 @@ export interface INoteRepository {
     seasonId: string,
     filters?: { targetType?: NoteTargetType; targetId?: string },
   ): Promise<Note[]>;
+  findByGardenAndTarget(
+    gardenId: string,
+    targetType: NoteTargetType,
+    targetId: string,
+  ): Promise<Note[]>;
+  deleteByGardenAndTarget(
+    gardenId: string,
+    targetType: NoteTargetType,
+    targetId: string,
+    options?: WithMongoSession,
+  ): Promise<number>;
   update(id: string, patch: Partial<Pick<Note, 'body' | 'updatedAt'>>): Promise<Note | null>;
   setPhoto(input: SetNotePhotoInput): Promise<Note | null>;
   delete(id: string): Promise<boolean>;

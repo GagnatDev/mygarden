@@ -6,6 +6,7 @@ import { useGardenContext } from '../garden/garden-context';
 import { useActiveSeason } from '../garden/useActiveSeason';
 import { ActivityTimelineSection } from '../planning/planting-plan/ActivityTimelineSection';
 import { AddPlantingForm } from '../planning/planting-plan/AddPlantingForm';
+import { SitePlantsSection } from '../planning/planting-plan/SitePlantsSection';
 import { IndoorPlantingDetailModal } from '../planning/planting-plan/IndoorPlantingDetailModal';
 import {
   IndoorSection,
@@ -27,6 +28,7 @@ export function PlantingPlanPage() {
     areas,
     elementsWithArea,
     plantings,
+    sitePlants,
     profiles,
     logs,
     loading,
@@ -243,6 +245,17 @@ export function PlantingPlanPage() {
         onCreated={loadAll}
         onError={setError}
         onBeginSubmit={clearPageError}
+      />
+
+      <SitePlantsSection
+        gardenId={selectedGarden.id}
+        seasonId={seasonId}
+        areas={areas}
+        elementsByAreaId={elementsByAreaId}
+        profiles={profiles}
+        sitePlants={sitePlants}
+        onRefresh={loadAll}
+        onError={setError}
       />
 
       {loading ? (

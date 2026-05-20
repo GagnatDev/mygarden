@@ -63,6 +63,25 @@ export class NoteRepositoryMongo implements INoteRepository {
     return (docs as NoteDoc[]).map(toNote);
   }
 
+  async findByGardenAndTarget(
+    gardenId: string,
+    targetType: NoteTargetType,
+    targetId: string,
+  ): Promise<Note[]> {
+    const docs = await NoteModel.find({ gardenId, targetType, targetId }).sort({ updatedAt: -1 }).lean();
+    return (docs as NoteDoc[]).map(toNote);
+  }
+
+  async deleteByGardenAndTarget(
+    gardenId: string,
+    targetType: NoteTargetType,
+    targetId: string,
+    options?: WithMongoSession,
+  ): Promise<number> {
+    const res = await NoteModel.deleteMany({ gardenId, targetType, targetId }, { session: options?.session });
+    return res.deletedCount ?? 0;
+  }
+
   async update(id: string, patch: Partial<Pick<Note, 'body' | 'updatedAt'>>): Promise<Note | null> {
     const doc = await NoteModel.findByIdAndUpdate(id, { $set: patch }, { new: true, runValidators: true }).lean();
     if (!doc) return null;

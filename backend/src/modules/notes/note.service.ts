@@ -7,6 +7,7 @@ import type { IElementRepository } from '../../repositories/interfaces/element.r
 import type { INoteRepository } from '../../repositories/interfaces/note.repository.interface.js';
 import type { IPlantingRepository } from '../../repositories/interfaces/planting.repository.interface.js';
 import type { ISeasonRepository } from '../../repositories/interfaces/season.repository.interface.js';
+import type { ISitePlantRepository } from '../../repositories/interfaces/site-plant.repository.interface.js';
 
 export const NOTE_PHOTO_MAX_BYTES = 10 * 1024 * 1024;
 
@@ -27,6 +28,7 @@ export class NoteService {
     private readonly plantingRepo: IPlantingRepository,
     private readonly elementRepo: IElementRepository,
     private readonly areaRepo: IAreaRepository,
+    private readonly sitePlantRepo: ISitePlantRepository,
     private readonly storage: IFileStorageService,
   ) {}
 
@@ -95,6 +97,23 @@ export class NoteService {
         /* best-effort */
       });
     }
+  }
+
+  async deleteAllNotesForTarget(
+    gardenId: string,
+    targetType: NoteTargetType,
+    targetId: string,
+  ): Promise<void> {
+    const notes = await this.noteRepo.findByGardenAndTarget(gardenId, targetType, targetId);
+    for (const n of notes) {
+      const photoKey = n.photo?.objectKey ?? null;
+      if (photoKey) {
+        await this.storage.deleteObject(photoKey).catch(() => {
+          /* best-effort */
+        });
+      }
+    }
+    await this.noteRepo.deleteByGardenAndTarget(gardenId, targetType, targetId);
   }
 
   async getByIdInGarden(gardenId: string, noteId: string): Promise<Note> {
@@ -208,6 +227,13 @@ export class NoteService {
       const area = await this.areaRepo.findById(element.areaId);
       if (!area || area.gardenId !== gardenId) {
         throw new HttpError(400, 'Element not found in this garden', 'Bad Request');
+      }
+      return;
+    }
+    if (targetType === 'site_plant') {
+      const sp = await this.sitePlantRepo.findById(targetId);
+      if (!sp || sp.gardenId !== gardenId) {
+        throw new HttpError(400, 'Site plant not found in this garden', 'Bad Request');
       }
       return;
     }

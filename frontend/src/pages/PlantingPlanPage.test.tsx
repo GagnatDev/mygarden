@@ -8,6 +8,7 @@ import { createLog, listLogs } from '../api/logs';
 import { listNotes } from '../api/notes';
 import { deletePlanting, listPlantings, patchPlanting } from '../api/plantings';
 import { listPlantProfiles } from '../api/plantProfiles';
+import { listSitePlants, updateSitePlant } from '../api/sitePlants';
 import { GardenContext, type GardenContextValue } from '../garden/garden-context';
 import { PlantingPlanPage } from './PlantingPlanPage';
 
@@ -57,6 +58,11 @@ vi.mock('../api/plantings', () => ({
 
 vi.mock('../api/plantProfiles', () => ({
   listPlantProfiles: vi.fn(),
+}));
+
+vi.mock('../api/sitePlants', () => ({
+  listSitePlants: vi.fn(),
+  updateSitePlant: vi.fn(),
 }));
 
 vi.mock('../api/logs', () => ({
@@ -115,6 +121,8 @@ const en = {
   },
   garden: {
     noGardenHint: 'No garden',
+    permanentPlantings: 'Perm',
+    seasonNotesForPlant: 'Season notes',
     areaDetails: 'Area',
     areaTypes: {
       raised_bed: 'Raised',
@@ -178,6 +186,19 @@ const en = {
     element: 'Element',
     removePlanting: 'Remove',
     confirmRemovePlanting: 'Sure remove?',
+    noSeason: 'No season',
+    permanentPlantings: 'Permanent',
+    permanentPlantingsHint: 'Hint perm',
+    addSitePlant: 'Add perm',
+    saveSitePlant: 'Save perm',
+    establishedDateOptional: 'Est',
+    sitePlantNotesField: 'Notes field',
+    establishedLabel: 'Est',
+    noSitePlants: 'None perm',
+    confirmRemoveSitePlant: 'Sure perm?',
+    remove: 'Del',
+    showNotes: 'Notes',
+    hideNotes: 'Hide',
     activityTimeline: 'Timeline',
     activities: {
       sown_indoors: 'Si',
@@ -621,6 +642,7 @@ describe('PlantingPlanPage', () => {
         updatedAt: '',
       },
     ]);
+    vi.mocked(listSitePlants).mockResolvedValue([]);
     vi.mocked(listLogs).mockResolvedValue([]);
     vi.mocked(createLog).mockResolvedValue({
       id: 'lg1',
@@ -1018,5 +1040,51 @@ describe('PlantingPlanPage', () => {
     fireEvent.click(screen.getByTestId('planting-notes-toggle-pl1'));
     await waitFor(() => expect(screen.getByTestId('notes-section')).toBeInTheDocument());
     expect(listNotes).toHaveBeenCalledWith('g1', 's1', { targetType: 'planting', targetId: 'pl1' });
+  });
+
+  it('moves a permanent planting to another element from the site plants section', async () => {
+    vi.mocked(listPlantings).mockResolvedValue([]);
+    vi.mocked(listSitePlants).mockResolvedValue([
+      {
+        id: 'sp1',
+        gardenId: 'g1',
+        elementId: 'e1',
+        plantProfileId: null,
+        plantName: 'Apple',
+        establishedDate: '2018-04-15',
+        notes: null,
+        createdBy: 'u1',
+        createdAt: '',
+        updatedAt: '',
+      },
+    ]);
+    vi.mocked(updateSitePlant).mockResolvedValue({
+      id: 'sp1',
+      gardenId: 'g1',
+      elementId: 'e2',
+      plantProfileId: null,
+      plantName: 'Apple',
+      establishedDate: '2018-04-15',
+      notes: null,
+      createdBy: 'u1',
+      createdAt: '',
+      updatedAt: '',
+    });
+
+    const i18nInstance = await testI18n();
+    render(
+      <I18nextProvider i18n={i18nInstance}>
+        <GardenContext.Provider value={ctx}>
+          <PlantingPlanPage />
+        </GardenContext.Provider>
+      </I18nextProvider>,
+    );
+
+    await waitFor(() => expect(screen.getByTestId('site-plant-element-select-sp1')).toBeInTheDocument());
+    fireEvent.change(screen.getByTestId('site-plant-element-select-sp1'), { target: { value: 'e2' } });
+
+    await waitFor(() => {
+      expect(updateSitePlant).toHaveBeenCalledWith('g1', 'sp1', { elementId: 'e2' });
+    });
   });
 });
