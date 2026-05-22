@@ -154,7 +154,7 @@ export class NoteService {
     }
 
     const thumbKey = this.thumbKeyForPhoto(n.photo);
-    let obj = await this.storage.getObject(thumbKey);
+    const obj = await this.storage.getObject(thumbKey);
     if (obj) return obj;
 
     const full = await this.storage.getObject(n.photo.objectKey);

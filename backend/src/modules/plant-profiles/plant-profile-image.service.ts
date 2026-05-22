@@ -120,7 +120,7 @@ export class PlantProfileImageService {
     }
 
     const thumbKey = thumbKeyForImage(image);
-    let obj = await this.storage.getObject(thumbKey);
+    const obj = await this.storage.getObject(thumbKey);
     if (obj) return obj;
 
     const full = await this.storage.getObject(image.objectKey);

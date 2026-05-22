@@ -127,7 +127,7 @@ export class AreaBackgroundService {
     }
 
     const thumbKey = fullImageObjectKeyToThumbKey(key);
-    let obj = await this.storage.getObject(thumbKey);
+    const obj = await this.storage.getObject(thumbKey);
     if (obj) return obj;
 
     const full = await this.storage.getObject(key);
