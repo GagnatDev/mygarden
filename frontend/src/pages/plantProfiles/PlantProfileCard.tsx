@@ -56,7 +56,7 @@ export const PlantProfileCard = memo(function PlantProfileCard({
     setEditNotes(profile.notes ?? '');
   }, [editing, profile.name, profile.notes]);
 
-  const profileImages = profile.images ?? [];
+  const profileImages = useMemo(() => profile.images ?? [], [profile.images]);
   const profileGalleryImages = useMemo(
     () => profileImages.map((image) => ({ id: image.id, url: image.url, thumbUrl: image.thumbUrl })),
     [profileImages],
