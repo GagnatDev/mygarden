@@ -11,6 +11,7 @@ import type { ElementLocation } from '../planning/group-tasks-by-area';
 import { getTaskDisplayTitle } from '../planning/task-display-title';
 import { useGardenContext } from '../garden/garden-context';
 import { useActiveSeason } from '../garden/useActiveSeason';
+import { getWeekdayShortLabels } from './calendarLabels';
 
 /** Max task preview rows per day cell (non-interactive). */
 export const CALENDAR_PREVIEW_TASK_CAP = 3;
@@ -37,14 +38,6 @@ function parseDayQueryParam(value: string | null): string | null {
   const dt = new Date(Date.UTC(y, m - 1, d));
   if (dt.getUTCFullYear() !== y || dt.getUTCMonth() !== m - 1 || dt.getUTCDate() !== d) return null;
   return value;
-}
-
-/** Monday-first weekday labels (short) for the calendar header. */
-export function getWeekdayShortLabels(locale: string): string[] {
-  return Array.from({ length: 7 }, (_, i) => {
-    const d = new Date(Date.UTC(2024, 0, 1 + i));
-    return new Intl.DateTimeFormat(locale, { weekday: 'short', timeZone: 'UTC' }).format(d);
-  });
 }
 
 export function CalendarPage() {

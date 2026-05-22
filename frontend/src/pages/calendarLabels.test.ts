@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { getWeekdayShortLabels } from './CalendarPage';
+import { getWeekdayShortLabels } from './calendarLabels';
 
 describe('getWeekdayShortLabels', () => {
   it('lists Monday first and matches Intl for nb-NO', () => {
