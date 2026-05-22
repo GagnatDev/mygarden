@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react
 import * as authApi from '../api/auth';
 import * as usersApi from '../api/users';
 import { setAccessToken } from '../api/token';
+import { clearAuthenticatedImageCache } from '../images/authenticated-image-cache';
 import type { PublicUser, UserLanguage } from '../api/types';
 import i18n from '../i18n';
 import { AuthContext } from './auth-context';
@@ -65,6 +66,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } catch {
       /* still clear local session */
     }
+    await clearAuthenticatedImageCache();
     applyUser(null);
   }, [applyUser]);
 

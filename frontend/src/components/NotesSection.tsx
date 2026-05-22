@@ -170,13 +170,13 @@ export function NotesSection({
                         className="rounded-lg focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-700"
                         onClick={() =>
                           setGallery({
-                            images: [{ id: n.id, url: notePhotoUrl(gardenId, n.id) }],
+                            images: [{ id: n.id, url: notePhotoUrl(gardenId, n.id, 'full') }],
                             startIndex: 0,
                           })
                         }
                         aria-label="View photo"
                       >
-                        <PlantProfileImageThumb url={notePhotoUrl(gardenId, n.id)} alt="Note photo" />
+                        <PlantProfileImageThumb url={notePhotoUrl(gardenId, n.id, 'thumb')} alt="Note photo" />
                       </button>
                       <label className="flex items-center gap-2 text-xs text-stone-700">
                         <input
@@ -247,13 +247,13 @@ export function NotesSection({
                       className="mt-2 block rounded-lg focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-700"
                       onClick={() =>
                         setGallery({
-                          images: [{ id: n.id, url: notePhotoUrl(gardenId, n.id) }],
+                          images: [{ id: n.id, url: notePhotoUrl(gardenId, n.id, 'full') }],
                           startIndex: 0,
                         })
                       }
                       aria-label="View photo"
                     >
-                      <PlantProfileImageThumb url={notePhotoUrl(gardenId, n.id)} alt="Note photo" />
+                      <PlantProfileImageThumb url={notePhotoUrl(gardenId, n.id, 'thumb')} alt="Note photo" />
                     </button>
                   ) : null}
                   {!readOnly && user?.id === n.createdBy ? (

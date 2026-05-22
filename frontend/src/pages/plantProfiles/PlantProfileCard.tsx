@@ -58,7 +58,7 @@ export const PlantProfileCard = memo(function PlantProfileCard({
 
   const profileImages = profile.images ?? [];
   const profileGalleryImages = useMemo(
-    () => profileImages.map((image) => ({ id: image.id, url: image.url })),
+    () => profileImages.map((image) => ({ id: image.id, url: image.url, thumbUrl: image.thumbUrl })),
     [profileImages],
   );
 
@@ -227,7 +227,7 @@ export const PlantProfileCard = memo(function PlantProfileCard({
                       }
                     >
                       <PlantProfileImageThumb
-                        url={image.url}
+                        url={image.thumbUrl ?? image.url}
                         alt={t('planning.profileImageAlt', { name: profile.name })}
                       />
                     </button>

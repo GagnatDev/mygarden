@@ -4,13 +4,16 @@ import { usePlantProfileBlobUrl } from './usePlantProfileBlobUrl';
 type PlantProfileImageThumbProps = {
   url: string;
   alt: string;
+  /** When set, loads a smaller cached variant (default thumb). Pass 'full' for full resolution. */
+  variant?: 'full' | 'thumb';
 };
 
 export const PlantProfileImageThumb = memo(function PlantProfileImageThumb({
   url,
   alt,
+  variant = 'thumb',
 }: PlantProfileImageThumbProps) {
-  const blobUrl = usePlantProfileBlobUrl(url);
+  const blobUrl = usePlantProfileBlobUrl(url, variant);
 
   return (
     <span className="relative inline-block h-20 w-20 shrink-0">

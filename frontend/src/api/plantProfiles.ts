@@ -1,4 +1,5 @@
 import { apiFetch, readProblemDetails } from './client';
+import { evictAuthenticatedImage } from '../images/authenticated-image-cache';
 
 export type PlantProfileType = 'vegetable' | 'herb' | 'flower' | 'berry' | 'tree_shrub';
 
@@ -8,7 +9,7 @@ export interface PlantProfile {
   name: string;
   type: PlantProfileType;
   notes: string | null;
-  images?: Array<{ id: string; url: string }>;
+  images?: Array<{ id: string; url: string; thumbUrl: string }>;
   createdAt: string;
   updatedAt: string;
 }
@@ -68,6 +69,7 @@ export async function uploadPlantProfileImage(profileId: string, file: File): Pr
 }
 
 export async function deletePlantProfileImage(profileId: string, imageId: string): Promise<PlantProfile> {
+  await evictAuthenticatedImage(`/plant-profiles/${profileId}/images/${imageId}`);
   const res = await apiFetch(`/plant-profiles/${profileId}/images/${imageId}`, {
     method: 'DELETE',
   });

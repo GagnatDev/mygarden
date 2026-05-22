@@ -5,6 +5,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import * as notesApi from '../api/notes';
 import { NotesSection } from './NotesSection';
 
+vi.mock('../images/authenticated-image-cache', () => ({
+  getAuthenticatedImageBlobUrl: vi.fn(async () => 'blob:http://localhost/note-image'),
+  releaseAuthenticatedImageBlobUrl: vi.fn(),
+  evictAuthenticatedImage: vi.fn(async () => undefined),
+  clearAuthenticatedImageCache: vi.fn(async () => undefined),
+}));
+
 vi.mock('../auth/useAuth', () => ({
   useAuth: () => ({ user: { id: 'u1' } }),
 }));

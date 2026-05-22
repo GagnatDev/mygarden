@@ -6,7 +6,7 @@ import {
   uploadAreaBackgroundImage,
 } from '../api/areas';
 import type { Element, ElementShape } from '../api/elements';
-import { apiFetch } from '../api/client';
+import { getAuthenticatedImageBlobUrl } from '../images/authenticated-image-cache';
 import { computeAlignmentGuides } from './alignment-guides';
 import { GridMapAreasSvg } from './GridMapAreasSvg';
 import { GridMapSvgGridLayer } from './GridMapSvgGridLayer';
@@ -240,54 +240,19 @@ export function GridMapEditor({
 
   useEffect(() => {
     if (!backgroundImageUrl) {
-      setBgObjectUrl((prev) => {
-        if (prev) URL.revokeObjectURL(prev);
-        return null;
-      });
+      setBgObjectUrl(null);
       return;
     }
 
     let cancelled = false;
-    let createdUrl: string | null = null;
-
     void (async () => {
-      try {
-        const res = await apiFetch(backgroundImageUrl);
-        if (!res.ok) {
-          if (!cancelled) {
-            setBgObjectUrl((prev) => {
-              if (prev) URL.revokeObjectURL(prev);
-              return null;
-            });
-          }
-          return;
-        }
-        const blob = await res.blob();
-        createdUrl = URL.createObjectURL(blob);
-        if (!cancelled) {
-          setBgObjectUrl((prev) => {
-            if (prev) URL.revokeObjectURL(prev);
-            return createdUrl;
-          });
-        } else if (createdUrl) {
-          URL.revokeObjectURL(createdUrl);
-        }
-      } catch {
-        if (!cancelled) {
-          setBgObjectUrl((prev) => {
-            if (prev) URL.revokeObjectURL(prev);
-            return null;
-          });
-        }
-      }
+      const url = await getAuthenticatedImageBlobUrl(backgroundImageUrl, 'full');
+      if (!cancelled) setBgObjectUrl(url);
     })();
 
     return () => {
       cancelled = true;
-      setBgObjectUrl((prev) => {
-        if (prev) URL.revokeObjectURL(prev);
-        return null;
-      });
+      setBgObjectUrl(null);
     };
   }, [backgroundImageUrl, area.updatedAt]);
 

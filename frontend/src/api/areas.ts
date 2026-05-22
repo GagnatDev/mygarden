@@ -1,4 +1,5 @@
 import { apiFetch, readProblemDetails } from './client';
+import { evictAuthenticatedImage } from '../images/authenticated-image-cache';
 
 export interface Area {
   id: string;
@@ -78,7 +79,12 @@ export async function deleteArea(gardenId: string, areaId: string): Promise<void
   await throwUnlessOk(res);
 }
 
+export async function evictAreaBackgroundImage(gardenId: string, areaId: string): Promise<void> {
+  await evictAuthenticatedImage(`/gardens/${gardenId}/areas/${areaId}/background-image`);
+}
+
 export async function uploadAreaBackgroundImage(gardenId: string, areaId: string, file: File): Promise<Area> {
+  await evictAuthenticatedImage(`/gardens/${gardenId}/areas/${areaId}/background-image`);
   const fd = new FormData();
   fd.append('file', file);
   const res = await apiFetch(`/gardens/${gardenId}/areas/${areaId}/background-image`, {
@@ -90,6 +96,7 @@ export async function uploadAreaBackgroundImage(gardenId: string, areaId: string
 }
 
 export async function deleteAreaBackgroundImage(gardenId: string, areaId: string): Promise<Area> {
+  await evictAuthenticatedImage(`/gardens/${gardenId}/areas/${areaId}/background-image`);
   const res = await apiFetch(`/gardens/${gardenId}/areas/${areaId}/background-image`, {
     method: 'DELETE',
   });

@@ -1,4 +1,4 @@
-export type GalleryImage = { id: string; url: string };
+export type GalleryImage = { id: string; url: string; thumbUrl?: string };
 
 export type ImageGalleryState = {
   profileName: string;

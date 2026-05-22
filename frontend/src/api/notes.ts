@@ -1,4 +1,6 @@
 import { apiFetch, readProblemDetails } from './client';
+import { evictAuthenticatedImage } from '../images/authenticated-image-cache';
+import { imageFetchPath, type ImageVariant } from '../images/image-cache-key';
 
 export type NoteTargetType = 'planting' | 'element' | 'season' | 'site_plant';
 
@@ -74,8 +76,9 @@ export async function deleteNote(gardenId: string, noteId: string): Promise<void
   if (res.status === 202) return { queued: true };
 }
 
-export function notePhotoUrl(gardenId: string, noteId: string): string {
-  return `/gardens/${gardenId}/notes/${noteId}/photo`;
+export function notePhotoUrl(gardenId: string, noteId: string, variant: ImageVariant = 'full'): string {
+  const path = `/gardens/${gardenId}/notes/${noteId}/photo`;
+  return imageFetchPath(path, variant);
 }
 
 export async function uploadNotePhoto(
@@ -83,6 +86,7 @@ export async function uploadNotePhoto(
   noteId: string,
   file: File,
 ): Promise<Note> {
+  await evictAuthenticatedImage(`/gardens/${gardenId}/notes/${noteId}/photo`);
   const fd = new FormData();
   fd.append('file', file);
   const res = await apiFetch(`/gardens/${gardenId}/notes/${noteId}/photo`, {
@@ -94,6 +98,7 @@ export async function uploadNotePhoto(
 }
 
 export async function deleteNotePhoto(gardenId: string, noteId: string): Promise<Note | { queued: true }> {
+  await evictAuthenticatedImage(`/gardens/${gardenId}/notes/${noteId}/photo`);
   const res = await apiFetch(`/gardens/${gardenId}/notes/${noteId}/photo`, { method: 'DELETE' });
   await throwUnlessOk(res);
   if (res.status === 202) return { queued: true };
