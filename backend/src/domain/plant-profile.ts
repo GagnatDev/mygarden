@@ -4,6 +4,7 @@ export type PlantProfileType = (typeof PLANT_PROFILE_TYPES)[number];
 export interface PlantProfileImage {
   id: string;
   objectKey: string;
+  thumbObjectKey: string | null;
   createdAt: Date;
 }
 
@@ -22,6 +23,10 @@ export function plantProfileImageApiPath(profileId: string, imageId: string): st
   return `/plant-profiles/${profileId}/images/${imageId}`;
 }
 
+export function plantProfileImageThumbApiPath(profileId: string, imageId: string): string {
+  return `${plantProfileImageApiPath(profileId, imageId)}?variant=thumb`;
+}
+
 export function toPublicPlantProfile(p: PlantProfile) {
   return {
     id: p.id,
@@ -32,6 +37,7 @@ export function toPublicPlantProfile(p: PlantProfile) {
     images: p.images.map((image) => ({
       id: image.id,
       url: plantProfileImageApiPath(p.id, image.id),
+      thumbUrl: plantProfileImageThumbApiPath(p.id, image.id),
     })),
     createdAt: p.createdAt.toISOString(),
     updatedAt: p.updatedAt.toISOString(),

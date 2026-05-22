@@ -5,6 +5,7 @@ import type { AppContainer } from '../../config/container.js';
 import { isObjectStorageEnabled } from '../../config/object-storage.js';
 import { NOTE_TARGET_TYPES, type NoteTargetType, toPublicNote } from '../../domain/note.js';
 import { asyncHandler } from '../../lib/async-handler.js';
+import { parseImageVariant } from '../../lib/image-variant.js';
 import { paramString } from '../../lib/route-params.js';
 import { HttpError } from '../../middleware/problem-details.js';
 import { NOTE_PHOTO_MAX_BYTES } from './note.service.js';
@@ -60,7 +61,8 @@ export function createNotesRouter(env: Env, c: AppContainer): Router {
       if (!n.photo) {
         throw new HttpError(404, 'No photo', 'Not Found');
       }
-      const obj = await c.noteService.getPhotoObject(n.photo.objectKey);
+      const variant = parseImageVariant(req.query);
+      const obj = await c.noteService.getPhotoObjectForNote(gardenId, noteId, variant);
       if (!obj) {
         throw new HttpError(404, 'Photo not found', 'Not Found');
       }
@@ -70,7 +72,7 @@ export function createNotesRouter(env: Env, c: AppContainer): Router {
         return;
       }
       res.setHeader('Content-Type', obj.contentType);
-      res.setHeader('Cache-Control', 'private, max-age=60');
+      res.setHeader('Cache-Control', 'private, max-age=86400');
       if (obj.etag) {
         res.setHeader('ETag', obj.etag);
       }

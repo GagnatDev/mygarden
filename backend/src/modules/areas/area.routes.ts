@@ -5,6 +5,7 @@ import type { AppContainer } from '../../config/container.js';
 import { isObjectStorageEnabled } from '../../config/object-storage.js';
 import { toPublicArea } from '../../domain/area.js';
 import { asyncHandler } from '../../lib/async-handler.js';
+import { parseImageVariant } from '../../lib/image-variant.js';
 import { paramString } from '../../lib/route-params.js';
 import { HttpError } from '../../middleware/problem-details.js';
 import { createElementsRouter } from '../elements/element.routes.js';
@@ -90,7 +91,8 @@ export function createAreasRouter(env: Env, c: AppContainer): Router {
     asyncHandler(async (req, res) => {
       const gardenId = paramString(req.params.gardenId, 'garden id');
       const areaId = paramString(req.params.areaId, 'area id');
-      const obj = await c.areaBackgroundService.getObjectForArea(gardenId, areaId);
+      const variant = parseImageVariant(req.query);
+      const obj = await c.areaBackgroundService.getObjectForArea(gardenId, areaId, variant);
       if (!obj) {
         throw new HttpError(404, 'No background image', 'Not Found');
       }
@@ -100,7 +102,7 @@ export function createAreasRouter(env: Env, c: AppContainer): Router {
         return;
       }
       res.setHeader('Content-Type', obj.contentType);
-      res.setHeader('Cache-Control', 'private, max-age=60');
+      res.setHeader('Cache-Control', 'private, max-age=86400');
       if (obj.etag) {
         res.setHeader('ETag', obj.etag);
       }

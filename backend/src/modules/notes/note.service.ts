@@ -1,6 +1,15 @@
 import type { Note, NoteTargetType } from '../../domain/note.js';
 import type { IFileStorageService, StoredObject } from '../../services/file-storage/file-storage.interface.js';
 import { detectImageMimeFromMagicBytes } from '../../lib/image-magic-bytes.js';
+import {
+  IMAGE_FULL_JPEG_QUALITY,
+  IMAGE_FULL_MAX_EDGE,
+  compressImageToJpeg,
+  createThumbnailJpeg,
+  fullImageObjectKeyToThumbKey,
+  storedObjectToBuffer,
+} from '../../lib/image-processing.js';
+import type { ImageVariant } from '../../lib/image-variant.js';
 import { HttpError } from '../../middleware/problem-details.js';
 import type { IAreaRepository } from '../../repositories/interfaces/area.repository.interface.js';
 import type { IElementRepository } from '../../repositories/interfaces/element.repository.interface.js';
@@ -128,6 +137,40 @@ export class NoteService {
     return this.storage.getObject(objectKey);
   }
 
+  private thumbKeyForPhoto(photo: { objectKey: string; thumbObjectKey: string | null }): string {
+    return photo.thumbObjectKey ?? fullImageObjectKeyToThumbKey(photo.objectKey);
+  }
+
+  async getPhotoObjectForNote(
+    gardenId: string,
+    noteId: string,
+    variant: ImageVariant = 'full',
+  ): Promise<StoredObject | null> {
+    const n = await this.noteRepo.findById(noteId);
+    if (!n || n.gardenId !== gardenId || !n.photo) return null;
+
+    if (variant === 'full') {
+      return this.storage.getObject(n.photo.objectKey);
+    }
+
+    const thumbKey = this.thumbKeyForPhoto(n.photo);
+    let obj = await this.storage.getObject(thumbKey);
+    if (obj) return obj;
+
+    const full = await this.storage.getObject(n.photo.objectKey);
+    if (!full) return null;
+
+    const thumbBuffer = await createThumbnailJpeg(await storedObjectToBuffer(full));
+    await this.storage.putObject(thumbKey, thumbBuffer, 'image/jpeg');
+    if (!n.photo.thumbObjectKey) {
+      await this.noteRepo.setPhoto({
+        noteId,
+        photo: { ...n.photo, thumbObjectKey: thumbKey },
+      });
+    }
+    return this.storage.getObject(thumbKey);
+  }
+
   async uploadPhoto(
     gardenId: string,
     userId: string,
@@ -158,29 +201,43 @@ export class NoteService {
       throw new HttpError(403, 'You can only edit your own notes', 'Forbidden');
     }
 
-    const newKey = notePhotoObjectKey(gardenId, noteId, ext);
+    const newKey = notePhotoObjectKey(gardenId, noteId, 'jpg');
+    const thumbObjectKey = fullImageObjectKeyToThumbKey(newKey);
     const previousKey = n.photo?.objectKey ?? null;
+    const previousThumb = n.photo ? this.thumbKeyForPhoto(n.photo) : null;
     if (previousKey && previousKey !== newKey) {
-      await this.storage.deleteObject(previousKey).catch(() => {
-        /* best-effort */
-      });
+      await this.storage.deleteObject(previousKey).catch(() => undefined);
+    }
+    if (previousThumb && previousThumb !== thumbObjectKey) {
+      await this.storage.deleteObject(previousThumb).catch(() => undefined);
     }
 
+    const processed = await compressImageToJpeg(buffer, IMAGE_FULL_MAX_EDGE, IMAGE_FULL_JPEG_QUALITY);
+    const thumb = await createThumbnailJpeg(processed);
+
     try {
-      await this.storage.putObject(newKey, buffer, mimeType);
+      await this.storage.putObject(newKey, processed, 'image/jpeg');
+      await this.storage.putObject(thumbObjectKey, thumb, 'image/jpeg');
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e);
+      await this.storage.deleteObject(newKey).catch(() => undefined);
+      await this.storage.deleteObject(thumbObjectKey).catch(() => undefined);
       throw new HttpError(502, `Could not store image in object storage: ${msg}`, 'Bad Gateway');
     }
 
     const updated = await this.noteRepo.setPhoto({
       noteId,
-      photo: { id: noteId, objectKey: newKey, mimeType, createdAt: new Date() },
+      photo: {
+        id: noteId,
+        objectKey: newKey,
+        thumbObjectKey,
+        mimeType: 'image/jpeg',
+        createdAt: new Date(),
+      },
     });
     if (!updated) {
-      await this.storage.deleteObject(newKey).catch(() => {
-        /* best-effort */
-      });
+      await this.storage.deleteObject(newKey).catch(() => undefined);
+      await this.storage.deleteObject(thumbObjectKey).catch(() => undefined);
       throw new HttpError(404, 'Note not found', 'Not Found');
     }
     return updated;
@@ -195,14 +252,16 @@ export class NoteService {
       throw new HttpError(403, 'You can only edit your own notes', 'Forbidden');
     }
     const key = n.photo?.objectKey ?? null;
+    const thumbKey = n.photo ? this.thumbKeyForPhoto(n.photo) : null;
     const updated = await this.noteRepo.setPhoto({ noteId, photo: null });
     if (!updated) {
       throw new HttpError(404, 'Note not found', 'Not Found');
     }
     if (key) {
-      await this.storage.deleteObject(key).catch(() => {
-        /* best-effort */
-      });
+      await this.storage.deleteObject(key).catch(() => undefined);
+    }
+    if (thumbKey) {
+      await this.storage.deleteObject(thumbKey).catch(() => undefined);
     }
     return updated;
   }

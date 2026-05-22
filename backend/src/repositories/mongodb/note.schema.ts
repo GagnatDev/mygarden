@@ -5,6 +5,7 @@ const notePhotoSchema = new mongoose.Schema(
   {
     id: { type: String, required: true },
     objectKey: { type: String, required: true },
+    thumbObjectKey: { type: String, default: null },
     mimeType: { type: String, required: true },
     createdAt: { type: Date, required: true },
   },

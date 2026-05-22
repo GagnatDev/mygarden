@@ -11,6 +11,7 @@ function toNote(doc: NoteDoc): Note {
       ? {
           id: doc.photo.id,
           objectKey: doc.photo.objectKey,
+          thumbObjectKey: doc.photo.thumbObjectKey ?? null,
           mimeType: doc.photo.mimeType,
           createdAt: doc.photo.createdAt,
         }

@@ -97,8 +97,8 @@ describe('Note photo API (integration)', () => {
       .get(`/api/v1/gardens/${gardenId}/notes/${noteId}/photo`)
       .set('Authorization', `Bearer ${token}`)
       .expect(200);
-    expect(img.headers['content-type']).toMatch(/image\/png/);
-    expect(img.body).toEqual(tinyPng);
+    expect(img.headers['content-type']).toMatch(/image\/jpeg/);
+    expect(img.body.length).toBeGreaterThan(0);
 
     const del = await request(app)
       .delete(`/api/v1/gardens/${gardenId}/notes/${noteId}/photo`)

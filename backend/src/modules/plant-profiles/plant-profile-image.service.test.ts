@@ -16,6 +16,7 @@ function buildProfile(imageCount = 0) {
     images: Array.from({ length: imageCount }).map((_, i) => ({
       id: `i${i}`,
       objectKey: `users/u1/plant-profiles/p1/images/i${i}.jpg`,
+      thumbObjectKey: `users/u1/plant-profiles/p1/images/i${i}-thumb.jpg`,
       createdAt: new Date(),
     })),
     createdAt: new Date(),
@@ -47,7 +48,7 @@ describe('PlantProfileImageService', () => {
 
     const updated = await svc.uploadForUser('u1', 'p1', tinyPng, 'image/png');
     expect(updated.images).toHaveLength(1);
-    expect(putObject).toHaveBeenCalledTimes(1);
+    expect(putObject).toHaveBeenCalledTimes(2);
     expect(putObject.mock.calls[0]?.[2]).toBe('image/jpeg');
     expect((putObject.mock.calls[0]?.[1] as Buffer).byteLength).toBeGreaterThan(0);
   });

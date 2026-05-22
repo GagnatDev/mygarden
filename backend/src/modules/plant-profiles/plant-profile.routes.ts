@@ -5,6 +5,7 @@ import type { Env } from '../../config/env.js';
 import type { AppContainer } from '../../config/container.js';
 import { toPublicPlantProfile } from '../../domain/plant-profile.js';
 import { asyncHandler } from '../../lib/async-handler.js';
+import { parseImageVariant } from '../../lib/image-variant.js';
 import { paramString } from '../../lib/route-params.js';
 import { HttpError } from '../../middleware/problem-details.js';
 import { requireAccessAuth } from '../auth/auth.middleware.js';
@@ -115,7 +116,8 @@ export function createPlantProfilesRouter(env: Env, c: AppContainer): Router {
     asyncHandler(async (req, res) => {
       const profileId = paramString(req.params.profileId, 'profile id');
       const imageId = paramString(req.params.imageId, 'image id');
-      const obj = await c.plantProfileImageService.getImageObjectForUser(req.auth!.id, profileId, imageId);
+      const variant = parseImageVariant(req.query);
+      const obj = await c.plantProfileImageService.getImageObjectForUser(req.auth!.id, profileId, imageId, variant);
       if (!obj) {
         throw new HttpError(404, 'Plant profile image not found', 'Not Found');
       }
@@ -125,7 +127,7 @@ export function createPlantProfilesRouter(env: Env, c: AppContainer): Router {
         return;
       }
       res.setHeader('Content-Type', obj.contentType);
-      res.setHeader('Cache-Control', 'private, max-age=60');
+      res.setHeader('Cache-Control', 'private, max-age=86400');
       if (obj.etag) {
         res.setHeader('ETag', obj.etag);
       }

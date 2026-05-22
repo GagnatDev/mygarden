@@ -4,6 +4,7 @@ export type NoteTargetType = (typeof NOTE_TARGET_TYPES)[number];
 export interface NotePhoto {
   id: string;
   objectKey: string;
+  thumbObjectKey: string | null;
   mimeType: string;
   createdAt: Date;
 }
@@ -33,6 +34,7 @@ export function toPublicNote(n: Note) {
       ? {
           id: n.photo.id,
           mimeType: n.photo.mimeType,
+          thumbUrl: `/gardens/${n.gardenId}/notes/${n.id}/photo?variant=thumb`,
           createdAt: n.photo.createdAt.toISOString(),
         }
       : null,

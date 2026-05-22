@@ -14,6 +14,7 @@ const plantProfileSchema = new mongoose.Schema(
           {
             id: { type: String, required: true },
             objectKey: { type: String, required: true },
+            thumbObjectKey: { type: String, default: null },
             createdAt: { type: Date, required: true },
           },
           { _id: false },

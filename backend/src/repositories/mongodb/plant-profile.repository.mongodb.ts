@@ -17,6 +17,7 @@ function toProfile(doc: PlantProfileDoc): PlantProfile {
     images: (doc.images ?? []).map((image) => ({
       id: image.id,
       objectKey: image.objectKey,
+      thumbObjectKey: image.thumbObjectKey ?? null,
       createdAt: image.createdAt,
     })),
     createdAt: doc.createdAt,

@@ -1,5 +1,14 @@
 import type { Area } from '../../domain/area.js';
 import { detectImageMimeFromMagicBytes } from '../../lib/image-magic-bytes.js';
+import {
+  IMAGE_FULL_JPEG_QUALITY,
+  IMAGE_FULL_MAX_EDGE,
+  compressImageToJpeg,
+  createThumbnailJpeg,
+  fullImageObjectKeyToThumbKey,
+  storedObjectToBuffer,
+} from '../../lib/image-processing.js';
+import type { ImageVariant } from '../../lib/image-variant.js';
 import { HttpError } from '../../middleware/problem-details.js';
 import type { IAreaRepository } from '../../repositories/interfaces/area.repository.interface.js';
 import type { IFileStorageService } from '../../services/file-storage/file-storage.interface.js';
@@ -56,18 +65,24 @@ export class AreaBackgroundService {
 
     const area = await this.loadAreaInGarden(gardenId, areaId);
 
-    const newKey = areaBackgroundObjectKey(gardenId, areaId, ext);
+    const newKey = areaBackgroundObjectKey(gardenId, areaId, 'jpg');
+    const thumbKey = fullImageObjectKeyToThumbKey(newKey);
     const previousKey = area.backgroundImageKey;
     if (previousKey && previousKey !== newKey) {
-      await this.storage.deleteObject(previousKey).catch(() => {
-        /* best-effort */
-      });
+      await this.storage.deleteObject(previousKey).catch(() => undefined);
+      await this.storage.deleteObject(fullImageObjectKeyToThumbKey(previousKey)).catch(() => undefined);
     }
 
+    const processed = await compressImageToJpeg(buffer, IMAGE_FULL_MAX_EDGE, IMAGE_FULL_JPEG_QUALITY);
+    const thumb = await createThumbnailJpeg(processed);
+
     try {
-      await this.storage.putObject(newKey, buffer, mimeType);
+      await this.storage.putObject(newKey, processed, 'image/jpeg');
+      await this.storage.putObject(thumbKey, thumb, 'image/jpeg');
     } catch (e: unknown) {
       this.log.warn({ err: e }, 'area background object storage putObject failed');
+      await this.storage.deleteObject(newKey).catch(() => undefined);
+      await this.storage.deleteObject(thumbKey).catch(() => undefined);
       throw new HttpError(
         502,
         'Could not store the image. Please try again later.',
@@ -90,9 +105,8 @@ export class AreaBackgroundService {
       throw new HttpError(404, 'Area not found', 'Not Found');
     }
     if (key) {
-      await this.storage.deleteObject(key).catch(() => {
-        /* best-effort */
-      });
+      await this.storage.deleteObject(key).catch(() => undefined);
+      await this.storage.deleteObject(fullImageObjectKeyToThumbKey(key)).catch(() => undefined);
     }
     return updated;
   }
@@ -100,12 +114,27 @@ export class AreaBackgroundService {
   async getObjectForArea(
     gardenId: string,
     areaId: string,
+    variant: ImageVariant = 'full',
   ): Promise<Awaited<ReturnType<IFileStorageService['getObject']>>> {
     const area = await this.loadAreaInGarden(gardenId, areaId);
     const key = area.backgroundImageKey;
     if (!key) {
       return null;
     }
-    return this.storage.getObject(key);
+
+    if (variant === 'full') {
+      return this.storage.getObject(key);
+    }
+
+    const thumbKey = fullImageObjectKeyToThumbKey(key);
+    let obj = await this.storage.getObject(thumbKey);
+    if (obj) return obj;
+
+    const full = await this.storage.getObject(key);
+    if (!full) return null;
+
+    const thumbBuffer = await createThumbnailJpeg(await storedObjectToBuffer(full));
+    await this.storage.putObject(thumbKey, thumbBuffer, 'image/jpeg');
+    return this.storage.getObject(thumbKey);
   }
 }

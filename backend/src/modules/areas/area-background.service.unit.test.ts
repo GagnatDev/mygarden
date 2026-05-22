@@ -23,8 +23,10 @@ function sampleArea(gardenId: string, areaId: string): Area {
   };
 }
 
-/** Minimal buffer that passes JPEG magic-byte detection in upload(). */
-const jpegMagicPrefix = Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0x00]);
+const tinyPng = Buffer.from(
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
+  'base64',
+);
 
 describe('AreaBackgroundService (unit)', () => {
   it('does not leak object storage errors to the client', async () => {
@@ -55,7 +57,7 @@ describe('AreaBackgroundService (unit)', () => {
 
     let thrown: unknown;
     try {
-      await svc.upload(gardenId, areaId, jpegMagicPrefix, 'image/jpeg');
+      await svc.upload(gardenId, areaId, tinyPng, 'image/png');
     } catch (e) {
       thrown = e;
     }
