@@ -29,7 +29,10 @@ function toLog(doc: ActivityLogDoc): ActivityLog {
 export class ActivityLogRepositoryMongo implements IActivityLogRepository {
   async create(input: CreateActivityLogInput): Promise<ActivityLog> {
     const id = uuidv4();
-    const doc = await ActivityLogModel.create({
+    // LWW conflict resolution compares clientTimestamp against updatedAt, so
+    // updatedAt must track the client-provided timestamp rather than the
+    // server clock (see docs/data_model.md "Conflict Resolution").
+    const doc = new ActivityLogModel({
       _id: id,
       gardenId: input.gardenId,
       seasonId: input.seasonId,
@@ -41,7 +44,10 @@ export class ActivityLogRepositoryMongo implements IActivityLogRepository {
       quantity: input.quantity,
       createdBy: input.createdBy,
       clientTimestamp: input.clientTimestamp,
+      createdAt: new Date(),
+      updatedAt: input.clientTimestamp,
     });
+    await doc.save({ timestamps: false });
     return toLog(doc.toObject() as ActivityLogDoc);
   }
 
