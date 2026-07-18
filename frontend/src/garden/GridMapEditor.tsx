@@ -17,7 +17,9 @@ import {
   translateVertices,
 } from './polygon-helpers';
 import {
+  applyTwoFingerGesture,
   computeFitView,
+  type ContainerRect,
   MAX_MAP_SCALE,
   MIN_MAP_SCALE,
   type MapView,
@@ -189,15 +191,11 @@ export function GridMapEditor({
       }
     | null
   >(null);
-  const pinchRef = useRef<{
-    dist: number;
-    scale: number;
-    containerRect: {
-      left: number;
-      top: number;
-      width: number;
-      height: number;
-    };
+  /** Anchor of an active two-finger pan+zoom gesture: last touch points by identifier. */
+  const twoFingerRef = useRef<{
+    a: { id: number; x: number; y: number };
+    b: { id: number; x: number; y: number };
+    containerRect: ContainerRect;
   } | null>(null);
   type WheelAccum =
     | { kind: 'zoom'; factor: number; focalX: number; focalY: number }
@@ -807,6 +805,21 @@ export function GridMapEditor({
   /** Where/when the previous qualifying tap ended. */
   const lastTapRef = useRef<{ time: number; x: number; y: number } | null>(null);
 
+  const anchorTwoFingerGesture = useCallback(
+    (a: { identifier: number; clientX: number; clientY: number }, b: typeof a) => {
+      const containerEl = containerRef.current;
+      if (!containerEl) return;
+      const r = containerEl.getBoundingClientRect();
+      viewTouchedRef.current = true;
+      twoFingerRef.current = {
+        a: { id: a.identifier, x: a.clientX, y: a.clientY },
+        b: { id: b.identifier, x: b.clientX, y: b.clientY },
+        containerRect: { left: r.left, top: r.top, width: r.width, height: r.height },
+      };
+    },
+    [],
+  );
+
   const onTouchStart = (e: React.TouchEvent) => {
     if (e.touches.length === 1) {
       const touch = e.touches[0]!;
@@ -820,22 +833,7 @@ export function GridMapEditor({
     tapCandidateRef.current = null;
     lastTapRef.current = null;
     if (e.touches.length === 2) {
-      const containerEl = containerRef.current;
-      if (!containerEl) return;
-      const [a, b] = [e.touches[0]!, e.touches[1]!];
-      const dist = Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY);
-      const r = containerEl.getBoundingClientRect();
-      viewTouchedRef.current = true;
-      pinchRef.current = {
-        dist,
-        scale: liveViewRef.current.scale,
-        containerRect: {
-          left: r.left,
-          top: r.top,
-          width: r.width,
-          height: r.height,
-        },
-      };
+      anchorTwoFingerGesture(e.touches[0]!, e.touches[1]!);
     }
   };
 
@@ -860,20 +858,31 @@ export function GridMapEditor({
       setMove(next);
       return;
     }
-    if (e.touches.length === 2 && pinchRef.current) {
+    if (e.touches.length === 2) {
       e.preventDefault();
-      const [a, b] = [e.touches[0]!, e.touches[1]!];
-      const dist = Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY);
-      const ratio = dist / pinchRef.current.dist;
-      const nextScale = clamp(
-        pinchRef.current.scale * ratio,
+      const [t0, t1] = [e.touches[0]!, e.touches[1]!];
+      const g = twoFingerRef.current;
+      if (!g) {
+        // Both fingers landed on elements (which stop touchstart propagation);
+        // anchor now so two-finger navigation still works.
+        anchorTwoFingerGesture(t0, t1);
+        return;
+      }
+      const ta = t0.identifier === g.a.id ? t0 : t1.identifier === g.a.id ? t1 : null;
+      const tb = t1.identifier === g.b.id ? t1 : t0.identifier === g.b.id ? t0 : null;
+      if (!ta || !tb || ta === tb) {
+        anchorTwoFingerGesture(t0, t1);
+        return;
+      }
+      const next = applyTwoFingerGesture(
+        liveViewRef.current,
+        g.containerRect,
+        { a: { x: g.a.x, y: g.a.y }, b: { x: g.b.x, y: g.b.y } },
+        { a: { x: ta.clientX, y: ta.clientY }, b: { x: tb.clientX, y: tb.clientY } },
         minScaleRef.current,
-        MAX_MAP_SCALE,
       );
-      const midX = (a.clientX + b.clientX) / 2;
-      const midY = (a.clientY + b.clientY) / 2;
-      const { containerRect } = pinchRef.current;
-      const next = zoomToFocal(liveViewRef.current, containerRect, midX, midY, nextScale, minScaleRef.current);
+      g.a = { id: g.a.id, x: ta.clientX, y: ta.clientY };
+      g.b = { id: g.b.id, x: tb.clientX, y: tb.clientY };
       liveViewRef.current = next;
       applyViewportTransform(next);
     }
@@ -885,9 +894,12 @@ export function GridMapEditor({
       finishMoveAt(undefined, ms.lastClientX, ms.lastClientY);
       return;
     }
-    const wasPinching = pinchRef.current !== null;
-    pinchRef.current = null;
-    if (wasPinching && e.touches.length < 2) {
+    const wasPinching = twoFingerRef.current !== null;
+    twoFingerRef.current = null;
+    if (e.touches.length >= 2) {
+      // A third finger lifted; keep navigating with the remaining two.
+      anchorTwoFingerGesture(e.touches[0]!, e.touches[1]!);
+    } else if (wasPinching) {
       setView({ ...liveViewRef.current });
     }
     const cand = tapCandidateRef.current;

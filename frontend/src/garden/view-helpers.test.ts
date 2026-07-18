@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  applyTwoFingerGesture,
   computeFitView,
   FIT_VIEW_PADDING_PX,
   MAX_MAP_SCALE,
@@ -117,5 +118,84 @@ describe('view-helpers computeFitView', () => {
   it('stays positive for containers smaller than the padding', () => {
     const fit = computeFitView(1000, 1000, 20, 20, 24);
     expect(fit.scale).toBeGreaterThan(0);
+  });
+});
+
+describe('view-helpers applyTwoFingerGesture', () => {
+  it('translate-only input pans by the midpoint delta without changing scale', () => {
+    const view: MapView = { tx: 5, ty: -8, scale: 1.2 };
+    const next = applyTwoFingerGesture(
+      view,
+      rect,
+      { a: { x: 100, y: 100 }, b: { x: 200, y: 100 } },
+      { a: { x: 130, y: 120 }, b: { x: 230, y: 120 } },
+    );
+    expect(next.scale).toBe(view.scale);
+    expect(next.tx).toBeCloseTo(view.tx + 30, 9);
+    expect(next.ty).toBeCloseTo(view.ty + 20, 9);
+  });
+
+  it('pinch-only input zooms by the distance ratio anchored at the fixed midpoint', () => {
+    const view: MapView = { tx: 10, ty: 20, scale: 1 };
+    const prev = { a: { x: 150, y: 200 }, b: { x: 250, y: 200 } };
+    const next = { a: { x: 100, y: 200 }, b: { x: 300, y: 200 } };
+    const midX = 200;
+    const midY = 200;
+    const wx = (midX - cx - view.tx) / view.scale;
+    const wy = (midY - cy - view.ty) / view.scale;
+    const out = applyTwoFingerGesture(view, rect, prev, next);
+    expect(out.scale).toBeCloseTo(2, 9);
+    const { x, y } = clientOfWorld(out, wx, wy, rect);
+    expect(x).toBeCloseTo(midX, 5);
+    expect(y).toBeCloseTo(midY, 5);
+  });
+
+  it('combined input keeps the world point under the previous midpoint tracking to the next midpoint', () => {
+    const view: MapView = { tx: -12, ty: 7, scale: 0.8 };
+    const prev = { a: { x: 100, y: 100 }, b: { x: 200, y: 100 } };
+    const next = { a: { x: 130, y: 120 }, b: { x: 330, y: 120 } };
+    const prevMid = { x: 150, y: 100 };
+    const nextMid = { x: 230, y: 120 };
+    const wx = (prevMid.x - cx - view.tx) / view.scale;
+    const wy = (prevMid.y - cy - view.ty) / view.scale;
+    const out = applyTwoFingerGesture(view, rect, prev, next);
+    expect(out.scale).toBeCloseTo(1.6, 9);
+    const { x, y } = clientOfWorld(out, wx, wy, rect);
+    expect(x).toBeCloseTo(nextMid.x, 5);
+    expect(y).toBeCloseTo(nextMid.y, 5);
+  });
+
+  it('clamps the zoom to MAX_MAP_SCALE and to a custom minScale', () => {
+    const view: MapView = { tx: 0, ty: 0, scale: 3 };
+    const spread = applyTwoFingerGesture(
+      view,
+      rect,
+      { a: { x: 150, y: 200 }, b: { x: 250, y: 200 } },
+      { a: { x: 0, y: 200 }, b: { x: 400, y: 200 } },
+    );
+    expect(spread.scale).toBe(MAX_MAP_SCALE);
+
+    const low: MapView = { tx: 0, ty: 0, scale: 0.1 };
+    const squeeze = applyTwoFingerGesture(
+      low,
+      rect,
+      { a: { x: 0, y: 200 }, b: { x: 400, y: 200 } },
+      { a: { x: 195, y: 200 }, b: { x: 205, y: 200 } },
+      0.05,
+    );
+    expect(squeeze.scale).toBeCloseTo(0.05, 9);
+  });
+
+  it('degenerate zero finger distance pans without producing NaN', () => {
+    const view: MapView = { tx: 0, ty: 0, scale: 1 };
+    const out = applyTwoFingerGesture(
+      view,
+      rect,
+      { a: { x: 100, y: 100 }, b: { x: 100, y: 100 } },
+      { a: { x: 110, y: 105 }, b: { x: 110, y: 105 } },
+    );
+    expect(out.scale).toBe(1);
+    expect(out.tx).toBeCloseTo(10, 9);
+    expect(out.ty).toBeCloseTo(5, 9);
   });
 });

@@ -1249,4 +1249,129 @@ describe('GridMapEditor', () => {
     // world = 224 x 168; fit = min(352/224, 252/168) = 1.5
     expect(parseMapViewportTransform(viewport).scale).toBeCloseTo(1.5, 9);
   });
+
+  async function renderForTwoFinger(props: { readOnly?: boolean } = {}) {
+    const i18nInstance = await testI18n();
+    render(
+      <I18nextProvider i18n={i18nInstance}>
+        <GridMapEditor
+          gardenId="g1" area={mapArea} elements={[bedElement]}
+          selectedElementId={null}
+          onSelectElement={vi.fn()}
+          onSelectionComplete={vi.fn()}
+          tool="select"
+          onToolChange={vi.fn()}
+          {...props}
+        />
+      </I18nextProvider>,
+    );
+    return {
+      map: screen.getByTestId('grid-map'),
+      viewport: screen.getByTestId('grid-map-viewport'),
+    };
+  }
+
+  it('two-finger translate-only drag pans the view without changing scale, incrementally per frame', async () => {
+    const { map, viewport } = await renderForTwoFinger();
+
+    fireEvent.touchStart(map, {
+      touches: [
+        { identifier: 0, clientX: 100, clientY: 100 },
+        { identifier: 1, clientX: 200, clientY: 100 },
+      ],
+    });
+    fireEvent.touchMove(map, {
+      touches: [
+        { identifier: 0, clientX: 130, clientY: 120 },
+        { identifier: 1, clientX: 230, clientY: 120 },
+      ],
+    });
+    let v = parseMapViewportTransform(viewport);
+    expect(v.tx).toBeCloseTo(30, 5);
+    expect(v.ty).toBeCloseTo(20, 5);
+    expect(v.scale).toBe(1);
+
+    fireEvent.touchMove(map, {
+      touches: [
+        { identifier: 0, clientX: 140, clientY: 125 },
+        { identifier: 1, clientX: 240, clientY: 125 },
+      ],
+    });
+    v = parseMapViewportTransform(viewport);
+    expect(v.tx).toBeCloseTo(40, 5);
+    expect(v.ty).toBeCloseTo(25, 5);
+    expect(v.scale).toBe(1);
+
+    fireEvent.touchEnd(map, { touches: [], changedTouches: [] });
+    v = parseMapViewportTransform(viewport);
+    expect(v.tx).toBeCloseTo(40, 5);
+    expect(v.ty).toBeCloseTo(25, 5);
+  });
+
+  it('two-finger pinch-only zooms anchored at the finger midpoint', async () => {
+    const { map, viewport } = await renderForTwoFinger();
+
+    fireEvent.touchStart(map, {
+      touches: [
+        { identifier: 0, clientX: 100, clientY: 100 },
+        { identifier: 1, clientX: 200, clientY: 100 },
+      ],
+    });
+    fireEvent.touchMove(map, {
+      touches: [
+        { identifier: 0, clientX: 50, clientY: 100 },
+        { identifier: 1, clientX: 250, clientY: 100 },
+      ],
+    });
+    // container rect is 0x0 in jsdom, so its center is (0,0); midpoint (150,100)
+    // stays fixed while distance doubles: scale 2, tx = 150*(1-2), ty = 100*(1-2)
+    const v = parseMapViewportTransform(viewport);
+    expect(v.scale).toBeCloseTo(2, 5);
+    expect(v.tx).toBeCloseTo(-150, 5);
+    expect(v.ty).toBeCloseTo(-100, 5);
+  });
+
+  it('combined two-finger gesture pans and zooms in the same frame', async () => {
+    const { map, viewport } = await renderForTwoFinger();
+
+    fireEvent.touchStart(map, {
+      touches: [
+        { identifier: 0, clientX: 100, clientY: 100 },
+        { identifier: 1, clientX: 200, clientY: 100 },
+      ],
+    });
+    fireEvent.touchMove(map, {
+      touches: [
+        { identifier: 0, clientX: 130, clientY: 120 },
+        { identifier: 1, clientX: 330, clientY: 120 },
+      ],
+    });
+    // midpoint (150,100) -> (230,120), distance 100 -> 200:
+    // pan to tx=80,ty=20 then zoom x2 at (230,120): tx = 80+150*(1-2) = -70, ty = 20+100*(1-2) = -80
+    const v = parseMapViewportTransform(viewport);
+    expect(v.scale).toBeCloseTo(2, 5);
+    expect(v.tx).toBeCloseTo(-70, 5);
+    expect(v.ty).toBeCloseTo(-80, 5);
+  });
+
+  it('two-finger pan+zoom works in readOnly mode', async () => {
+    const { map, viewport } = await renderForTwoFinger({ readOnly: true });
+
+    fireEvent.touchStart(map, {
+      touches: [
+        { identifier: 0, clientX: 100, clientY: 100 },
+        { identifier: 1, clientX: 200, clientY: 100 },
+      ],
+    });
+    fireEvent.touchMove(map, {
+      touches: [
+        { identifier: 0, clientX: 120, clientY: 110 },
+        { identifier: 1, clientX: 220, clientY: 110 },
+      ],
+    });
+    const v = parseMapViewportTransform(viewport);
+    expect(v.tx).toBeCloseTo(20, 5);
+    expect(v.ty).toBeCloseTo(10, 5);
+    expect(v.scale).toBe(1);
+  });
 });

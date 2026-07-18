@@ -73,3 +73,38 @@ export function zoomToFocal(
     ty: ty + wy * (s - s2),
   };
 }
+
+export interface GesturePoint {
+  x: number;
+  y: number;
+}
+
+/**
+ * Apply one frame of a combined two-finger gesture: pan by the finger-midpoint
+ * delta, then zoom by the finger-distance ratio around the new midpoint. Pure
+ * translation (distance unchanged) pans, pure spread (midpoint unchanged)
+ * zooms, and mixed input does both — the world point that was under the
+ * previous midpoint tracks the fingers to the next midpoint.
+ */
+export function applyTwoFingerGesture(
+  view: MapView,
+  containerRect: ContainerRect,
+  prev: { a: GesturePoint; b: GesturePoint },
+  next: { a: GesturePoint; b: GesturePoint },
+  minScale = MIN_MAP_SCALE,
+): MapView {
+  const prevMidX = (prev.a.x + prev.b.x) / 2;
+  const prevMidY = (prev.a.y + prev.b.y) / 2;
+  const nextMidX = (next.a.x + next.b.x) / 2;
+  const nextMidY = (next.a.y + next.b.y) / 2;
+  const panned: MapView = {
+    scale: view.scale,
+    tx: view.tx + (nextMidX - prevMidX),
+    ty: view.ty + (nextMidY - prevMidY),
+  };
+  const prevDist = Math.hypot(prev.a.x - prev.b.x, prev.a.y - prev.b.y);
+  const nextDist = Math.hypot(next.a.x - next.b.x, next.a.y - next.b.y);
+  if (prevDist <= 0 || nextDist <= 0) return panned;
+  const nextScale = clampScale(view.scale * (nextDist / prevDist), minScale);
+  return zoomToFocal(panned, containerRect, nextMidX, nextMidY, nextScale, minScale);
+}
