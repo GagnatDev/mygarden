@@ -120,6 +120,7 @@
     "moveAreaFailed": "Kunne ikke flytte området. Sjekk at det er innenfor rutenettet og ikke overlapper et annet område.",
     "zoomIn": "Zoom inn",
     "zoomOut": "Zoom ut",
+    "zoomFit": "Tilpass visningen",
     "gridAriaLabel": "Hagerutenett {{width}} ganger {{height}} ruter",
     "createAreaTitle": "Nytt område",
     "areaName": "Navn",

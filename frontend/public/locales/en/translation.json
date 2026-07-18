@@ -120,6 +120,7 @@
     "moveAreaFailed": "Could not move the area. Check that it stays inside the grid and does not overlap another area.",
     "zoomIn": "Zoom in",
     "zoomOut": "Zoom out",
+    "zoomFit": "Zoom to fit",
     "gridAriaLabel": "Garden grid {{width}} by {{height}} cells",
     "createAreaTitle": "New area",
     "areaName": "Name",
