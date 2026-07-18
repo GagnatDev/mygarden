@@ -18,12 +18,14 @@ export interface GridMapAreasSvgProps {
   elementBadgeById?: Readonly<Record<string, ElementBadge>>;
   elementOverlayBadgesById?: Readonly<Record<string, string[]>>;
   selectedElementId: string | null;
-  effectiveTool: 'select' | 'pan' | 'move' | 'draw-polygon';
-  readOnly: boolean;
+  /** True in browse mode when not read-only: elements receive pointer/touch input. */
+  interactive: boolean;
   draggingElementId?: string | null;
   onSelectElement: (id: string | null) => void;
-  onBeginElementMove?: (e: React.PointerEvent, element: Element) => void;
-  onBeginElementMoveTouch?: (clientX: number, clientY: number, element: Element) => void;
+  /** Forwarded press on an element; the editor classifies it (move vs pan vs tap). */
+  onElementPointerDown?: (e: React.PointerEvent, element: Element) => void;
+  /** Forwarded single-finger touch on an element; the editor runs long-press tracking. */
+  onElementTouchStart?: (clientX: number, clientY: number, element: Element) => void;
 }
 
 function elementCenterPx(el: Element, cell: number): { cx: number; cy: number } {
@@ -45,12 +47,11 @@ export const GridMapAreasSvg = memo<GridMapAreasSvgProps>(function GridMapAreasS
   elementBadgeById,
   elementOverlayBadgesById,
   selectedElementId,
-  effectiveTool,
-  readOnly,
+  interactive,
   draggingElementId = null,
   onSelectElement,
-  onBeginElementMove,
-  onBeginElementMoveTouch,
+  onElementPointerDown,
+  onElementTouchStart,
 }: GridMapAreasSvgProps) {
   const { t } = useTranslation();
 
@@ -74,9 +75,6 @@ export const GridMapAreasSvg = memo<GridMapAreasSvgProps>(function GridMapAreasS
         const polygonPts = polygonShape ? polygonPointsPx(polygonShape.vertices, cell) : '';
         const ariaLabel = hasPlantings ? `${a.name} (${t('elements.hasPlantingsHint')})` : a.name;
 
-        const pointerEvents: React.SVGAttributes<SVGGElement>['pointerEvents'] =
-          effectiveTool === 'pan' || effectiveTool === 'draw-polygon' || readOnly ? 'none' : 'auto';
-
         const { cx, cy } = elementCenterPx(a, cell);
 
         return (
@@ -86,25 +84,22 @@ export const GridMapAreasSvg = memo<GridMapAreasSvgProps>(function GridMapAreasS
             data-area-shape={isPolygon ? 'polygon' : 'rectangle'}
             role="button"
             aria-label={ariaLabel}
-            tabIndex={readOnly || effectiveTool === 'pan' || effectiveTool === 'draw-polygon' ? -1 : 0}
-            pointerEvents={pointerEvents}
+            tabIndex={interactive ? 0 : -1}
+            pointerEvents={interactive ? 'auto' : 'none'}
             onPointerDown={(ev) => {
               ev.stopPropagation();
-              if (!readOnly && effectiveTool === 'move' && onBeginElementMove) {
-                ev.preventDefault();
-                onBeginElementMove(ev as unknown as React.PointerEvent, a);
-              }
+              if (!interactive) return;
+              onElementPointerDown?.(ev, a);
             }}
             onTouchStart={(ev) => {
               ev.stopPropagation();
-              if (readOnly || effectiveTool !== 'move' || !onBeginElementMoveTouch) return;
+              if (!interactive || ev.touches.length !== 1) return;
               const touch = ev.touches[0];
               if (!touch) return;
-              ev.preventDefault();
-              onBeginElementMoveTouch(touch.clientX, touch.clientY, a);
+              onElementTouchStart?.(touch.clientX, touch.clientY, a);
             }}
             onClick={(ev) => {
-              if (readOnly || effectiveTool !== 'select') return;
+              if (!interactive) return;
               ev.stopPropagation();
               onSelectElement(a.id);
             }}

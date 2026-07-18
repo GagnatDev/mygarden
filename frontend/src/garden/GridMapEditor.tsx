@@ -8,6 +8,18 @@ import {
 import type { Element, ElementShape } from '../api/elements';
 import { getAuthenticatedImageBlobUrl } from '../images/authenticated-image-cache';
 import { computeAlignmentGuides } from './alignment-guides';
+import {
+  beginPress,
+  classifyRelease,
+  DOUBLE_TAP_MS,
+  DRAG_THRESHOLD_PX,
+  isDoubleTap,
+  movePress,
+  LONG_PRESS_MS,
+  TAP_MOVE_SLOP_PX,
+  type PressState,
+  type TapRecord,
+} from './gesture-helpers';
 import { GridMapAreasSvg } from './GridMapAreasSvg';
 import { GridMapSvgGridLayer } from './GridMapSvgGridLayer';
 import { isValidMovePosition } from './grid-rect';
@@ -25,11 +37,6 @@ import {
   type MapView,
   zoomToFocal,
 } from './view-helpers';
-
-/** Max delay between two taps, and max movement within a tap, for double-tap-to-fit. */
-const DOUBLE_TAP_MS = 350;
-const DOUBLE_TAP_SLOP_PX = 24;
-const TAP_MOVE_SLOP_PX = 10;
 
 /** CSS pixels per grid cell (world space). Exported for tests. */
 export const CELL = 28;
@@ -65,7 +72,13 @@ function normalizeRect(
   return { gridX: x0, gridY: y0, gridWidth, gridHeight };
 }
 
-export type MapTool = 'select' | 'pan' | 'move' | 'draw-polygon';
+/**
+ * Browse is the only persistent state (B1): drag pans, tap selects, long-press
+ * (touch) or direct drag (mouse) moves an element. The add modes are explicit
+ * and self-exiting (B3).
+ */
+export type MapMode = 'browse' | 'add-rect' | 'add-polygon';
+
 export type MapLayer = 'element-type' | 'plan-vs-actual' | 'status' | 'historical';
 
 export interface MapLegendItem {
@@ -126,8 +139,6 @@ export interface GridMapEditorProps {
   onSelectionComplete: (sel: ElementDraftSelection) => void;
   /** Reposition an existing element (grid top-left); parent persists via API. */
   onMoveElement?: (elementId: string, gridX: number, gridY: number) => void;
-  tool: MapTool;
-  onToolChange: (t: MapTool) => void;
   /** When true, map is view-only (pan/zoom only, no new selections or element clicks). */
   readOnly?: boolean;
   /** Called after a successful background upload or remove (e.g. refresh area). */
@@ -151,14 +162,12 @@ export function GridMapEditor({
   onSelectElement,
   onSelectionComplete,
   onMoveElement,
-  tool,
-  onToolChange,
   readOnly = false,
   onAreaBackgroundChanged,
 }: GridMapEditorProps) {
   const { t } = useTranslation();
   const backgroundImageUrl = area.backgroundImageUrl ?? null;
-  const effectiveTool: MapTool = readOnly ? 'pan' : tool;
+  const [mode, setMode] = useState<MapMode>('browse');
   const containerRef = useRef<HTMLDivElement>(null);
   const viewportRef = useRef<HTMLDivElement>(null);
   const worldRef = useRef<SVGSVGElement>(null);
@@ -179,7 +188,15 @@ export function GridMapEditor({
   }, [view, applyViewportTransform]);
 
   const dragRef = useRef<
-    | { kind: 'pan'; x: number; y: number }
+    | {
+        kind: 'pan';
+        x: number;
+        y: number;
+        startClientX: number;
+        startClientY: number;
+        /** Element under the finger/pointer at press time; a sub-threshold release selects it. */
+        pressedElementId: string | null;
+      }
     | {
         kind: 'select';
         ax: number;
@@ -189,6 +206,7 @@ export function GridMapEditor({
         startClientX: number;
         startClientY: number;
       }
+    | { kind: 'poly-tap'; startClientX: number; startClientY: number }
     | null
   >(null);
   /** Anchor of an active two-finger pan+zoom gesture: last touch points by identifier. */
@@ -209,8 +227,6 @@ export function GridMapEditor({
   const [preview, setPreview] = useState<GridSelection | null>(null);
   const moveRef = useRef<MoveDragState | null>(null);
   const [move, setMove] = useState<MoveDragState | null>(null);
-  /** While move tool is active: last area finished via pointer (nudge target + outline); not synced to parent. */
-  const [moveNudgeElementId, setMoveNudgeElementId] = useState<string | null>(null);
   const [poly, setPoly] = useState<Array<{ x: number; y: number }> | null>(null);
 
   const bgStorageKey = `mygarden.mapBgOpacity.${gardenId}.${area.id}`;
@@ -291,15 +307,6 @@ export function GridMapEditor({
       setBgActionBusy(false);
     }
   }, [gardenId, area.id, onAreaBackgroundChanged, t]);
-
-  useEffect(() => {
-    if (effectiveTool !== 'move') {
-      setMoveNudgeElementId(null);
-    }
-  }, [effectiveTool]);
-
-  const elementOutlineId =
-    effectiveTool === 'move' ? moveNudgeElementId ?? selectedElementId : selectedElementId;
 
   const gw = area.gridWidth;
   const gh = area.gridHeight;
@@ -393,6 +400,7 @@ export function GridMapEditor({
         shape: { kind: 'polygon', vertices: draft },
       });
       setPoly(null);
+      setMode('browse');
     },
     [onSelectionComplete],
   );
@@ -400,11 +408,49 @@ export function GridMapEditor({
   /** Tap within this many SVG pixels of the first vertex closes the polygon (touch-friendly). */
   const POLYGON_CLOSE_RADIUS_PX = 18;
 
+  const addPolygonVertexAt = useCallback(
+    (clientX: number, clientY: number) => {
+      const w = clientToWorld(clientX, clientY);
+      if (!w) return;
+      const vx = w.x / CELL;
+      const vy = w.y / CELL;
+      if (!Number.isFinite(vx) || !Number.isFinite(vy)) return;
+      setPoly((prev) => {
+        const draft = prev ?? [];
+        if (draft.length >= 3) {
+          const first = draft[0]!;
+          const dist = Math.hypot(w.x - first.x * CELL, w.y - first.y * CELL);
+          if (dist < POLYGON_CLOSE_RADIUS_PX) {
+            queueMicrotask(() => completePolygonDraft(draft));
+            return null;
+          }
+        }
+        return [...draft, { x: vx, y: vy }];
+      });
+    },
+    [clientToWorld, completePolygonDraft],
+  );
+
+  /** Leaving add-polygon (Cancel, Esc, completion, readOnly) always drops the draft. */
   useEffect(() => {
-    if (readOnly || effectiveTool !== 'draw-polygon') {
+    if (readOnly || mode !== 'add-polygon') {
       setPoly(null);
     }
-  }, [readOnly, effectiveTool]);
+  }, [readOnly, mode]);
+
+  /** Esc cancels an add mode (B3). */
+  useEffect(() => {
+    if (readOnly || mode === 'browse') return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      e.preventDefault();
+      setMode('browse');
+      dragRef.current = null;
+      setPreview(null);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [readOnly, mode]);
 
   const setMoveBoth = useCallback((next: MoveDragState | null) => {
     moveRef.current = next;
@@ -441,20 +487,84 @@ export function GridMapEditor({
     [clientToGrid, onMoveElement, setMoveBoth],
   );
 
-  const beginElementMove = useCallback(
+  /** Long-press tracking for touch presses on elements (B1, R2, R9). */
+  const longPressRef = useRef<{ element: Element; press: PressState } | null>(null);
+  const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const cancelLongPress = useCallback(() => {
+    longPressRef.current = null;
+    if (longPressTimerRef.current != null) {
+      clearTimeout(longPressTimerRef.current);
+      longPressTimerRef.current = null;
+    }
+  }, []);
+
+  useEffect(() => cancelLongPress, [cancelLongPress]);
+
+  const flushLiveView = useCallback(() => {
+    setView({ ...liveViewRef.current });
+  }, []);
+
+  const beginPanDrag = useCallback(
+    (clientX: number, clientY: number, pressedElementId: string | null) => {
+      dragRef.current = {
+        kind: 'pan',
+        x: clientX,
+        y: clientY,
+        startClientX: clientX,
+        startClientY: clientY,
+        pressedElementId,
+      };
+    },
+    [],
+  );
+
+  const handleElementTouchStart = useCallback(
+    (clientX: number, clientY: number, element: Element) => {
+      if (readOnly || mode !== 'browse') return;
+      cancelLongPress();
+      longPressRef.current = { element, press: beginPress(clientX, clientY, Date.now()) };
+      if (!onMoveElement) return;
+      longPressTimerRef.current = setTimeout(() => {
+        longPressTimerRef.current = null;
+        const lp = longPressRef.current;
+        if (!lp || lp.press.intent !== 'pending') return;
+        if (moveRef.current || twoFingerRef.current) return;
+        longPressRef.current = null;
+        // A browse pan candidate may be live for this same finger; the move takes over.
+        if (dragRef.current?.kind === 'pan') {
+          dragRef.current = null;
+          flushLiveView();
+        }
+        beginElementMoveAt(lp.element, lp.press.lastX, lp.press.lastY);
+      }, LONG_PRESS_MS);
+    },
+    [readOnly, mode, cancelLongPress, onMoveElement, beginElementMoveAt, flushLiveView],
+  );
+
+  const handleElementPointerDown = useCallback(
     (e: React.PointerEvent, element: Element) => {
+      if (readOnly || mode !== 'browse') return;
       if (typeof e.button === 'number' && e.button !== 0) return;
+      if (moveRef.current) return;
+      if (spaceHeldRef.current) {
+        e.preventDefault();
+        (e.target as HTMLElement).setPointerCapture?.(e.pointerId);
+        beginPanDrag(e.clientX, e.clientY, null);
+        setSpacePanPointerDown(true);
+        return;
+      }
+      if (e.pointerType === 'touch' || !onMoveElement) {
+        // Touch: pan until the long-press timer promotes this press to a move.
+        // No move callback: dragging still pans; a sub-threshold release selects.
+        (e.target as HTMLElement).setPointerCapture?.(e.pointerId);
+        beginPanDrag(e.clientX, e.clientY, element.id);
+        return;
+      }
       e.preventDefault();
       beginElementMoveAt(element, e.clientX, e.clientY, e.pointerId);
     },
-    [beginElementMoveAt],
-  );
-
-  const beginElementMoveTouch = useCallback(
-    (clientX: number, clientY: number, element: Element) => {
-      beginElementMoveAt(element, clientX, clientY);
-    },
-    [beginElementMoveAt],
+    [readOnly, mode, beginPanDrag, onMoveElement, beginElementMoveAt],
   );
 
   useEffect(() => {
@@ -579,7 +689,7 @@ export function GridMapEditor({
   }, []);
 
   useEffect(() => {
-    if (readOnly || !elementOutlineId || !onMoveElement) return;
+    if (readOnly || !selectedElementId || !onMoveElement) return;
     const onKey = (e: KeyboardEvent) => {
       if (moveRef.current) return;
       const targetEl = e.target as HTMLElement | null;
@@ -602,7 +712,7 @@ export function GridMapEditor({
         default:
           return;
       }
-      const hit = elements.find((it) => it.id === elementOutlineId);
+      const hit = elements.find((it) => it.id === selectedElementId);
       if (!hit) return;
       e.preventDefault();
       const rect = {
@@ -616,47 +726,26 @@ export function GridMapEditor({
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [readOnly, elementOutlineId, elements, gw, gh, onMoveElement]);
+  }, [readOnly, selectedElementId, elements, gw, gh, onMoveElement]);
 
   const onPointerDown = (e: React.PointerEvent) => {
     if (typeof e.button === 'number' && e.button !== 0) return;
     if (moveRef.current) return;
-    if (effectiveTool === 'pan') {
-      (e.target as HTMLElement).setPointerCapture?.(e.pointerId);
-      dragRef.current = { kind: 'pan', x: e.clientX, y: e.clientY };
-      viewTouchedRef.current = true;
-      return;
-    }
     if (spaceHeldRef.current) {
       e.preventDefault();
       (e.target as HTMLElement).setPointerCapture?.(e.pointerId);
-      dragRef.current = { kind: 'pan', x: e.clientX, y: e.clientY };
-      viewTouchedRef.current = true;
+      beginPanDrag(e.clientX, e.clientY, null);
       setSpacePanPointerDown(true);
       return;
     }
-    if (effectiveTool === 'move') {
+    if (readOnly || mode === 'browse') {
+      (e.target as HTMLElement).setPointerCapture?.(e.pointerId);
+      beginPanDrag(e.clientX, e.clientY, null);
       return;
     }
-    if (effectiveTool === 'draw-polygon') {
+    if (mode === 'add-polygon') {
       e.preventDefault();
-      const w = clientToWorld(e.clientX, e.clientY);
-      if (!w) return;
-      const vx = w.x / CELL;
-      const vy = w.y / CELL;
-      if (!Number.isFinite(vx) || !Number.isFinite(vy)) return;
-      setPoly((prev) => {
-        const draft = prev ?? [];
-        if (draft.length >= 3) {
-          const first = draft[0]!;
-          const dist = Math.hypot(w.x - first.x * CELL, w.y - first.y * CELL);
-          if (dist < POLYGON_CLOSE_RADIUS_PX) {
-            queueMicrotask(() => completePolygonDraft(draft));
-            return null;
-          }
-        }
-        return [...draft, { x: vx, y: vy }];
-      });
+      dragRef.current = { kind: 'poly-tap', startClientX: e.clientX, startClientY: e.clientY };
       return;
     }
     (e.target as HTMLElement).setPointerCapture?.(e.pointerId);
@@ -691,10 +780,18 @@ export function GridMapEditor({
     if (d.kind === 'pan') {
       const dx = e.clientX - d.x;
       const dy = e.clientY - d.y;
-      dragRef.current = { kind: 'pan', x: e.clientX, y: e.clientY };
+      dragRef.current = { ...d, x: e.clientX, y: e.clientY };
+      viewTouchedRef.current = true;
       const lv = liveViewRef.current;
       liveViewRef.current = { ...lv, tx: lv.tx + dx, ty: lv.ty + dy };
       applyViewportTransform(liveViewRef.current);
+      return;
+    }
+    if (d.kind === 'poly-tap') {
+      // A drag in add-polygon mode is neither a vertex tap nor a pan; drop it.
+      if (Math.hypot(e.clientX - d.startClientX, e.clientY - d.startClientY) >= DRAG_THRESHOLD_PX) {
+        dragRef.current = null;
+      }
       return;
     }
     const gridPos = clientToGrid(e.clientX, e.clientY);
@@ -703,17 +800,14 @@ export function GridMapEditor({
     setPreview(normalizeRect(d.ax, d.ay, gridPos.gx, gridPos.gy, gw, gh));
   };
 
-  const endDrag = (e: React.PointerEvent) => {
-    const d = dragRef.current;
-    dragRef.current = null;
+  const endMarqueeDrag = (e: React.PointerEvent, d: Extract<NonNullable<typeof dragRef.current>, { kind: 'select' }>) => {
     setPreview(null);
-    if (!d) return;
-    if (d.kind === 'pan') return;
     const dragPx = Math.hypot(e.clientX - d.startClientX, e.clientY - d.startClientY);
-    if (dragPx < 6) return;
+    if (dragPx < DRAG_THRESHOLD_PX) return;
     const rect = normalizeRect(d.ax, d.ay, d.bx, d.by, gw, gh);
     if (rect) {
       onSelectionComplete(rect);
+      setMode('browse');
     }
   };
 
@@ -728,6 +822,9 @@ export function GridMapEditor({
     } catch {
       /* ignore */
     }
+    if (!readOnly) onSelectElement(ms.elementId);
+    const dragPx = Math.hypot(clientX - ms.startClientX, clientY - ms.startClientY);
+    if (dragPx < DRAG_THRESHOLD_PX) return;
     const rect = {
       gridX: ms.curGridX,
       gridY: ms.curGridY,
@@ -735,21 +832,13 @@ export function GridMapEditor({
       gridHeight: ms.h,
     };
     const valid = isValidMovePosition(ms.elementId, rect, elements, gw, gh);
-    const dragPx = Math.hypot(clientX - ms.startClientX, clientY - ms.startClientY);
-    if (dragPx < 6) {
-      setMoveNudgeElementId(ms.elementId);
-      return;
-    }
     if (
       valid &&
       onMoveElement &&
       (ms.curGridX !== ms.origGridX || ms.curGridY !== ms.origGridY)
     ) {
-      setMoveNudgeElementId(ms.elementId);
       onMoveElement(ms.elementId, ms.curGridX, ms.curGridY);
-      return;
     }
-    setMoveNudgeElementId(ms.elementId);
   };
 
   const onPointerUp = (e: React.PointerEvent) => {
@@ -764,22 +853,33 @@ export function GridMapEditor({
       return;
     }
     const d = dragRef.current;
-    if (d?.kind === 'pan') {
-      dragRef.current = null;
+    if (!d) return;
+    dragRef.current = null;
+    if (d.kind === 'pan') {
+      const wasSpacePan = spacePanPointerDown;
       setSpacePanPointerDown(false);
-      setView({ ...liveViewRef.current });
+      flushLiveView();
+      const dragPx = Math.hypot(e.clientX - d.startClientX, e.clientY - d.startClientY);
+      if (!readOnly && !wasSpacePan && dragPx < DRAG_THRESHOLD_PX && mode === 'browse') {
+        onSelectElement(d.pressedElementId);
+      }
       return;
     }
-    endDrag(e);
+    if (d.kind === 'poly-tap') {
+      addPolygonVertexAt(d.startClientX, d.startClientY);
+      return;
+    }
+    endMarqueeDrag(e, d);
   };
 
   const onDoubleClick = (e: React.MouseEvent) => {
-    if (!readOnly && effectiveTool === 'draw-polygon') {
+    if (!readOnly && mode === 'add-polygon') {
       if (!polygonDraft || polygonDraft.length < 3) return;
       e.preventDefault();
       completePolygonDraft(polygonDraft);
       return;
     }
+    if (mode !== 'browse') return;
     // Double-click on empty background restores the fitted view (A2).
     const targetEl = e.target as globalThis.Element | null;
     if (targetEl?.closest('[data-area-shape]')) return;
@@ -789,21 +889,20 @@ export function GridMapEditor({
 
   const onPointerCancel = () => {
     const wasPan = dragRef.current?.kind === 'pan';
-    moveRef.current = null;
-    setMove(null);
+    setMoveBoth(null);
     dragRef.current = null;
+    cancelLongPress();
     setSpacePanPointerDown(false);
     setPreview(null);
-    setPoly(null);
     if (wasPan) {
-      setView({ ...liveViewRef.current });
+      flushLiveView();
     }
   };
 
   /** Single-finger tap in progress (background only); feeds double-tap-to-fit (A2). */
   const tapCandidateRef = useRef<{ time: number; x: number; y: number } | null>(null);
   /** Where/when the previous qualifying tap ended. */
-  const lastTapRef = useRef<{ time: number; x: number; y: number } | null>(null);
+  const lastTapRef = useRef<TapRecord | null>(null);
 
   const anchorTwoFingerGesture = useCallback(
     (a: { identifier: number; clientX: number; clientY: number }, b: typeof a) => {
@@ -820,18 +919,31 @@ export function GridMapEditor({
     [],
   );
 
+  /** A second finger cancels any single-finger gesture in progress (B2/B3). */
+  const cancelSingleTouchGestures = useCallback(() => {
+    cancelLongPress();
+    if (moveRef.current) setMoveBoth(null);
+    const d = dragRef.current;
+    if (d) {
+      dragRef.current = null;
+      if (d.kind === 'pan') flushLiveView();
+      if (d.kind === 'select') setPreview(null);
+    }
+  }, [cancelLongPress, setMoveBoth, flushLiveView]);
+
   const onTouchStart = (e: React.TouchEvent) => {
     if (e.touches.length === 1) {
       const touch = e.touches[0]!;
       const targetEl = e.target as globalThis.Element | null;
       tapCandidateRef.current =
-        !targetEl?.closest('[data-area-shape]') && effectiveTool !== 'draw-polygon'
+        !targetEl?.closest('[data-area-shape]') && mode !== 'add-polygon'
           ? { time: Date.now(), x: touch.clientX, y: touch.clientY }
           : null;
       return;
     }
     tapCandidateRef.current = null;
     lastTapRef.current = null;
+    cancelSingleTouchGestures();
     if (e.touches.length === 2) {
       anchorTwoFingerGesture(e.touches[0]!, e.touches[1]!);
     }
@@ -843,6 +955,17 @@ export function GridMapEditor({
       const touch = e.touches[0]!;
       if (Math.hypot(touch.clientX - cand.x, touch.clientY - cand.y) > TAP_MOVE_SLOP_PX) {
         tapCandidateRef.current = null;
+      }
+    }
+    const lp = longPressRef.current;
+    if (lp && e.touches.length === 1 && !moveRef.current) {
+      const touch = e.touches[0]!;
+      const nextPress = movePress(lp.press, touch.clientX, touch.clientY);
+      if (nextPress.intent === 'drag') {
+        // Finger left the slop before the long-press fired: it is a pan, not a move.
+        cancelLongPress();
+      } else {
+        longPressRef.current = { element: lp.element, press: nextPress };
       }
     }
     if (e.touches.length === 1 && moveRef.current) {
@@ -860,6 +983,7 @@ export function GridMapEditor({
     }
     if (e.touches.length === 2) {
       e.preventDefault();
+      cancelSingleTouchGestures();
       const [t0, t1] = [e.touches[0]!, e.touches[1]!];
       const g = twoFingerRef.current;
       if (!g) {
@@ -894,28 +1018,32 @@ export function GridMapEditor({
       finishMoveAt(undefined, ms.lastClientX, ms.lastClientY);
       return;
     }
+    const lp = longPressRef.current;
+    if (lp && e.touches.length === 0) {
+      cancelLongPress();
+      if (!readOnly && classifyRelease(lp.press, lp.press.lastX, lp.press.lastY) === 'tap') {
+        onSelectElement(lp.element.id);
+      }
+    }
     const wasPinching = twoFingerRef.current !== null;
     twoFingerRef.current = null;
     if (e.touches.length >= 2) {
       // A third finger lifted; keep navigating with the remaining two.
       anchorTwoFingerGesture(e.touches[0]!, e.touches[1]!);
     } else if (wasPinching) {
-      setView({ ...liveViewRef.current });
+      flushLiveView();
     }
     const cand = tapCandidateRef.current;
     if (cand && e.touches.length === 0) {
       tapCandidateRef.current = null;
       const now = Date.now();
       if (now - cand.time < DOUBLE_TAP_MS) {
-        const last = lastTapRef.current;
-        lastTapRef.current = { time: now, x: cand.x, y: cand.y };
-        if (
-          last &&
-          now - last.time < DOUBLE_TAP_MS &&
-          Math.hypot(cand.x - last.x, cand.y - last.y) < DOUBLE_TAP_SLOP_PX
-        ) {
+        const tap: TapRecord = { time: now, x: cand.x, y: cand.y };
+        if (isDoubleTap(lastTapRef.current, tap)) {
           lastTapRef.current = null;
           applyFitView();
+        } else {
+          lastTapRef.current = tap;
         }
       } else {
         lastTapRef.current = null;
@@ -923,11 +1051,19 @@ export function GridMapEditor({
     }
   };
 
+  const onTouchCancel = () => {
+    cancelLongPress();
+    cancelSingleTouchGestures();
+    tapCandidateRef.current = null;
+    if (twoFingerRef.current) {
+      twoFingerRef.current = null;
+      flushLiveView();
+    }
+  };
+
   const movingElement = move
     ? elements.find((a) => a.id === move.elementId)
     : undefined;
-  const effectiveToolForElements: 'select' | 'pan' | 'move' =
-    effectiveTool === 'draw-polygon' ? 'pan' : effectiveTool;
   const moveRect = move
     ? {
         gridX: move.curGridX,
@@ -952,6 +1088,9 @@ export function GridMapEditor({
   const guides =
     move && moveRect ? computeAlignmentGuides(moveRect, otherRects) : null;
 
+  const addModeButtonClass = (active: boolean) =>
+    `rounded-md px-3 py-1.5 font-medium ${active ? 'bg-emerald-100 text-emerald-900' : 'text-stone-600'}`;
+
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-2">
       <div className="flex flex-wrap items-center gap-2">
@@ -959,44 +1098,35 @@ export function GridMapEditor({
           <div className="flex rounded-lg border border-stone-200 bg-white p-0.5 text-sm">
             <button
               type="button"
-              className={`rounded-md px-3 py-1.5 font-medium ${
-                tool === 'select' ? 'bg-emerald-100 text-emerald-900' : 'text-stone-600'
-              }`}
-              onClick={() => onToolChange('select')}
+              data-testid="map-add-rect"
+              aria-pressed={mode === 'add-rect'}
+              className={addModeButtonClass(mode === 'add-rect')}
+              onClick={() => setMode((m) => (m === 'add-rect' ? 'browse' : 'add-rect'))}
             >
-              {t('garden.toolSelect')}
+              {t('garden.addRectangle')}
             </button>
             <button
               type="button"
-              className={`rounded-md px-3 py-1.5 font-medium ${
-                tool === 'draw-polygon' ? 'bg-emerald-100 text-emerald-900' : 'text-stone-600'
-              }`}
-              onClick={() => onToolChange('draw-polygon')}
+              data-testid="map-add-polygon"
+              aria-pressed={mode === 'add-polygon'}
+              className={addModeButtonClass(mode === 'add-polygon')}
+              onClick={() => setMode((m) => (m === 'add-polygon' ? 'browse' : 'add-polygon'))}
             >
-              {t('garden.toolDrawPolygon')}
+              {t('garden.addPolygon')}
             </button>
-            <button
-              type="button"
-              className={`rounded-md px-3 py-1.5 font-medium ${
-                tool === 'move' ? 'bg-emerald-100 text-emerald-900' : 'text-stone-600'
-              }`}
-              onClick={() => onToolChange('move')}
-              disabled={!onMoveElement}
-            >
-              {t('garden.toolMove')}
-            </button>
-            <button
-              type="button"
-              className={`rounded-md px-3 py-1.5 font-medium ${
-                tool === 'pan' ? 'bg-emerald-100 text-emerald-900' : 'text-stone-600'
-              }`}
-              onClick={() => onToolChange('pan')}
-            >
-              {t('garden.toolPan')}
-            </button>
+            {mode !== 'browse' ? (
+              <button
+                type="button"
+                data-testid="map-add-cancel"
+                className="rounded-md px-3 py-1.5 font-medium text-stone-600"
+                onClick={() => setMode('browse')}
+              >
+                {t('garden.cancel')}
+              </button>
+            ) : null}
           </div>
         ) : null}
-        {!readOnly && tool === 'draw-polygon' && polygonDraft && polygonDraft.length > 0 ? (
+        {!readOnly && mode === 'add-polygon' && polygonDraft && polygonDraft.length > 0 ? (
           <div
             className="flex rounded-lg border border-stone-200 bg-white p-0.5 text-sm"
             data-testid="map-polygon-draft-actions"
@@ -1147,6 +1277,7 @@ export function GridMapEditor({
         onTouchStart={onTouchStart}
         onTouchMove={onTouchMove}
         onTouchEnd={onTouchEnd}
+        onTouchCancel={onTouchCancel}
         style={{ touchAction: 'none' }}
       >
         <div
@@ -1211,13 +1342,12 @@ export function GridMapEditor({
               elementColorById={elementColorById}
               elementBadgeById={elementBadgeById}
               elementOverlayBadgesById={elementOverlayBadgesById}
-              selectedElementId={elementOutlineId}
-              effectiveTool={effectiveToolForElements}
-              readOnly={readOnly}
+              selectedElementId={selectedElementId}
+              interactive={!readOnly && mode === 'browse'}
               draggingElementId={move?.elementId ?? null}
               onSelectElement={onSelectElement}
-              onBeginElementMove={onMoveElement ? beginElementMove : undefined}
-              onBeginElementMoveTouch={onMoveElement ? beginElementMoveTouch : undefined}
+              onElementPointerDown={handleElementPointerDown}
+              onElementTouchStart={handleElementTouchStart}
             />
 
             {move && movingElement ? (
@@ -1325,7 +1455,7 @@ export function GridMapEditor({
               />
             )}
 
-            {effectiveTool === 'draw-polygon' && polygonDraft && polygonDraft.length > 0 ? (
+            {mode === 'add-polygon' && polygonDraft && polygonDraft.length > 0 ? (
               <g data-testid="map-polygon-draft" pointerEvents="none">
                 <polyline
                   points={polygonPreviewPointsPx}

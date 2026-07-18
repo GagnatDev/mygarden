@@ -6,7 +6,7 @@ import { listSeasons, type Season } from '../api/gardens';
 import { archiveSeason, getSeasonSnapshot, type SeasonSnapshot } from '../api/seasons';
 import { NotesSection } from '../components/NotesSection';
 import { useGardenContext } from '../garden/garden-context';
-import { GridMapEditor, type MapTool } from '../garden/GridMapEditor';
+import { GridMapEditor } from '../garden/GridMapEditor';
 import { useActiveSeason } from '../garden/useActiveSeason';
 
 export function HistoryPage() {
@@ -21,7 +21,6 @@ export function HistoryPage() {
   const [snap, setSnap] = useState<SeasonSnapshot | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [tool, setTool] = useState<MapTool>('pan');
   const [archiveBusy, setArchiveBusy] = useState(false);
 
   const loadSeasons = useCallback(async () => {
@@ -177,8 +176,6 @@ export function HistoryPage() {
               selectedElementId={null}
               onSelectElement={() => {}}
               onSelectionComplete={() => {}}
-              tool={tool}
-              onToolChange={setTool}
               readOnly
             />
           </div>

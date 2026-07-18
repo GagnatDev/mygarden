@@ -20,7 +20,6 @@ import {
   GridMapEditor,
   type ElementDraftSelection,
   type MapLayer,
-  type MapTool,
 } from '../garden/GridMapEditor';
 import { deriveElementStatus, derivePlanVsActual } from '../garden/layer-helpers';
 import { useActiveSeason } from '../garden/useActiveSeason';
@@ -36,7 +35,6 @@ export function AreaMapPage() {
   const [mapLoading, setMapLoading] = useState(false);
   const [selectedElementId, setSelectedElementId] = useState<string | null>(null);
   const [pendingSelection, setPendingSelection] = useState<ElementDraftSelection | null>(null);
-  const [tool, setTool] = useState<MapTool>('select');
   const [layer, setLayer] = useState<MapLayer>('element-type');
   const selectedGarden = useMemo(
     () => gardens.find((g) => g.id === gardenId) ?? null,
@@ -186,12 +184,6 @@ export function AreaMapPage() {
       setSelectedElementId(null);
     }
   }, [elements, selectedElementId]);
-
-  useEffect(() => {
-    if (tool !== 'select') {
-      setSelectedElementId(null);
-    }
-  }, [tool]);
 
   const selectedElement = elements.find((e) => e.id === selectedElementId) ?? null;
 
@@ -460,12 +452,10 @@ export function AreaMapPage() {
               onSelectElement={setSelectedElementId}
               onSelectionComplete={setPendingSelection}
               onMoveElement={handleMoveElement}
-              tool={tool}
-              onToolChange={setTool}
             />
           )}
         </div>
-        {selectedElement && seasonId && tool === 'select' ? (
+        {selectedElement && seasonId ? (
           <ElementDetailPanel
             gardenId={gardenId}
             areaId={areaId}
