@@ -14,10 +14,22 @@ Apply this skill **only** in a **Cursor Cloud agent** session (isolated Ubuntu V
 
 MyGarden is a pnpm monorepo with two workspace packages: `backend/` (Express + MongoDB) and `frontend/` (React + Vite). See `README.md` for the standard dev commands (`pnpm lint`, `pnpm typecheck`, `pnpm test`, etc.).
 
+The startup update script already runs `pnpm install` under Node 24 (via nvm) with pnpm 9.15.9 activated via corepack.
+
 ## Environment requirements
 
 - **Node.js >= 24** (use `nvm install 24 && nvm use 24`). pnpm 9.15.9 is declared via corepack (`corepack enable && corepack prepare pnpm@9.15.9 --activate`).
 - **Docker** is required for two things: running MongoDB (the backend's datastore) and running backend integration tests (which use `@testcontainers/mongodb` to spin up disposable MongoDB instances).
+
+### Node 24 is shadowed in fresh shells
+
+A system `node` at `/exec-daemon/node` (v22) precedes nvm on `PATH`, so `nvm use 24` alone does not change `node`. To actually run with Node 24, prepend the nvm bin: `export PATH="$HOME/.nvm/versions/node/v24.18.0/bin:$PATH"` (after `. "$HOME/.nvm/nvm.sh"`). The app requires Node >= 24 at runtime; `pnpm install` itself tolerates the v22 shim.
+
+### Docker is not auto-started
+
+Start Docker once per session with `sudo dockerd` (run in the background, e.g. a tmux session). The `ubuntu` user is in the `docker` group, so `docker` works without sudo once the daemon is up.
+
+Backend integration tests need the Docker socket reachable as `ubuntu` (group membership is already configured); if a fresh shell predates the group change, run them via `sg docker -c "…"`.
 
 ## Running services
 

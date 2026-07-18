@@ -23,3 +23,7 @@ When writing or executing implementation plans (roadmaps, phased work, Cursor pl
 - **Completion means green tests.** A milestone or phase is done only when the full suite passes: `pnpm test` at the repo root (backend and frontend).
 - **Plans should name coverage.** Spell out what to test (unit vs integration, critical paths, CI gates) per task or phase so expectations are explicit, not implied.
 - **Commits stay green.** Commit whenever a sensible unit of work is finished (e.g. a module plus its tests). Never commit with failing tests.
+
+## Cursor Cloud agents
+
+Cursor Cloud agents (isolated VMs only — not local development) should follow `.cursor/skills/cursor-cloud-environment/SKILL.md`.
