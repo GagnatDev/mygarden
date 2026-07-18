@@ -442,6 +442,8 @@ describe('Planning: plant profiles, plantings, tasks, logs, notes (integration)'
       })
       .expect(201);
     const logId = log.body.id as string;
+    // updatedAt must track clientTimestamp (not server time) so LWW stays deterministic.
+    expect(log.body.updatedAt).toBe(clientTs.toISOString());
 
     const filtered = await request(app)
       .get(
@@ -452,11 +454,12 @@ describe('Planning: plant profiles, plantings, tasks, logs, notes (integration)'
     expect(filtered.body.some((l: { id: string }) => l.id === logId)).toBe(true);
 
     const newer = new Date('2026-06-11T12:00:00.000Z');
-    await request(app)
+    const patched = await request(app)
       .patch(`/api/v1/gardens/${gardenId}/logs/${logId}`)
       .set('Authorization', `Bearer ${token}`)
       .send({ note: 'OK', clientTimestamp: newer.toISOString() })
       .expect(200);
+    expect(patched.body.updatedAt).toBe(newer.toISOString());
 
     const older = new Date('2026-06-10T12:00:00.000Z');
     await request(app)
