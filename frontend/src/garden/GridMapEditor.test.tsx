@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import i18n from 'i18next';
 import { I18nextProvider, initReactI18next } from 'react-i18next';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -66,6 +66,7 @@ async function testI18n() {
             historicalGhostAreaAria: 'Historical area {{name}}',
             zoomIn: 'Zoom in',
             zoomOut: 'Zoom out',
+            zoomFit: 'Zoom to fit',
             gridAriaLabel: 'Grid {{width}} by {{height}}',
             hasPlantingsHint: 'has plantings',
             backgroundUpload: 'Upload',
@@ -94,7 +95,38 @@ beforeEach(() => {
 
 afterEach(() => {
   localStorage.clear();
+  vi.restoreAllMocks();
+  vi.unstubAllGlobals();
 });
+
+/**
+ * Mock the map container's measured size before mount so the fit-on-mount
+ * layout effect sees a real viewport. Returns a mutable size object; change
+ * it to simulate a container resize.
+ */
+function mockMapContainerSize(width: number, height: number) {
+  const size = { width, height };
+  const orig = HTMLElement.prototype.getBoundingClientRect;
+  vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (
+    this: HTMLElement,
+  ) {
+    if (this.dataset?.testid === 'grid-map-container') {
+      return {
+        x: 0,
+        y: 0,
+        width: size.width,
+        height: size.height,
+        top: 0,
+        left: 0,
+        right: size.width,
+        bottom: size.height,
+        toJSON: () => ({}),
+      } as DOMRect;
+    }
+    return orig.call(this);
+  });
+  return size;
+}
 
 function parseMapViewportTransform(viewport: HTMLElement): { tx: number; ty: number; scale: number } {
   const t = viewport.style.transform;
@@ -930,5 +962,291 @@ describe('GridMapEditor', () => {
       const v = parseMapViewportTransform(viewport);
       expect(v.scale).not.toBe(afterAlt.scale);
     });
+  });
+
+  it('fits the whole grid on mount, centered, even below MIN_MAP_SCALE for large grids', async () => {
+    mockMapContainerSize(400, 300);
+    const i18nInstance = await testI18n();
+    const bigMapArea: Area = { ...mapArea, gridWidth: 200, gridHeight: 200 };
+
+    render(
+      <I18nextProvider i18n={i18nInstance}>
+        <GridMapEditor
+          gardenId="g1" area={bigMapArea} elements={[]}
+          selectedElementId={null}
+          onSelectElement={vi.fn()}
+          onSelectionComplete={vi.fn()}
+          tool="select"
+          onToolChange={vi.fn()}
+        />
+      </I18nextProvider>,
+    );
+
+    const v = parseMapViewportTransform(screen.getByTestId('grid-map-viewport'));
+    // world = 200 * 28 = 5600px; fit = (300 - 48) / 5600 = 0.045, below MIN_MAP_SCALE (0.35)
+    expect(v.scale).toBeCloseTo(0.045, 9);
+    expect(v.tx).toBe(0);
+    expect(v.ty).toBe(0);
+  });
+
+  it('clamps the mount fit to MAX_MAP_SCALE for small grids in large containers', async () => {
+    mockMapContainerSize(800, 600);
+    const i18nInstance = await testI18n();
+
+    render(
+      <I18nextProvider i18n={i18nInstance}>
+        <GridMapEditor
+          gardenId="g1" area={mapArea} elements={[bedElement]}
+          selectedElementId={null}
+          onSelectElement={vi.fn()}
+          onSelectionComplete={vi.fn()}
+          tool="select"
+          onToolChange={vi.fn()}
+        />
+      </I18nextProvider>,
+    );
+
+    const v = parseMapViewportTransform(screen.getByTestId('grid-map-viewport'));
+    expect(v.scale).toBe(4);
+  });
+
+  it('fit button restores the fitted view after zooming, and zoom out clamps at the fit scale', async () => {
+    mockMapContainerSize(400, 300);
+    const i18nInstance = await testI18n();
+
+    render(
+      <I18nextProvider i18n={i18nInstance}>
+        <GridMapEditor
+          gardenId="g1" area={mapArea} elements={[bedElement]}
+          selectedElementId={null}
+          onSelectElement={vi.fn()}
+          onSelectionComplete={vi.fn()}
+          tool="select"
+          onToolChange={vi.fn()}
+        />
+      </I18nextProvider>,
+    );
+
+    const viewport = screen.getByTestId('grid-map-viewport');
+    // world = 112 x 84; fit = min(352/112, 252/84) = 3
+    expect(parseMapViewportTransform(viewport).scale).toBeCloseTo(3, 9);
+
+    fireEvent.click(screen.getByRole('button', { name: /zoom in/i }));
+    expect(parseMapViewportTransform(viewport).scale).toBeCloseTo(3.45, 9);
+
+    fireEvent.click(screen.getByRole('button', { name: /zoom to fit/i }));
+    expect(parseMapViewportTransform(viewport).scale).toBeCloseTo(3, 9);
+    expect(parseMapViewportTransform(viewport).tx).toBe(0);
+    expect(parseMapViewportTransform(viewport).ty).toBe(0);
+  });
+
+  it('zoom out button can go below MIN_MAP_SCALE down to the fit scale of a large grid', async () => {
+    mockMapContainerSize(400, 300);
+    const i18nInstance = await testI18n();
+    const bigMapArea: Area = { ...mapArea, gridWidth: 200, gridHeight: 200 };
+
+    render(
+      <I18nextProvider i18n={i18nInstance}>
+        <GridMapEditor
+          gardenId="g1" area={bigMapArea} elements={[]}
+          selectedElementId={null}
+          onSelectElement={vi.fn()}
+          onSelectionComplete={vi.fn()}
+          tool="select"
+          onToolChange={vi.fn()}
+        />
+      </I18nextProvider>,
+    );
+
+    const viewport = screen.getByTestId('grid-map-viewport');
+    expect(parseMapViewportTransform(viewport).scale).toBeCloseTo(0.045, 9);
+
+    fireEvent.click(screen.getByRole('button', { name: /zoom in/i }));
+    expect(parseMapViewportTransform(viewport).scale).toBeCloseTo(0.045 * 1.15, 9);
+
+    fireEvent.click(screen.getByRole('button', { name: /zoom out/i }));
+    expect(parseMapViewportTransform(viewport).scale).toBeCloseTo(0.045, 9);
+
+    fireEvent.click(screen.getByRole('button', { name: /zoom out/i }));
+    expect(parseMapViewportTransform(viewport).scale).toBeCloseTo(0.045, 9);
+  });
+
+  it('double-click on empty background re-fits; double-click on an element does not', async () => {
+    mockMapContainerSize(400, 300);
+    const i18nInstance = await testI18n();
+
+    render(
+      <I18nextProvider i18n={i18nInstance}>
+        <GridMapEditor
+          gardenId="g1" area={mapArea} elements={[bedElement]}
+          selectedElementId={null}
+          onSelectElement={vi.fn()}
+          onSelectionComplete={vi.fn()}
+          tool="select"
+          onToolChange={vi.fn()}
+        />
+      </I18nextProvider>,
+    );
+
+    const map = screen.getByTestId('grid-map');
+    const viewport = screen.getByTestId('grid-map-viewport');
+
+    fireEvent.click(screen.getByRole('button', { name: /zoom in/i }));
+    expect(parseMapViewportTransform(viewport).scale).toBeCloseTo(3.45, 9);
+
+    fireEvent.doubleClick(screen.getByTestId('map-area-a1'));
+    expect(parseMapViewportTransform(viewport).scale).toBeCloseTo(3.45, 9);
+
+    fireEvent.doubleClick(map);
+    expect(parseMapViewportTransform(viewport).scale).toBeCloseTo(3, 9);
+  });
+
+  it('double-click re-fits in readOnly mode', async () => {
+    mockMapContainerSize(400, 300);
+    const i18nInstance = await testI18n();
+
+    render(
+      <I18nextProvider i18n={i18nInstance}>
+        <GridMapEditor
+          gardenId="g1" area={mapArea} elements={[bedElement]}
+          selectedElementId={null}
+          onSelectElement={vi.fn()}
+          onSelectionComplete={vi.fn()}
+          tool="select"
+          onToolChange={vi.fn()}
+          readOnly
+        />
+      </I18nextProvider>,
+    );
+
+    const viewport = screen.getByTestId('grid-map-viewport');
+    fireEvent.click(screen.getByRole('button', { name: /zoom in/i }));
+    expect(parseMapViewportTransform(viewport).scale).toBeCloseTo(3.45, 9);
+
+    fireEvent.doubleClick(screen.getByTestId('grid-map'));
+    expect(parseMapViewportTransform(viewport).scale).toBeCloseTo(3, 9);
+  });
+
+  it('double-tap on empty background re-fits', async () => {
+    mockMapContainerSize(400, 300);
+    const i18nInstance = await testI18n();
+
+    render(
+      <I18nextProvider i18n={i18nInstance}>
+        <GridMapEditor
+          gardenId="g1" area={mapArea} elements={[bedElement]}
+          selectedElementId={null}
+          onSelectElement={vi.fn()}
+          onSelectionComplete={vi.fn()}
+          tool="select"
+          onToolChange={vi.fn()}
+        />
+      </I18nextProvider>,
+    );
+
+    const map = screen.getByTestId('grid-map');
+    const viewport = screen.getByTestId('grid-map-viewport');
+
+    fireEvent.click(screen.getByRole('button', { name: /zoom in/i }));
+    expect(parseMapViewportTransform(viewport).scale).toBeCloseTo(3.45, 9);
+
+    fireEvent.touchStart(map, { touches: [{ clientX: 30, clientY: 30 }] });
+    fireEvent.touchEnd(map, { touches: [], changedTouches: [{ clientX: 30, clientY: 30 }] });
+    fireEvent.touchStart(map, { touches: [{ clientX: 32, clientY: 31 }] });
+    fireEvent.touchEnd(map, { touches: [], changedTouches: [{ clientX: 32, clientY: 31 }] });
+
+    expect(parseMapViewportTransform(viewport).scale).toBeCloseTo(3, 9);
+  });
+
+  it('re-fits on container resize until the user zooms manually', async () => {
+    const roInstances: Array<{ cb: ResizeObserverCallback }> = [];
+    vi.stubGlobal(
+      'ResizeObserver',
+      class {
+        cb: ResizeObserverCallback;
+        constructor(cb: ResizeObserverCallback) {
+          this.cb = cb;
+          roInstances.push(this);
+        }
+        observe() {}
+        unobserve() {}
+        disconnect() {}
+      },
+    );
+    const size = mockMapContainerSize(400, 300);
+    const i18nInstance = await testI18n();
+
+    render(
+      <I18nextProvider i18n={i18nInstance}>
+        <GridMapEditor
+          gardenId="g1" area={mapArea} elements={[bedElement]}
+          selectedElementId={null}
+          onSelectElement={vi.fn()}
+          onSelectionComplete={vi.fn()}
+          tool="select"
+          onToolChange={vi.fn()}
+        />
+      </I18nextProvider>,
+    );
+
+    const viewport = screen.getByTestId('grid-map-viewport');
+    expect(parseMapViewportTransform(viewport).scale).toBeCloseTo(3, 9);
+
+    size.width = 300;
+    size.height = 300;
+    act(() => {
+      roInstances.forEach((ro) => ro.cb([], ro as unknown as ResizeObserver));
+    });
+    // fit = min((300-48)/112, (300-48)/84) = 252/112 = 2.25
+    expect(parseMapViewportTransform(viewport).scale).toBeCloseTo(2.25, 9);
+
+    fireEvent.click(screen.getByRole('button', { name: /zoom in/i }));
+    const manual = parseMapViewportTransform(viewport).scale;
+    expect(manual).toBeCloseTo(2.25 * 1.15, 9);
+
+    size.width = 400;
+    act(() => {
+      roInstances.forEach((ro) => ro.cb([], ro as unknown as ResizeObserver));
+    });
+    expect(parseMapViewportTransform(viewport).scale).toBeCloseTo(manual, 9);
+  });
+
+  it('re-fits when switching to another area', async () => {
+    mockMapContainerSize(400, 300);
+    const i18nInstance = await testI18n();
+
+    const { rerender } = render(
+      <I18nextProvider i18n={i18nInstance}>
+        <GridMapEditor
+          gardenId="g1" area={mapArea} elements={[bedElement]}
+          selectedElementId={null}
+          onSelectElement={vi.fn()}
+          onSelectionComplete={vi.fn()}
+          tool="select"
+          onToolChange={vi.fn()}
+        />
+      </I18nextProvider>,
+    );
+
+    const viewport = screen.getByTestId('grid-map-viewport');
+    fireEvent.click(screen.getByRole('button', { name: /zoom in/i }));
+    expect(parseMapViewportTransform(viewport).scale).toBeCloseTo(3.45, 9);
+
+    const otherArea: Area = { ...mapArea, id: 'ar2', gridWidth: 8, gridHeight: 6 };
+    rerender(
+      <I18nextProvider i18n={i18nInstance}>
+        <GridMapEditor
+          gardenId="g1" area={otherArea} elements={[]}
+          selectedElementId={null}
+          onSelectElement={vi.fn()}
+          onSelectionComplete={vi.fn()}
+          tool="select"
+          onToolChange={vi.fn()}
+        />
+      </I18nextProvider>,
+    );
+
+    // world = 224 x 168; fit = min(352/224, 252/168) = 1.5
+    expect(parseMapViewportTransform(viewport).scale).toBeCloseTo(1.5, 9);
   });
 });

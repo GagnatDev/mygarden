@@ -17,11 +17,17 @@ import {
   translateVertices,
 } from './polygon-helpers';
 import {
+  computeFitView,
   MAX_MAP_SCALE,
   MIN_MAP_SCALE,
   type MapView,
   zoomToFocal,
 } from './view-helpers';
+
+/** Max delay between two taps, and max movement within a tap, for double-tap-to-fit. */
+const DOUBLE_TAP_MS = 350;
+const DOUBLE_TAP_SLOP_PX = 24;
+const TAP_MOVE_SLOP_PX = 10;
 
 /** CSS pixels per grid cell (world space). Exported for tests. */
 export const CELL = 28;
@@ -302,6 +308,48 @@ export function GridMapEditor({
   const worldW = gw * CELL;
   const worldH = gh * CELL;
 
+  /**
+   * Effective minimum zoom: `min(MIN_MAP_SCALE, fitScale)` so any grid can be
+   * fully zoomed out even when its fitted scale is below MIN_MAP_SCALE (R4).
+   */
+  const minScaleRef = useRef(MIN_MAP_SCALE);
+  /** True once the user pans/zooms manually; container resizes then keep their view (A3). */
+  const viewTouchedRef = useRef(false);
+
+  const applyFitView = useCallback(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const r = el.getBoundingClientRect();
+    if (r.width <= 0 || r.height <= 0) return;
+    const fit = computeFitView(worldW, worldH, r.width, r.height);
+    minScaleRef.current = Math.min(MIN_MAP_SCALE, fit.scale);
+    viewTouchedRef.current = false;
+    setView(fit);
+  }, [worldW, worldH]);
+
+  /** Fit before first paint on mount and when switching areas (A1). */
+  const fittedAreaIdRef = useRef<string | null>(null);
+  useLayoutEffect(() => {
+    const areaChanged = fittedAreaIdRef.current !== area.id;
+    fittedAreaIdRef.current = area.id;
+    if (areaChanged || !viewTouchedRef.current) applyFitView();
+  }, [area.id, applyFitView]);
+
+  /** Re-fit on container resize until the user pans/zooms; always track the min zoom (A3). */
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el || typeof ResizeObserver === 'undefined') return;
+    const ro = new ResizeObserver(() => {
+      const r = el.getBoundingClientRect();
+      if (r.width <= 0 || r.height <= 0) return;
+      const fit = computeFitView(worldW, worldH, r.width, r.height);
+      minScaleRef.current = Math.min(MIN_MAP_SCALE, fit.scale);
+      if (!viewTouchedRef.current) setView(fit);
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [worldW, worldH]);
+
   const clientToGrid = useCallback(
     (clientX: number, clientY: number): { gx: number; gy: number } | null => {
       const el = worldRef.current;
@@ -431,8 +479,8 @@ export function GridMapEditor({
         height: r.height,
       };
       setView((v) => {
-        const nextScale = clamp(v.scale * acc.factor, MIN_MAP_SCALE, MAX_MAP_SCALE);
-        return zoomToFocal(v, containerRect, acc.focalX, acc.focalY, nextScale);
+        const nextScale = clamp(v.scale * acc.factor, minScaleRef.current, MAX_MAP_SCALE);
+        return zoomToFocal(v, containerRect, acc.focalX, acc.focalY, nextScale, minScaleRef.current);
       });
     };
 
@@ -444,6 +492,7 @@ export function GridMapEditor({
     const onWheel = (wheelEvent: WheelEvent) => {
       if (wheelEvent.ctrlKey || wheelEvent.metaKey) return;
       wheelEvent.preventDefault();
+      viewTouchedRef.current = true;
 
       let next: WheelAccum;
       if (wheelEvent.shiftKey) {
@@ -577,12 +626,14 @@ export function GridMapEditor({
     if (effectiveTool === 'pan') {
       (e.target as HTMLElement).setPointerCapture?.(e.pointerId);
       dragRef.current = { kind: 'pan', x: e.clientX, y: e.clientY };
+      viewTouchedRef.current = true;
       return;
     }
     if (spaceHeldRef.current) {
       e.preventDefault();
       (e.target as HTMLElement).setPointerCapture?.(e.pointerId);
       dragRef.current = { kind: 'pan', x: e.clientX, y: e.clientY };
+      viewTouchedRef.current = true;
       setSpacePanPointerDown(true);
       return;
     }
@@ -725,11 +776,17 @@ export function GridMapEditor({
   };
 
   const onDoubleClick = (e: React.MouseEvent) => {
-    if (readOnly) return;
-    if (effectiveTool !== 'draw-polygon') return;
-    if (!polygonDraft || polygonDraft.length < 3) return;
+    if (!readOnly && effectiveTool === 'draw-polygon') {
+      if (!polygonDraft || polygonDraft.length < 3) return;
+      e.preventDefault();
+      completePolygonDraft(polygonDraft);
+      return;
+    }
+    // Double-click on empty background restores the fitted view (A2).
+    const targetEl = e.target as globalThis.Element | null;
+    if (targetEl?.closest('[data-area-shape]')) return;
     e.preventDefault();
-    completePolygonDraft(polygonDraft);
+    applyFitView();
   };
 
   const onPointerCancel = () => {
@@ -745,13 +802,30 @@ export function GridMapEditor({
     }
   };
 
+  /** Single-finger tap in progress (background only); feeds double-tap-to-fit (A2). */
+  const tapCandidateRef = useRef<{ time: number; x: number; y: number } | null>(null);
+  /** Where/when the previous qualifying tap ended. */
+  const lastTapRef = useRef<{ time: number; x: number; y: number } | null>(null);
+
   const onTouchStart = (e: React.TouchEvent) => {
+    if (e.touches.length === 1) {
+      const touch = e.touches[0]!;
+      const targetEl = e.target as globalThis.Element | null;
+      tapCandidateRef.current =
+        !targetEl?.closest('[data-area-shape]') && effectiveTool !== 'draw-polygon'
+          ? { time: Date.now(), x: touch.clientX, y: touch.clientY }
+          : null;
+      return;
+    }
+    tapCandidateRef.current = null;
+    lastTapRef.current = null;
     if (e.touches.length === 2) {
       const containerEl = containerRef.current;
       if (!containerEl) return;
       const [a, b] = [e.touches[0]!, e.touches[1]!];
       const dist = Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY);
       const r = containerEl.getBoundingClientRect();
+      viewTouchedRef.current = true;
       pinchRef.current = {
         dist,
         scale: liveViewRef.current.scale,
@@ -766,6 +840,13 @@ export function GridMapEditor({
   };
 
   const onTouchMove = (e: React.TouchEvent) => {
+    const cand = tapCandidateRef.current;
+    if (cand && e.touches.length === 1) {
+      const touch = e.touches[0]!;
+      if (Math.hypot(touch.clientX - cand.x, touch.clientY - cand.y) > TAP_MOVE_SLOP_PX) {
+        tapCandidateRef.current = null;
+      }
+    }
     if (e.touches.length === 1 && moveRef.current) {
       e.preventDefault();
       const touch = e.touches[0]!;
@@ -786,13 +867,13 @@ export function GridMapEditor({
       const ratio = dist / pinchRef.current.dist;
       const nextScale = clamp(
         pinchRef.current.scale * ratio,
-        MIN_MAP_SCALE,
+        minScaleRef.current,
         MAX_MAP_SCALE,
       );
       const midX = (a.clientX + b.clientX) / 2;
       const midY = (a.clientY + b.clientY) / 2;
       const { containerRect } = pinchRef.current;
-      const next = zoomToFocal(liveViewRef.current, containerRect, midX, midY, nextScale);
+      const next = zoomToFocal(liveViewRef.current, containerRect, midX, midY, nextScale, minScaleRef.current);
       liveViewRef.current = next;
       applyViewportTransform(next);
     }
@@ -808,6 +889,25 @@ export function GridMapEditor({
     pinchRef.current = null;
     if (wasPinching && e.touches.length < 2) {
       setView({ ...liveViewRef.current });
+    }
+    const cand = tapCandidateRef.current;
+    if (cand && e.touches.length === 0) {
+      tapCandidateRef.current = null;
+      const now = Date.now();
+      if (now - cand.time < DOUBLE_TAP_MS) {
+        const last = lastTapRef.current;
+        lastTapRef.current = { time: now, x: cand.x, y: cand.y };
+        if (
+          last &&
+          now - last.time < DOUBLE_TAP_MS &&
+          Math.hypot(cand.x - last.x, cand.y - last.y) < DOUBLE_TAP_SLOP_PX
+        ) {
+          lastTapRef.current = null;
+          applyFitView();
+        }
+      } else {
+        lastTapRef.current = null;
+      }
     }
   };
 
@@ -979,12 +1079,13 @@ export function GridMapEditor({
           <button
             type="button"
             className="rounded-lg border border-stone-200 px-2 py-1 text-sm"
-            onClick={() =>
+            onClick={() => {
+              viewTouchedRef.current = true;
               setView((v) => ({
                 ...v,
-                scale: clamp(v.scale / 1.15, MIN_MAP_SCALE, MAX_MAP_SCALE),
-              }))
-            }
+                scale: clamp(v.scale / 1.15, minScaleRef.current, MAX_MAP_SCALE),
+              }));
+            }}
             aria-label={t('garden.zoomOut')}
           >
             −
@@ -992,15 +1093,25 @@ export function GridMapEditor({
           <button
             type="button"
             className="rounded-lg border border-stone-200 px-2 py-1 text-sm"
-            onClick={() =>
+            onClick={() => {
+              viewTouchedRef.current = true;
               setView((v) => ({
                 ...v,
-                scale: clamp(v.scale * 1.15, MIN_MAP_SCALE, MAX_MAP_SCALE),
-              }))
-            }
+                scale: clamp(v.scale * 1.15, minScaleRef.current, MAX_MAP_SCALE),
+              }));
+            }}
             aria-label={t('garden.zoomIn')}
           >
             +
+          </button>
+          <button
+            type="button"
+            className="rounded-lg border border-stone-200 px-2 py-1 text-sm"
+            data-testid="map-zoom-fit"
+            onClick={applyFitView}
+            aria-label={t('garden.zoomFit')}
+          >
+            ⤢
           </button>
         </div>
       </div>
