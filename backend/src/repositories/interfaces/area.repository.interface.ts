@@ -28,6 +28,8 @@ export interface IAreaRepository {
         | 'cellSizeMeters'
         | 'sortIndex'
         | 'backgroundImageKey'
+        | 'overviewX'
+        | 'overviewY'
       >
     >,
   ): Promise<Area | null>;

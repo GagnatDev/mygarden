@@ -10,6 +10,9 @@ export interface Area {
   gridHeight: number;
   cellSizeMeters: number;
   sortIndex: number;
+  /** Garden-overview placement in meters; null (or absent) = unplaced. */
+  overviewX?: number | null;
+  overviewY?: number | null;
   /** Path under API base when a tracing image exists; fetch with Bearer auth (e.g. blob URL for SVG). */
   backgroundImageUrl: string | null;
   createdAt: string;
@@ -64,6 +67,8 @@ export async function patchArea(
     gridHeight: number;
     cellSizeMeters: number;
     sortIndex: number;
+    overviewX: number | null;
+    overviewY: number | null;
   }>,
 ): Promise<Area> {
   const res = await apiFetch(`/gardens/${gardenId}/areas/${areaId}`, {

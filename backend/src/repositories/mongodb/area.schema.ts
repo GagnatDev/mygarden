@@ -11,6 +11,8 @@ const areaSchema = new mongoose.Schema(
     cellSizeMeters: { type: Number, required: true, min: 0.1, max: 1 },
     sortIndex: { type: Number, required: true, default: 0 },
     backgroundImageKey: { type: String, required: false },
+    overviewX: { type: Number, required: false, default: null },
+    overviewY: { type: Number, required: false, default: null },
   },
   {
     _id: false,

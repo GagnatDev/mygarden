@@ -19,6 +19,10 @@ export const createAreaBodySchema = z.object({
   sortIndex: z.coerce.number().int().min(0).optional(),
 });
 
+// Garden-overview placement in meters; null clears the placement (unplaced).
+// No coercion: Number(null) would silently turn an explicit clear into 0.
+const overviewCoordField = z.number().finite().nullable();
+
 export const patchAreaBodySchema = z
   .object({
     title: z.string().trim().min(1).max(200).optional(),
@@ -27,5 +31,7 @@ export const patchAreaBodySchema = z
     gridHeight: z.coerce.number().int().min(1).max(200).optional(),
     cellSizeMeters: cellSizeMetersField.optional(),
     sortIndex: z.coerce.number().int().min(0).optional(),
+    overviewX: overviewCoordField.optional(),
+    overviewY: overviewCoordField.optional(),
   })
   .refine((o) => Object.keys(o).length > 0, { message: 'At least one field is required' });

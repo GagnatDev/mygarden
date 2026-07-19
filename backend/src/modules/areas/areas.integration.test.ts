@@ -123,6 +123,71 @@ describe('Areas API (integration)', () => {
       .expect(201);
   });
 
+  it('round-trips overview placement: set, update, clear, reject non-numeric', async () => {
+    const { token } = await registerWithToken(app, env, 'Overview');
+    const gardenId = await createGarden(app, token);
+
+    const created = await request(app)
+      .post(`/api/v1/gardens/${gardenId}/areas`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ title: 'Plot', gridWidth: 5, gridHeight: 5, cellSizeMeters: 0.5 })
+      .expect(201);
+    const areaId = created.body.id as string;
+    expect(created.body.overviewX).toBeNull();
+    expect(created.body.overviewY).toBeNull();
+
+    const placed = await request(app)
+      .patch(`/api/v1/gardens/${gardenId}/areas/${areaId}`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ overviewX: 12.5, overviewY: -3 })
+      .expect(200);
+    expect(placed.body.overviewX).toBe(12.5);
+    expect(placed.body.overviewY).toBe(-3);
+
+    const moved = await request(app)
+      .patch(`/api/v1/gardens/${gardenId}/areas/${areaId}`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ overviewX: 0 })
+      .expect(200);
+    expect(moved.body.overviewX).toBe(0);
+    expect(moved.body.overviewY).toBe(-3);
+
+    const fetched = await request(app)
+      .get(`/api/v1/gardens/${gardenId}/areas/${areaId}`)
+      .set('Authorization', `Bearer ${token}`)
+      .expect(200);
+    expect(fetched.body.overviewX).toBe(0);
+    expect(fetched.body.overviewY).toBe(-3);
+
+    const cleared = await request(app)
+      .patch(`/api/v1/gardens/${gardenId}/areas/${areaId}`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ overviewX: null, overviewY: null })
+      .expect(200);
+    expect(cleared.body.overviewX).toBeNull();
+    expect(cleared.body.overviewY).toBeNull();
+
+    const badX = await request(app)
+      .patch(`/api/v1/gardens/${gardenId}/areas/${areaId}`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ overviewX: 'nope' })
+      .expect(400);
+    expect(badX.body.title).toBe('Bad Request');
+
+    await request(app)
+      .patch(`/api/v1/gardens/${gardenId}/areas/${areaId}`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ overviewY: { x: 1 } })
+      .expect(400);
+
+    const untouched = await request(app)
+      .get(`/api/v1/gardens/${gardenId}/areas/${areaId}`)
+      .set('Authorization', `Bearer ${token}`)
+      .expect(200);
+    expect(untouched.body.overviewX).toBeNull();
+    expect(untouched.body.overviewY).toBeNull();
+  });
+
   it('refuses to shrink an area below an existing element', async () => {
     const { token } = await registerWithToken(app, env, 'Shrink');
     const gardenId = await createGarden(app, token);
