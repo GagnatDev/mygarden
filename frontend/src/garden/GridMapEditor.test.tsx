@@ -53,6 +53,7 @@ async function testI18n() {
             addRectangle: 'Add rectangle',
             addPolygon: 'Add polygon',
             cancel: 'Cancel',
+            resizeHandleAria: 'Resize {{name}} ({{direction}})',
             polygonFinish: 'Finish',
             polygonClear: 'Clear',
             mapLayer: 'Layer',
@@ -1314,5 +1315,257 @@ describe('GridMapEditor', () => {
     expect(v.tx).toBeCloseTo(20, 5);
     expect(v.ty).toBeCloseTo(10, 5);
     expect(v.scale).toBe(1);
+  });
+});
+
+describe('GridMapEditor rectangle resize handles', () => {
+  const HANDLE_IDS = ['nw', 'n', 'ne', 'e', 'se', 's', 'sw', 'w'];
+
+  it('renders 8 handles when a rectangle element is selected and onResizeElement is provided', async () => {
+    await renderEditor({ selectedElementId: 'a1', onResizeElement: vi.fn() });
+    for (const h of HANDLE_IDS) {
+      expect(screen.getByTestId(`map-resize-handle-${h}`)).toBeInTheDocument();
+    }
+    expect(screen.queryByTestId('map-resize-preview')).toBeNull();
+  });
+
+  it('renders no handles without a selection, without onResizeElement, in readOnly, or for polygons', async () => {
+    const { unmount: u1 } = await renderEditor({ onResizeElement: vi.fn() });
+    expect(screen.queryByTestId('map-resize-handles')).toBeNull();
+    u1();
+
+    const { unmount: u2 } = await renderEditor({ selectedElementId: 'a1' });
+    expect(screen.queryByTestId('map-resize-handles')).toBeNull();
+    u2();
+
+    const { unmount: u3 } = await renderEditor({
+      selectedElementId: 'a1',
+      onResizeElement: vi.fn(),
+      readOnly: true,
+    });
+    expect(screen.queryByTestId('map-resize-handles')).toBeNull();
+    u3();
+
+    const polyElement: Element = {
+      ...bedElement,
+      shape: {
+        kind: 'polygon',
+        vertices: [
+          { x: 0, y: 0 },
+          { x: 2, y: 0 },
+          { x: 2, y: 1 },
+        ],
+      },
+    };
+    await renderEditor({
+      elements: [polyElement],
+      selectedElementId: 'a1',
+      onResizeElement: vi.fn(),
+    });
+    expect(screen.queryByTestId('map-resize-handles')).toBeNull();
+  });
+
+  it('dragging the se handle grows the rect with grid snapping and persists on release', async () => {
+    const onResizeElement = vi.fn();
+    await renderEditor({ selectedElementId: 'a1', onResizeElement });
+
+    const map = screen.getByTestId('grid-map');
+    mockGridMapBoundingRect(map, mapArea.gridWidth, mapArea.gridHeight);
+
+    fireEvent.pointerDown(screen.getByTestId('map-resize-handle-se'), {
+      clientX: 2 * CELL,
+      clientY: CELL,
+      pointerId: 1,
+      pointerType: 'mouse',
+      button: 0,
+      buttons: 1,
+    });
+    // Pointer near the (3, 2) cell boundary: edges snap to the nearest boundary.
+    fireEvent.pointerMove(map, {
+      clientX: 3 * CELL + 3,
+      clientY: 2 * CELL - 3,
+      pointerId: 1,
+      pointerType: 'mouse',
+      buttons: 1,
+    });
+    const previewEl = screen.getByTestId('map-resize-preview');
+    expect(previewEl).toHaveAttribute('data-valid', 'true');
+    expect(previewEl.getAttribute('width')).toBe(String(3 * CELL));
+    expect(previewEl.getAttribute('height')).toBe(String(2 * CELL));
+
+    fireEvent.pointerUp(map, {
+      clientX: 3 * CELL + 3,
+      clientY: 2 * CELL - 3,
+      pointerId: 1,
+      pointerType: 'mouse',
+      button: 0,
+      buttons: 0,
+    });
+    expect(onResizeElement).toHaveBeenCalledWith('a1', {
+      gridX: 0,
+      gridY: 0,
+      gridWidth: 3,
+      gridHeight: 2,
+    });
+    expect(screen.queryByTestId('map-resize-preview')).toBeNull();
+  });
+
+  it('dragging the w handle shifts the origin while keeping the right edge', async () => {
+    const onResizeElement = vi.fn();
+    const shifted: Element = { ...bedElement, gridX: 1 };
+    await renderEditor({ elements: [shifted], selectedElementId: 'a1', onResizeElement });
+
+    const map = screen.getByTestId('grid-map');
+    mockGridMapBoundingRect(map, mapArea.gridWidth, mapArea.gridHeight);
+
+    fireEvent.pointerDown(screen.getByTestId('map-resize-handle-w'), {
+      clientX: CELL,
+      clientY: CELL / 2,
+      pointerId: 1,
+      pointerType: 'mouse',
+      button: 0,
+      buttons: 1,
+    });
+    fireEvent.pointerMove(map, {
+      clientX: 0,
+      clientY: CELL / 2,
+      pointerId: 1,
+      pointerType: 'mouse',
+      buttons: 1,
+    });
+    fireEvent.pointerUp(map, {
+      clientX: 0,
+      clientY: CELL / 2,
+      pointerId: 1,
+      pointerType: 'mouse',
+      button: 0,
+      buttons: 0,
+    });
+    expect(onResizeElement).toHaveBeenCalledWith('a1', {
+      gridX: 0,
+      gridY: 0,
+      gridWidth: 3,
+      gridHeight: 1,
+    });
+  });
+
+  it('shows an invalid preview over another element and reverts on release', async () => {
+    const onResizeElement = vi.fn();
+    const otherEl: Element = {
+      id: 'a2',
+      areaId: 'ar1',
+      name: 'Other',
+      type: 'path',
+      color: '#999',
+      gridX: 3,
+      gridY: 0,
+      gridWidth: 1,
+      gridHeight: 1,
+      createdAt: '2020-01-01T00:00:00.000Z',
+      updatedAt: '2020-01-01T00:00:00.000Z',
+    };
+    await renderEditor({
+      elements: [bedElement, otherEl],
+      selectedElementId: 'a1',
+      onResizeElement,
+    });
+
+    const map = screen.getByTestId('grid-map');
+    mockGridMapBoundingRect(map, mapArea.gridWidth, mapArea.gridHeight);
+
+    fireEvent.pointerDown(screen.getByTestId('map-resize-handle-e'), {
+      clientX: 2 * CELL,
+      clientY: CELL / 2,
+      pointerId: 1,
+      pointerType: 'mouse',
+      button: 0,
+      buttons: 1,
+    });
+    fireEvent.pointerMove(map, {
+      clientX: 4 * CELL,
+      clientY: CELL / 2,
+      pointerId: 1,
+      pointerType: 'mouse',
+      buttons: 1,
+    });
+    expect(screen.getByTestId('map-resize-preview')).toHaveAttribute('data-valid', 'false');
+
+    fireEvent.pointerUp(map, {
+      clientX: 4 * CELL,
+      clientY: CELL / 2,
+      pointerId: 1,
+      pointerType: 'mouse',
+      button: 0,
+      buttons: 0,
+    });
+    expect(onResizeElement).not.toHaveBeenCalled();
+    expect(screen.queryByTestId('map-resize-preview')).toBeNull();
+  });
+
+  it('a resize release without a size change does not call onResizeElement', async () => {
+    const onResizeElement = vi.fn();
+    await renderEditor({ selectedElementId: 'a1', onResizeElement });
+
+    const map = screen.getByTestId('grid-map');
+    mockGridMapBoundingRect(map, mapArea.gridWidth, mapArea.gridHeight);
+
+    fireEvent.pointerDown(screen.getByTestId('map-resize-handle-se'), {
+      clientX: 2 * CELL,
+      clientY: CELL,
+      pointerId: 1,
+      pointerType: 'mouse',
+      button: 0,
+      buttons: 1,
+    });
+    fireEvent.pointerUp(map, {
+      clientX: 2 * CELL,
+      clientY: CELL,
+      pointerId: 1,
+      pointerType: 'mouse',
+      button: 0,
+      buttons: 0,
+    });
+    expect(onResizeElement).not.toHaveBeenCalled();
+  });
+
+  it('starting a resize does not pan the view or select anything', async () => {
+    const onResizeElement = vi.fn();
+    const onSelectElement = vi.fn();
+    await renderEditor({ selectedElementId: 'a1', onResizeElement, onSelectElement });
+
+    const map = screen.getByTestId('grid-map');
+    const viewport = screen.getByTestId('grid-map-viewport');
+    mockGridMapBoundingRect(map, mapArea.gridWidth, mapArea.gridHeight);
+    const before = parseMapViewportTransform(viewport);
+
+    fireEvent.pointerDown(screen.getByTestId('map-resize-handle-e'), {
+      clientX: 2 * CELL,
+      clientY: CELL / 2,
+      pointerId: 1,
+      pointerType: 'mouse',
+      button: 0,
+      buttons: 1,
+    });
+    fireEvent.pointerMove(map, {
+      clientX: 3 * CELL,
+      clientY: CELL / 2,
+      pointerId: 1,
+      pointerType: 'mouse',
+      buttons: 1,
+    });
+    const after = parseMapViewportTransform(viewport);
+    expect(after.tx).toBe(before.tx);
+    expect(after.ty).toBe(before.ty);
+
+    fireEvent.pointerUp(map, {
+      clientX: 3 * CELL,
+      clientY: CELL / 2,
+      pointerId: 1,
+      pointerType: 'mouse',
+      button: 0,
+      buttons: 0,
+    });
+    expect(onSelectElement).not.toHaveBeenCalled();
+    expect(onResizeElement).toHaveBeenCalledTimes(1);
   });
 });

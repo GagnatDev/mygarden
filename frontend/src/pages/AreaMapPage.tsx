@@ -179,6 +179,23 @@ export function AreaMapPage() {
     [gardenId, areaId, loadAreaAndElements, t],
   );
 
+  const handleResizeElement = useCallback(
+    async (
+      elementId: string,
+      rect: { gridX: number; gridY: number; gridWidth: number; gridHeight: number },
+    ) => {
+      if (!gardenId || !areaId) return;
+      setMapMoveError(null);
+      try {
+        await patchElement(gardenId, areaId, elementId, rect);
+        await loadAreaAndElements({ soft: true });
+      } catch (e) {
+        setMapMoveError(e instanceof Error ? e.message : t('garden.moveAreaFailed'));
+      }
+    },
+    [gardenId, areaId, loadAreaAndElements, t],
+  );
+
   useEffect(() => {
     if (selectedElementId && !elements.some((e) => e.id === selectedElementId)) {
       setSelectedElementId(null);
@@ -452,6 +469,7 @@ export function AreaMapPage() {
               onSelectElement={setSelectedElementId}
               onSelectionComplete={setPendingSelection}
               onMoveElement={handleMoveElement}
+              onResizeElement={handleResizeElement}
             />
           )}
         </div>

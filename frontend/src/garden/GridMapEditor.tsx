@@ -22,7 +22,17 @@ import {
 } from './gesture-helpers';
 import { GridMapAreasSvg } from './GridMapAreasSvg';
 import { GridMapSvgGridLayer } from './GridMapSvgGridLayer';
-import { isValidMovePosition } from './grid-rect';
+import { isValidMovePosition, isValidResizeRect, type GridRect } from './grid-rect';
+import {
+  HANDLE_HIT_RADIUS_PX,
+  HANDLE_VISIBLE_RADIUS_PX,
+  handleAnchor,
+  handleCursor,
+  RESIZE_HANDLES,
+  rectsEqual,
+  resizeRectToPointer,
+  type ResizeHandle,
+} from './resize-helpers';
 import {
   polygonPointsPx,
   polygonVerticesToGridBBox,
@@ -111,6 +121,13 @@ interface MoveDragState {
   lastClientY: number;
 }
 
+interface ResizeDragState {
+  elementId: string;
+  handle: ResizeHandle;
+  orig: GridRect;
+  cur: GridRect;
+}
+
 export interface GridMapEditorProps {
   gardenId: string;
   area: Area;
@@ -139,6 +156,8 @@ export interface GridMapEditorProps {
   onSelectionComplete: (sel: ElementDraftSelection) => void;
   /** Reposition an existing element (grid top-left); parent persists via API. */
   onMoveElement?: (elementId: string, gridX: number, gridY: number) => void;
+  /** Resize a rectangle element (handles + release); parent persists via API. */
+  onResizeElement?: (elementId: string, rect: GridRect) => void;
   /** When true, map is view-only (pan/zoom only, no new selections or element clicks). */
   readOnly?: boolean;
   /** Called after a successful background upload or remove (e.g. refresh area). */
@@ -162,6 +181,7 @@ export function GridMapEditor({
   onSelectElement,
   onSelectionComplete,
   onMoveElement,
+  onResizeElement,
   readOnly = false,
   onAreaBackgroundChanged,
 }: GridMapEditorProps) {
@@ -227,6 +247,8 @@ export function GridMapEditor({
   const [preview, setPreview] = useState<GridSelection | null>(null);
   const moveRef = useRef<MoveDragState | null>(null);
   const [move, setMove] = useState<MoveDragState | null>(null);
+  const resizeRef = useRef<ResizeDragState | null>(null);
+  const [resize, setResize] = useState<ResizeDragState | null>(null);
   const [poly, setPoly] = useState<Array<{ x: number; y: number }> | null>(null);
 
   const bgStorageKey = `mygarden.mapBgOpacity.${gardenId}.${area.id}`;
@@ -385,6 +407,20 @@ export function GridMapEditor({
     [worldW, worldH],
   );
 
+  /** Like clientToWorld but not bounded: resize drags may leave the world briefly. */
+  const clientToWorldUnclamped = useCallback(
+    (clientX: number, clientY: number): { x: number; y: number } | null => {
+      const el = worldRef.current;
+      const box = el?.getBoundingClientRect();
+      if (!box || box.width <= 0 || box.height <= 0) return null;
+      const x = ((clientX - box.left) / box.width) * worldW;
+      const y = ((clientY - box.top) / box.height) * worldH;
+      if (!Number.isFinite(x) || !Number.isFinite(y)) return null;
+      return { x, y };
+    },
+    [worldW, worldH],
+  );
+
   const polygonDraft = poly;
   const polygonPreviewPointsPx = useMemo(() => {
     if (!polygonDraft || polygonDraft.length === 0) return '';
@@ -485,6 +521,49 @@ export function GridMapEditor({
       setMoveBoth(next);
     },
     [clientToGrid, onMoveElement, setMoveBoth],
+  );
+
+  const setResizeBoth = useCallback((next: ResizeDragState | null) => {
+    resizeRef.current = next;
+    setResize(next);
+  }, []);
+
+  const beginElementResize = useCallback(
+    (e: React.PointerEvent, element: Element, handle: ResizeHandle) => {
+      if (readOnly || mode !== 'browse' || !onResizeElement) return;
+      if (typeof e.button === 'number' && e.button !== 0) return;
+      if (moveRef.current || resizeRef.current) return;
+      e.preventDefault();
+      worldRef.current?.setPointerCapture?.(e.pointerId);
+      const orig: GridRect = {
+        gridX: element.gridX,
+        gridY: element.gridY,
+        gridWidth: element.gridWidth,
+        gridHeight: element.gridHeight,
+      };
+      setResizeBoth({ elementId: element.id, handle, orig, cur: orig });
+    },
+    [readOnly, mode, onResizeElement, setResizeBoth],
+  );
+
+  const finishResize = useCallback(
+    (pointerId: number | undefined) => {
+      const rs = resizeRef.current;
+      if (!rs) return;
+      setResizeBoth(null);
+      try {
+        if (typeof pointerId === 'number') {
+          worldRef.current?.releasePointerCapture(pointerId);
+        }
+      } catch {
+        /* ignore */
+      }
+      if (rectsEqual(rs.cur, rs.orig)) return;
+      // Invalid targets revert silently; the backend re-checks on persist (C1).
+      if (!isValidResizeRect(rs.elementId, rs.cur, elements, gw, gh)) return;
+      onResizeElement?.(rs.elementId, rs.cur);
+    },
+    [setResizeBoth, elements, gw, gh, onResizeElement],
   );
 
   /** Long-press tracking for touch presses on elements (B1, R2, R9). */
@@ -691,7 +770,7 @@ export function GridMapEditor({
   useEffect(() => {
     if (readOnly || !selectedElementId || !onMoveElement) return;
     const onKey = (e: KeyboardEvent) => {
-      if (moveRef.current) return;
+      if (moveRef.current || resizeRef.current) return;
       const targetEl = e.target as HTMLElement | null;
       if (targetEl?.closest('input, textarea, select, [contenteditable="true"]')) return;
       let dx = 0;
@@ -730,7 +809,7 @@ export function GridMapEditor({
 
   const onPointerDown = (e: React.PointerEvent) => {
     if (typeof e.button === 'number' && e.button !== 0) return;
-    if (moveRef.current) return;
+    if (moveRef.current || resizeRef.current) return;
     if (spaceHeldRef.current) {
       e.preventDefault();
       (e.target as HTMLElement).setPointerCapture?.(e.pointerId);
@@ -764,6 +843,17 @@ export function GridMapEditor({
   };
 
   const onPointerMove = (e: React.PointerEvent) => {
+    const rs = resizeRef.current;
+    if (rs) {
+      const w = clientToWorldUnclamped(e.clientX, e.clientY);
+      if (!w) return;
+      const cur = resizeRectToPointer(rs.orig, rs.handle, w.x / CELL, w.y / CELL, gw, gh);
+      if (rectsEqual(cur, rs.cur)) return;
+      const next = { ...rs, cur };
+      resizeRef.current = next;
+      setResize(next);
+      return;
+    }
     const ms = moveRef.current;
     if (ms) {
       const g = clientToGrid(e.clientX, e.clientY);
@@ -848,6 +938,10 @@ export function GridMapEditor({
     } catch {
       /* ignore */
     }
+    if (resizeRef.current) {
+      finishResize(e.pointerId);
+      return;
+    }
     if (finishingMove) {
       finishMoveAt(e.pointerId, e.clientX, e.clientY);
       return;
@@ -883,6 +977,7 @@ export function GridMapEditor({
     // Double-click on empty background restores the fitted view (A2).
     const targetEl = e.target as globalThis.Element | null;
     if (targetEl?.closest('[data-area-shape]')) return;
+    if (targetEl?.closest('[data-resize-handle]')) return;
     e.preventDefault();
     applyFitView();
   };
@@ -890,6 +985,7 @@ export function GridMapEditor({
   const onPointerCancel = () => {
     const wasPan = dragRef.current?.kind === 'pan';
     setMoveBoth(null);
+    setResizeBoth(null);
     dragRef.current = null;
     cancelLongPress();
     setSpacePanPointerDown(false);
@@ -923,20 +1019,23 @@ export function GridMapEditor({
   const cancelSingleTouchGestures = useCallback(() => {
     cancelLongPress();
     if (moveRef.current) setMoveBoth(null);
+    if (resizeRef.current) setResizeBoth(null);
     const d = dragRef.current;
     if (d) {
       dragRef.current = null;
       if (d.kind === 'pan') flushLiveView();
       if (d.kind === 'select') setPreview(null);
     }
-  }, [cancelLongPress, setMoveBoth, flushLiveView]);
+  }, [cancelLongPress, setMoveBoth, setResizeBoth, flushLiveView]);
 
   const onTouchStart = (e: React.TouchEvent) => {
     if (e.touches.length === 1) {
       const touch = e.touches[0]!;
       const targetEl = e.target as globalThis.Element | null;
       tapCandidateRef.current =
-        !targetEl?.closest('[data-area-shape]') && mode !== 'add-polygon'
+        !targetEl?.closest('[data-area-shape]') &&
+        !targetEl?.closest('[data-resize-handle]') &&
+        mode !== 'add-polygon'
           ? { time: Date.now(), x: touch.clientX, y: touch.clientY }
           : null;
       return;
@@ -1087,6 +1186,32 @@ export function GridMapEditor({
       : [];
   const guides =
     move && moveRect ? computeAlignmentGuides(moveRect, otherRects) : null;
+
+  /** Selected rectangle element that shows resize handles (C1). */
+  const selectedForResize =
+    !readOnly && mode === 'browse' && onResizeElement && selectedElementId && !move
+      ? elements.find(
+          (a) =>
+            a.id === selectedElementId &&
+            a.shape?.kind !== 'polygon' &&
+            a.shape?.kind !== 'path',
+        ) ?? null
+      : null;
+  const resizeHandlesRect: GridRect | null = selectedForResize
+    ? resize?.cur ?? {
+        gridX: selectedForResize.gridX,
+        gridY: selectedForResize.gridY,
+        gridWidth: selectedForResize.gridWidth,
+        gridHeight: selectedForResize.gridHeight,
+      }
+    : null;
+  const resizeValid = resize
+    ? isValidResizeRect(resize.elementId, resize.cur, elements, gw, gh)
+    : false;
+  /** Handles keep a constant screen size: world radii shrink as the map zooms in. */
+  const handleScale = Math.max(view.scale, 1e-6);
+  const handleVisibleR = HANDLE_VISIBLE_RADIUS_PX / handleScale;
+  const handleHitR = HANDLE_HIT_RADIUS_PX / handleScale;
 
   const addModeButtonClass = (active: boolean) =>
     `rounded-md px-3 py-1.5 font-medium ${active ? 'bg-emerald-100 text-emerald-900' : 'text-stone-600'}`;
@@ -1439,6 +1564,60 @@ export function GridMapEditor({
                   />
                 ))
               : null}
+
+            {selectedForResize && resizeHandlesRect ? (
+              <g data-testid="map-resize-handles">
+                {resize ? (
+                  <rect
+                    data-testid="map-resize-preview"
+                    data-valid={resizeValid ? 'true' : 'false'}
+                    x={resize.cur.gridX * CELL}
+                    y={resize.cur.gridY * CELL}
+                    width={resize.cur.gridWidth * CELL}
+                    height={resize.cur.gridHeight * CELL}
+                    fill="rgba(0,0,0,0.08)"
+                    stroke={resizeValid ? '#059669' : '#dc2626'}
+                    strokeWidth={2}
+                    pointerEvents="none"
+                  />
+                ) : null}
+                {RESIZE_HANDLES.map((h) => {
+                  const a = handleAnchor(resizeHandlesRect, h);
+                  return (
+                    <g key={h}>
+                      <circle
+                        cx={a.x * CELL}
+                        cy={a.y * CELL}
+                        r={handleVisibleR}
+                        fill="#ffffff"
+                        stroke="#059669"
+                        strokeWidth={1.5 / handleScale}
+                        pointerEvents="none"
+                      />
+                      <circle
+                        data-resize-handle={h}
+                        data-testid={`map-resize-handle-${h}`}
+                        role="button"
+                        aria-label={t('garden.resizeHandleAria', {
+                          name: selectedForResize.name,
+                          direction: h,
+                        })}
+                        cx={a.x * CELL}
+                        cy={a.y * CELL}
+                        r={handleHitR}
+                        fill="transparent"
+                        style={{ cursor: handleCursor(h) }}
+                        pointerEvents="auto"
+                        onPointerDown={(ev) => {
+                          ev.stopPropagation();
+                          beginElementResize(ev, selectedForResize, h);
+                        }}
+                      />
+                    </g>
+                  );
+                })}
+              </g>
+            ) : null}
 
             {preview && (
               <rect

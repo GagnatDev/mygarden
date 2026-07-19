@@ -35,3 +35,18 @@ export function isValidMovePosition(
   }
   return true;
 }
+
+/**
+ * Live validity for a resize-in-progress: the resized rect must stay within
+ * the area (min 1×1 via rectWithinGarden) and not overlap any other element.
+ * Mirrors the backend's PATCH bounds + overlap checks.
+ */
+export function isValidResizeRect(
+  resizingId: string,
+  rect: GridRect,
+  all: ReadonlyArray<{ id: string } & GridRect>,
+  gardenWidth: number,
+  gardenHeight: number,
+): boolean {
+  return isValidMovePosition(resizingId, rect, all, gardenWidth, gardenHeight);
+}
