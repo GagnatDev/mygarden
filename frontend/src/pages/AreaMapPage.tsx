@@ -5,7 +5,7 @@ import type { Season } from '../api/gardens';
 import { listSeasons } from '../api/gardens';
 import type { Area } from '../api/areas';
 import { getArea } from '../api/areas';
-import type { Element } from '../api/elements';
+import type { Element, ElementShape } from '../api/elements';
 import { listElements, patchElement } from '../api/elements';
 import type { ActivityLog } from '../api/logs';
 import { listLogs } from '../api/logs';
@@ -188,6 +188,24 @@ export function AreaMapPage() {
       setMapMoveError(null);
       try {
         await patchElement(gardenId, areaId, elementId, rect);
+        await loadAreaAndElements({ soft: true });
+      } catch (e) {
+        setMapMoveError(e instanceof Error ? e.message : t('garden.moveAreaFailed'));
+      }
+    },
+    [gardenId, areaId, loadAreaAndElements, t],
+  );
+
+  const handleReshapeElement = useCallback(
+    async (
+      elementId: string,
+      shape: ElementShape,
+      rect: { gridX: number; gridY: number; gridWidth: number; gridHeight: number },
+    ) => {
+      if (!gardenId || !areaId) return;
+      setMapMoveError(null);
+      try {
+        await patchElement(gardenId, areaId, elementId, { shape, ...rect });
         await loadAreaAndElements({ soft: true });
       } catch (e) {
         setMapMoveError(e instanceof Error ? e.message : t('garden.moveAreaFailed'));
@@ -472,6 +490,7 @@ export function AreaMapPage() {
               onSelectionComplete={setPendingSelection}
               onMoveElement={handleMoveElement}
               onResizeElement={handleResizeElement}
+              onReshapeElement={handleReshapeElement}
             />
           )}
         </div>

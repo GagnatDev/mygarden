@@ -37,7 +37,13 @@ import {
   polygonPointsPx,
   polygonVerticesToGridBBox,
   translateVertices,
+  type GridPoint,
 } from './polygon-helpers';
+import {
+  isValidPolygonReshape,
+  reshapePolygonVertex,
+  verticesEqual,
+} from './polygon-reshape-helpers';
 import {
   applyTwoFingerGesture,
   computeFitView,
@@ -128,6 +134,13 @@ interface ResizeDragState {
   cur: GridRect;
 }
 
+interface ReshapeDragState {
+  elementId: string;
+  vertexIndex: number;
+  origVertices: GridPoint[];
+  curVertices: GridPoint[];
+}
+
 export interface GridMapEditorProps {
   gardenId: string;
   area: Area;
@@ -158,6 +171,8 @@ export interface GridMapEditorProps {
   onMoveElement?: (elementId: string, gridX: number, gridY: number) => void;
   /** Resize a rectangle element (handles + release); parent persists via API. */
   onResizeElement?: (elementId: string, rect: GridRect) => void;
+  /** Reshape a polygon element (vertex drag + release); parent persists shape + bbox via API. */
+  onReshapeElement?: (elementId: string, shape: ElementShape, rect: GridRect) => void;
   /** When true, map is view-only (pan/zoom only, no new selections or element clicks). */
   readOnly?: boolean;
   /** Called after a successful background upload or remove (e.g. refresh area). */
@@ -182,6 +197,7 @@ export function GridMapEditor({
   onSelectionComplete,
   onMoveElement,
   onResizeElement,
+  onReshapeElement,
   readOnly = false,
   onAreaBackgroundChanged,
 }: GridMapEditorProps) {
@@ -252,6 +268,8 @@ export function GridMapEditor({
   const [move, setMove] = useState<MoveDragState | null>(null);
   const resizeRef = useRef<ResizeDragState | null>(null);
   const [resize, setResize] = useState<ResizeDragState | null>(null);
+  const reshapeRef = useRef<ReshapeDragState | null>(null);
+  const [reshape, setReshape] = useState<ReshapeDragState | null>(null);
   const [poly, setPoly] = useState<Array<{ x: number; y: number }> | null>(null);
 
   const bgStorageKey = `mygarden.mapBgOpacity.${gardenId}.${area.id}`;
@@ -554,7 +572,7 @@ export function GridMapEditor({
     (e: React.PointerEvent, element: Element, handle: ResizeHandle) => {
       if (readOnly || mode !== 'browse' || !onResizeElement) return;
       if (typeof e.button === 'number' && e.button !== 0) return;
-      if (moveRef.current || resizeRef.current) return;
+      if (moveRef.current || resizeRef.current || reshapeRef.current) return;
       e.preventDefault();
       worldRef.current?.setPointerCapture?.(e.pointerId);
       const orig: GridRect = {
@@ -566,6 +584,53 @@ export function GridMapEditor({
       setResizeBoth({ elementId: element.id, handle, orig, cur: orig });
     },
     [readOnly, mode, onResizeElement, setResizeBoth],
+  );
+
+  const setReshapeBoth = useCallback((next: ReshapeDragState | null) => {
+    reshapeRef.current = next;
+    setReshape(next);
+  }, []);
+
+  const beginPolygonReshape = useCallback(
+    (e: React.PointerEvent, element: Element, vertexIndex: number) => {
+      if (readOnly || mode !== 'browse' || !onReshapeElement) return;
+      if (typeof e.button === 'number' && e.button !== 0) return;
+      if (moveRef.current || resizeRef.current || reshapeRef.current) return;
+      if (element.shape?.kind !== 'polygon') return;
+      e.preventDefault();
+      worldRef.current?.setPointerCapture?.(e.pointerId);
+      const origVertices = element.shape.vertices.map((v) => ({ x: v.x, y: v.y }));
+      setReshapeBoth({
+        elementId: element.id,
+        vertexIndex,
+        origVertices,
+        curVertices: origVertices,
+      });
+    },
+    [readOnly, mode, onReshapeElement, setReshapeBoth],
+  );
+
+  const finishReshape = useCallback(
+    (pointerId: number | undefined) => {
+      const rs = reshapeRef.current;
+      if (!rs) return;
+      setReshapeBoth(null);
+      try {
+        if (typeof pointerId === 'number') {
+          worldRef.current?.releasePointerCapture(pointerId);
+        }
+      } catch {
+        /* ignore */
+      }
+      if (verticesEqual(rs.curVertices, rs.origVertices)) return;
+      const bbox = polygonVerticesToGridBBox(rs.curVertices);
+      if (!bbox) return;
+      // Invalid targets revert silently; the backend re-checks true polygon
+      // overlap on persist and surfaces a rejection via the move-error banner (C2).
+      if (!isValidPolygonReshape(rs.elementId, rs.curVertices, elements, gw, gh)) return;
+      onReshapeElement?.(rs.elementId, { kind: 'polygon', vertices: rs.curVertices }, bbox);
+    },
+    [setReshapeBoth, elements, gw, gh, onReshapeElement],
   );
 
   const finishResize = useCallback(
@@ -792,7 +857,7 @@ export function GridMapEditor({
   useEffect(() => {
     if (readOnly || !selectedElementId || !onMoveElement) return;
     const onKey = (e: KeyboardEvent) => {
-      if (moveRef.current || resizeRef.current) return;
+      if (moveRef.current || resizeRef.current || reshapeRef.current) return;
       const targetEl = e.target as HTMLElement | null;
       if (targetEl?.closest('input, textarea, select, [contenteditable="true"]')) return;
       let dx = 0;
@@ -831,7 +896,7 @@ export function GridMapEditor({
 
   const onPointerDown = (e: React.PointerEvent) => {
     if (typeof e.button === 'number' && e.button !== 0) return;
-    if (moveRef.current || resizeRef.current) return;
+    if (moveRef.current || resizeRef.current || reshapeRef.current) return;
     if (spaceHeldRef.current) {
       e.preventDefault();
       (e.target as HTMLElement).setPointerCapture?.(e.pointerId);
@@ -865,6 +930,24 @@ export function GridMapEditor({
   };
 
   const onPointerMove = (e: React.PointerEvent) => {
+    const rsh = reshapeRef.current;
+    if (rsh) {
+      const w = clientToWorldUnclamped(e.clientX, e.clientY);
+      if (!w) return;
+      const curVertices = reshapePolygonVertex(
+        rsh.origVertices,
+        rsh.vertexIndex,
+        w.x / CELL,
+        w.y / CELL,
+        gw,
+        gh,
+      );
+      if (verticesEqual(curVertices, rsh.curVertices)) return;
+      const next = { ...rsh, curVertices };
+      reshapeRef.current = next;
+      setReshape(next);
+      return;
+    }
     const rs = resizeRef.current;
     if (rs) {
       const w = clientToWorldUnclamped(e.clientX, e.clientY);
@@ -960,6 +1043,10 @@ export function GridMapEditor({
     } catch {
       /* ignore */
     }
+    if (reshapeRef.current) {
+      finishReshape(e.pointerId);
+      return;
+    }
     if (resizeRef.current) {
       finishResize(e.pointerId);
       return;
@@ -1000,6 +1087,7 @@ export function GridMapEditor({
     const targetEl = e.target as globalThis.Element | null;
     if (targetEl?.closest('[data-area-shape]')) return;
     if (targetEl?.closest('[data-resize-handle]')) return;
+    if (targetEl?.closest('[data-reshape-handle]')) return;
     e.preventDefault();
     applyFitView();
   };
@@ -1008,6 +1096,7 @@ export function GridMapEditor({
     const wasPan = dragRef.current?.kind === 'pan';
     setMoveBoth(null);
     setResizeBoth(null);
+    setReshapeBoth(null);
     dragRef.current = null;
     cancelLongPress();
     setSpacePanPointerDown(false);
@@ -1042,13 +1131,14 @@ export function GridMapEditor({
     cancelLongPress();
     if (moveRef.current) setMoveBoth(null);
     if (resizeRef.current) setResizeBoth(null);
+    if (reshapeRef.current) setReshapeBoth(null);
     const d = dragRef.current;
     if (d) {
       dragRef.current = null;
       if (d.kind === 'pan') flushLiveView();
       if (d.kind === 'select') setPreview(null);
     }
-  }, [cancelLongPress, setMoveBoth, setResizeBoth, flushLiveView]);
+  }, [cancelLongPress, setMoveBoth, setResizeBoth, setReshapeBoth, flushLiveView]);
 
   const onTouchStart = (e: React.TouchEvent) => {
     if (e.touches.length === 1) {
@@ -1057,6 +1147,7 @@ export function GridMapEditor({
       tapCandidateRef.current =
         !targetEl?.closest('[data-area-shape]') &&
         !targetEl?.closest('[data-resize-handle]') &&
+        !targetEl?.closest('[data-reshape-handle]') &&
         mode !== 'add-polygon'
           ? { time: Date.now(), x: touch.clientX, y: touch.clientY }
           : null;
@@ -1230,6 +1321,23 @@ export function GridMapEditor({
   const resizeValid = resize
     ? isValidResizeRect(resize.elementId, resize.cur, elements, gw, gh)
     : false;
+
+  /** Selected polygon element that shows per-vertex reshape handles (C2). */
+  const selectedForReshape =
+    !readOnly && mode === 'browse' && onReshapeElement && selectedElementId && !move
+      ? elements.find((a) => a.id === selectedElementId && a.shape?.kind === 'polygon') ?? null
+      : null;
+  const reshapeSelectedVertices: readonly GridPoint[] =
+    selectedForReshape && selectedForReshape.shape?.kind === 'polygon'
+      ? selectedForReshape.shape.vertices
+      : [];
+  /** Live vertices during a drag, else the persisted polygon's vertices. */
+  const reshapeVertices: readonly GridPoint[] =
+    reshape && selectedForReshape ? reshape.curVertices : reshapeSelectedVertices;
+  const reshapeValid = reshape
+    ? isValidPolygonReshape(reshape.elementId, reshape.curVertices, elements, gw, gh)
+    : false;
+
   /** Handles keep a constant screen size: world radii shrink as the map zooms in. */
   const handleScale = Math.max(view.scale, 1e-6);
   const handleVisibleR = HANDLE_VISIBLE_RADIUS_PX / handleScale;
@@ -1708,6 +1816,54 @@ export function GridMapEditor({
                     </g>
                   );
                 })}
+              </g>
+            ) : null}
+
+            {selectedForReshape && reshapeVertices.length >= 3 ? (
+              <g data-testid="map-reshape-handles">
+                {reshape ? (
+                  <polygon
+                    data-testid="map-reshape-preview"
+                    data-valid={reshapeValid ? 'true' : 'false'}
+                    points={polygonPointsPx(reshape.curVertices, CELL)}
+                    fill="rgba(0,0,0,0.08)"
+                    stroke={reshapeValid ? '#059669' : '#dc2626'}
+                    strokeWidth={2}
+                    pointerEvents="none"
+                  />
+                ) : null}
+                {reshapeVertices.map((p, idx) => (
+                  <g key={idx}>
+                    <circle
+                      cx={p.x * CELL}
+                      cy={p.y * CELL}
+                      r={handleVisibleR}
+                      fill="#ffffff"
+                      stroke="#059669"
+                      strokeWidth={1.5 / handleScale}
+                      pointerEvents="none"
+                    />
+                    <circle
+                      data-reshape-handle={idx}
+                      data-testid={`map-reshape-handle-${idx}`}
+                      role="button"
+                      aria-label={t('garden.reshapeHandleAria', {
+                        name: selectedForReshape.name,
+                        index: idx + 1,
+                      })}
+                      cx={p.x * CELL}
+                      cy={p.y * CELL}
+                      r={handleHitR}
+                      fill="transparent"
+                      style={{ cursor: 'move' }}
+                      pointerEvents="auto"
+                      onPointerDown={(ev) => {
+                        ev.stopPropagation();
+                        beginPolygonReshape(ev, selectedForReshape, idx);
+                      }}
+                    />
+                  </g>
+                ))}
               </g>
             ) : null}
 
