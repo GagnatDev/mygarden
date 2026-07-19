@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { Area } from '../api/areas';
 import {
@@ -7,7 +7,14 @@ import {
 } from '../api/areas';
 import type { Element, ElementShape } from '../api/elements';
 import { getAuthenticatedImageBlobUrl } from '../images/authenticated-image-cache';
-import { computeAlignmentGuides } from './alignment-guides';
+import type { AlignmentGuides } from './alignment-guides';
+import {
+  computeMovePreviewFrame,
+  computeReshapePreviewFrame,
+  computeResizePreviewFrame,
+  PREVIEW_INVALID_STROKE,
+  PREVIEW_VALID_STROKE,
+} from './drag-preview-helpers';
 import {
   beginPress,
   classifyRelease,
@@ -36,7 +43,6 @@ import {
 import {
   polygonPointsPx,
   polygonVerticesToGridBBox,
-  translateVertices,
   type GridPoint,
 } from './polygon-helpers';
 import {
@@ -86,6 +92,48 @@ function normalizeRect(
   const gridHeight = y1 - y0 + 1;
   if (gridWidth < 1 || gridHeight < 1) return null;
   return { gridX: x0, gridY: y0, gridWidth, gridHeight };
+}
+
+const SVG_NS = 'http://www.w3.org/2000/svg';
+
+/**
+ * (Re)build the alignment guide lines inside `group`. The group element itself
+ * is rendered (always empty) by React; its children are owned exclusively by
+ * this function so per-frame move updates never enter React reconciliation (E1).
+ */
+function renderAlignmentGuideLines(
+  group: SVGGElement,
+  guides: AlignmentGuides,
+  worldW: number,
+  worldH: number,
+): void {
+  while (group.firstChild) group.removeChild(group.firstChild);
+  for (const x of guides.vertical) {
+    const line = document.createElementNS(SVG_NS, 'line');
+    line.setAttribute('data-testid', 'map-alignment-guide-vertical');
+    line.setAttribute('data-grid-line', String(x));
+    line.setAttribute('x1', String(x * CELL));
+    line.setAttribute('y1', '0');
+    line.setAttribute('x2', String(x * CELL));
+    line.setAttribute('y2', String(worldH));
+    line.setAttribute('stroke', 'rgba(244,63,94,0.8)');
+    line.setAttribute('stroke-width', '1');
+    line.setAttribute('pointer-events', 'none');
+    group.appendChild(line);
+  }
+  for (const y of guides.horizontal) {
+    const line = document.createElementNS(SVG_NS, 'line');
+    line.setAttribute('data-testid', 'map-alignment-guide-horizontal');
+    line.setAttribute('data-grid-line', String(y));
+    line.setAttribute('x1', '0');
+    line.setAttribute('y1', String(y * CELL));
+    line.setAttribute('x2', String(worldW));
+    line.setAttribute('y2', String(y * CELL));
+    line.setAttribute('stroke', 'rgba(244,63,94,0.8)');
+    line.setAttribute('stroke-width', '1');
+    line.setAttribute('pointer-events', 'none');
+    group.appendChild(line);
+  }
 }
 
 /**
@@ -179,7 +227,11 @@ export interface GridMapEditorProps {
   onAreaBackgroundChanged?: () => void | Promise<void>;
 }
 
-export function GridMapEditor({
+/**
+ * Memoized (E3): consumers pass memoized/stable props, so unrelated page state
+ * changes (modals, panels) skip re-rendering the whole map subtree.
+ */
+export const GridMapEditor = memo(function GridMapEditor({
   gardenId,
   area,
   elements,
@@ -272,6 +324,19 @@ export function GridMapEditor({
   const [reshape, setReshape] = useState<ReshapeDragState | null>(null);
   const [poly, setPoly] = useState<Array<{ x: number; y: number }> | null>(null);
 
+  /**
+   * E1: mounted preview/handle nodes for the three drag gestures. Per-frame
+   * pointer/touch moves mutate these directly (the pan/pinch liveViewRef
+   * pattern); React state for move/resize/reshape changes only at gesture
+   * begin/end, so a full drag costs O(1) React renders.
+   */
+  const movePreviewNodeRef = useRef<SVGElement | null>(null);
+  const moveGuidesGroupRef = useRef<SVGGElement | null>(null);
+  const resizePreviewNodeRef = useRef<SVGRectElement | null>(null);
+  const resizeHandlesGroupRef = useRef<SVGGElement | null>(null);
+  const reshapePreviewNodeRef = useRef<SVGPolygonElement | null>(null);
+  const reshapeHandlesGroupRef = useRef<SVGGElement | null>(null);
+
   const bgStorageKey = `mygarden.mapBgOpacity.${gardenId}.${area.id}`;
   const [bgOpacityPct, setBgOpacityPct] = useState(50);
   useEffect(() => {
@@ -310,6 +375,18 @@ export function GridMapEditor({
     let cancelled = false;
     void (async () => {
       const url = await getAuthenticatedImageBlobUrl(backgroundImageUrl, 'full');
+      // Decode before first paint (E3) so displaying the image never blocks
+      // the main thread mid-gesture. Best effort: jsdom and older browsers
+      // lack decode(), and a failed decode still renders via the normal path.
+      if (url && !cancelled && typeof Image !== 'undefined') {
+        try {
+          const img = new Image();
+          img.src = url;
+          if (typeof img.decode === 'function') await img.decode();
+        } catch {
+          /* ignore */
+        }
+      }
       if (!cancelled) setBgObjectUrl(url);
     })();
 
@@ -441,6 +518,93 @@ export function GridMapEditor({
     },
     [worldW, worldH],
   );
+
+  /** Apply one move-drag frame to the mounted preview + guide nodes (E1). */
+  const applyMoveFrameToDom = useCallback(
+    (ms: MoveDragState) => {
+      const movingEl = elements.find((a) => a.id === ms.elementId);
+      const frame = computeMovePreviewFrame(ms, movingEl, elements, gw, gh, CELL);
+      const node = movePreviewNodeRef.current;
+      if (node) {
+        if (frame.polygonPointsPx != null) {
+          node.setAttribute('points', frame.polygonPointsPx);
+        } else {
+          node.setAttribute('x', String(frame.rect.gridX * CELL));
+          node.setAttribute('y', String(frame.rect.gridY * CELL));
+        }
+        node.setAttribute('stroke', frame.valid ? PREVIEW_VALID_STROKE : PREVIEW_INVALID_STROKE);
+        node.setAttribute('data-valid', frame.valid ? 'true' : 'false');
+      }
+      const group = moveGuidesGroupRef.current;
+      if (group) renderAlignmentGuideLines(group, frame.guides, worldW, worldH);
+    },
+    [elements, gw, gh, worldW, worldH],
+  );
+
+  /** Apply one resize-drag frame to the mounted preview + handle nodes (E1). */
+  const applyResizeFrameToDom = useCallback(
+    (rs: ResizeDragState) => {
+      const frame = computeResizePreviewFrame(rs, elements, gw, gh, CELL);
+      const node = resizePreviewNodeRef.current;
+      if (node) {
+        node.setAttribute('x', String(frame.xPx));
+        node.setAttribute('y', String(frame.yPx));
+        node.setAttribute('width', String(frame.widthPx));
+        node.setAttribute('height', String(frame.heightPx));
+        node.setAttribute('stroke', frame.valid ? PREVIEW_VALID_STROKE : PREVIEW_INVALID_STROKE);
+        node.setAttribute('data-valid', frame.valid ? 'true' : 'false');
+      }
+      const group = resizeHandlesGroupRef.current;
+      if (group) {
+        for (const { handle, cxPx, cyPx } of frame.handleAnchorsPx) {
+          for (const circle of group.querySelectorAll(`[data-handle-circle="${handle}"]`)) {
+            circle.setAttribute('cx', String(cxPx));
+            circle.setAttribute('cy', String(cyPx));
+          }
+        }
+      }
+    },
+    [elements, gw, gh],
+  );
+
+  /** Apply one reshape-drag frame to the mounted preview + vertex handles (E1). */
+  const applyReshapeFrameToDom = useCallback(
+    (rs: ReshapeDragState) => {
+      const frame = computeReshapePreviewFrame(rs, elements, gw, gh, CELL);
+      const node = reshapePreviewNodeRef.current;
+      if (node) {
+        node.setAttribute('points', frame.pointsPx);
+        node.setAttribute('stroke', frame.valid ? PREVIEW_VALID_STROKE : PREVIEW_INVALID_STROKE);
+        node.setAttribute('data-valid', frame.valid ? 'true' : 'false');
+      }
+      const group = reshapeHandlesGroupRef.current;
+      if (group) {
+        frame.vertexAnchorsPx.forEach(({ cxPx, cyPx }, idx) => {
+          for (const circle of group.querySelectorAll(`[data-handle-circle="${idx}"]`)) {
+            circle.setAttribute('cx', String(cxPx));
+            circle.setAttribute('cy', String(cyPx));
+          }
+        });
+      }
+    },
+    [elements, gw, gh],
+  );
+
+  /**
+   * Sync the mounted preview nodes at gesture begin (guides render only here —
+   * React keeps their group empty) and whenever `elements` changes mid-drag
+   * (validity may shift under a soft reload). Reads the ref, not the state, so
+   * a mid-drag run applies the latest pointer position.
+   */
+  useLayoutEffect(() => {
+    if (move && moveRef.current) applyMoveFrameToDom(moveRef.current);
+  }, [move, applyMoveFrameToDom]);
+  useLayoutEffect(() => {
+    if (resize && resizeRef.current) applyResizeFrameToDom(resizeRef.current);
+  }, [resize, applyResizeFrameToDom]);
+  useLayoutEffect(() => {
+    if (reshape && reshapeRef.current) applyReshapeFrameToDom(reshapeRef.current);
+  }, [reshape, applyReshapeFrameToDom]);
 
   const polygonDraft = poly;
   const polygonPreviewPointsPx = useMemo(() => {
@@ -945,7 +1109,7 @@ export function GridMapEditor({
       if (verticesEqual(curVertices, rsh.curVertices)) return;
       const next = { ...rsh, curVertices };
       reshapeRef.current = next;
-      setReshape(next);
+      applyReshapeFrameToDom(next);
       return;
     }
     const rs = resizeRef.current;
@@ -956,7 +1120,7 @@ export function GridMapEditor({
       if (rectsEqual(cur, rs.cur)) return;
       const next = { ...rs, cur };
       resizeRef.current = next;
-      setResize(next);
+      applyResizeFrameToDom(next);
       return;
     }
     const ms = moveRef.current;
@@ -967,7 +1131,7 @@ export function GridMapEditor({
       const ny = clamp(g.gy - ms.grabDy, 0, gh - ms.h);
       const next = { ...ms, curGridX: nx, curGridY: ny, lastClientX: e.clientX, lastClientY: e.clientY };
       moveRef.current = next;
-      setMove(next);
+      applyMoveFrameToDom(next);
       return;
     }
     const d = dragRef.current;
@@ -1190,7 +1354,7 @@ export function GridMapEditor({
       const ny = clamp(g.gy - ms.grabDy, 0, gh - ms.h);
       const next = { ...ms, curGridX: nx, curGridY: ny, lastClientX: touch.clientX, lastClientY: touch.clientY };
       moveRef.current = next;
-      setMove(next);
+      applyMoveFrameToDom(next);
       return;
     }
     if (e.touches.length === 2) {
@@ -1276,29 +1440,13 @@ export function GridMapEditor({
   const movingElement = move
     ? elements.find((a) => a.id === move.elementId)
     : undefined;
-  const moveRect = move
-    ? {
-        gridX: move.curGridX,
-        gridY: move.curGridY,
-        gridWidth: move.w,
-        gridHeight: move.h,
-      }
+  /**
+   * Gesture-begin frame only: React renders the previews once from state, then
+   * per-frame updates go straight to the DOM via the apply*FrameToDom helpers.
+   */
+  const moveFrame = move
+    ? computeMovePreviewFrame(move, movingElement, elements, gw, gh, CELL)
     : null;
-  const moveValid =
-    move && moveRect
-      ? isValidMovePosition(move.elementId, moveRect, elements, gw, gh)
-      : false;
-  const otherRects =
-    move && moveRect
-      ? elements.filter((a) => a.id !== move.elementId).map((a) => ({
-          gridX: a.gridX,
-          gridY: a.gridY,
-          gridWidth: a.gridWidth,
-          gridHeight: a.gridHeight,
-        }))
-      : [];
-  const guides =
-    move && moveRect ? computeAlignmentGuides(moveRect, otherRects) : null;
 
   /** Selected rectangle element that shows resize handles (C1). */
   const selectedForResize =
@@ -1318,9 +1466,9 @@ export function GridMapEditor({
         gridHeight: selectedForResize.gridHeight,
       }
     : null;
-  const resizeValid = resize
-    ? isValidResizeRect(resize.elementId, resize.cur, elements, gw, gh)
-    : false;
+  const resizeFrame = resize
+    ? computeResizePreviewFrame(resize, elements, gw, gh, CELL)
+    : null;
 
   /** Selected polygon element that shows per-vertex reshape handles (C2). */
   const selectedForReshape =
@@ -1334,9 +1482,9 @@ export function GridMapEditor({
   /** Live vertices during a drag, else the persisted polygon's vertices. */
   const reshapeVertices: readonly GridPoint[] =
     reshape && selectedForReshape ? reshape.curVertices : reshapeSelectedVertices;
-  const reshapeValid = reshape
-    ? isValidPolygonReshape(reshape.elementId, reshape.curVertices, elements, gw, gh)
-    : false;
+  const reshapeFrame = reshape
+    ? computeReshapePreviewFrame(reshape, elements, gw, gh, CELL)
+    : null;
 
   /** Handles keep a constant screen size: world radii shrink as the map zooms in. */
   const handleScale = Math.max(view.scale, 1e-6);
@@ -1702,81 +1850,75 @@ export function GridMapEditor({
               )
             ) : null}
 
-            {move && movingElement ? (
+            {move && moveFrame && movingElement ? (
               movingElement.shape?.kind === 'polygon' ? (
                 <polygon
+                  ref={(n) => {
+                    movePreviewNodeRef.current = n;
+                  }}
                   data-testid="map-move-preview"
-                  data-valid={moveValid ? 'true' : 'false'}
-                  points={polygonPointsPx(
-                    translateVertices(movingElement.shape.vertices, move.curGridX - move.origGridX, move.curGridY - move.origGridY),
-                    CELL,
-                  )}
+                  data-valid={moveFrame.valid ? 'true' : 'false'}
+                  points={moveFrame.polygonPointsPx ?? ''}
                   fill="rgba(0,0,0,0.08)"
-                  stroke={moveValid ? '#059669' : '#dc2626'}
+                  stroke={moveFrame.valid ? PREVIEW_VALID_STROKE : PREVIEW_INVALID_STROKE}
                   strokeWidth={2}
                   pointerEvents="none"
                 />
               ) : (
                 <rect
+                  ref={(n) => {
+                    movePreviewNodeRef.current = n;
+                  }}
                   data-testid="map-move-preview"
-                  data-valid={moveValid ? 'true' : 'false'}
-                  x={move.curGridX * CELL}
-                  y={move.curGridY * CELL}
-                  width={move.w * CELL}
-                  height={move.h * CELL}
+                  data-valid={moveFrame.valid ? 'true' : 'false'}
+                  x={moveFrame.rect.gridX * CELL}
+                  y={moveFrame.rect.gridY * CELL}
+                  width={moveFrame.rect.gridWidth * CELL}
+                  height={moveFrame.rect.gridHeight * CELL}
                   fill="rgba(0,0,0,0.08)"
-                  stroke={moveValid ? '#059669' : '#dc2626'}
+                  stroke={moveFrame.valid ? PREVIEW_VALID_STROKE : PREVIEW_INVALID_STROKE}
                   strokeWidth={2}
                   pointerEvents="none"
                 />
               )
             ) : null}
 
-            {guides
-              ? guides.vertical.map((x) => (
-                  <line
-                    key={`gv-${x}`}
-                    data-testid="map-alignment-guide-vertical"
-                    data-grid-line={x}
-                    x1={x * CELL}
-                    y1={0}
-                    x2={x * CELL}
-                    y2={worldH}
-                    stroke="rgba(244,63,94,0.8)"
-                    strokeWidth={1}
-                    pointerEvents="none"
-                  />
-                ))
-              : null}
-            {guides
-              ? guides.horizontal.map((y) => (
-                  <line
-                    key={`gh-${y}`}
-                    data-testid="map-alignment-guide-horizontal"
-                    data-grid-line={y}
-                    x1={0}
-                    y1={y * CELL}
-                    x2={worldW}
-                    y2={y * CELL}
-                    stroke="rgba(244,63,94,0.8)"
-                    strokeWidth={1}
-                    pointerEvents="none"
-                  />
-                ))
-              : null}
+            {/* Guide lines are built imperatively per frame (E1); React only owns the group. */}
+            {move ? (
+              <g
+                data-testid="map-alignment-guides"
+                ref={(n) => {
+                  moveGuidesGroupRef.current = n;
+                }}
+              />
+            ) : null}
 
             {selectedForResize && resizeHandlesRect ? (
-              <g data-testid="map-resize-handles">
-                {resize ? (
+              /*
+               * Keyed by drag phase (E1): per-frame handle positions are mutated
+               * directly on the DOM, so remounting at gesture begin/end guarantees
+               * the nodes match what React last rendered.
+               */
+              <g
+                data-testid="map-resize-handles"
+                key={resize ? 'resize-drag' : 'resize-idle'}
+                ref={(n) => {
+                  resizeHandlesGroupRef.current = n;
+                }}
+              >
+                {resize && resizeFrame ? (
                   <rect
+                    ref={(n) => {
+                      resizePreviewNodeRef.current = n;
+                    }}
                     data-testid="map-resize-preview"
-                    data-valid={resizeValid ? 'true' : 'false'}
-                    x={resize.cur.gridX * CELL}
-                    y={resize.cur.gridY * CELL}
-                    width={resize.cur.gridWidth * CELL}
-                    height={resize.cur.gridHeight * CELL}
+                    data-valid={resizeFrame.valid ? 'true' : 'false'}
+                    x={resizeFrame.xPx}
+                    y={resizeFrame.yPx}
+                    width={resizeFrame.widthPx}
+                    height={resizeFrame.heightPx}
                     fill="rgba(0,0,0,0.08)"
-                    stroke={resizeValid ? '#059669' : '#dc2626'}
+                    stroke={resizeFrame.valid ? PREVIEW_VALID_STROKE : PREVIEW_INVALID_STROKE}
                     strokeWidth={2}
                     pointerEvents="none"
                   />
@@ -1786,6 +1928,7 @@ export function GridMapEditor({
                   return (
                     <g key={h}>
                       <circle
+                        data-handle-circle={h}
                         cx={a.x * CELL}
                         cy={a.y * CELL}
                         r={handleVisibleR}
@@ -1795,6 +1938,7 @@ export function GridMapEditor({
                         pointerEvents="none"
                       />
                       <circle
+                        data-handle-circle={h}
                         data-resize-handle={h}
                         data-testid={`map-resize-handle-${h}`}
                         role="button"
@@ -1820,14 +1964,24 @@ export function GridMapEditor({
             ) : null}
 
             {selectedForReshape && reshapeVertices.length >= 3 ? (
-              <g data-testid="map-reshape-handles">
-                {reshape ? (
+              /* Keyed by drag phase for the same reason as the resize handles (E1). */
+              <g
+                data-testid="map-reshape-handles"
+                key={reshape ? 'reshape-drag' : 'reshape-idle'}
+                ref={(n) => {
+                  reshapeHandlesGroupRef.current = n;
+                }}
+              >
+                {reshape && reshapeFrame ? (
                   <polygon
+                    ref={(n) => {
+                      reshapePreviewNodeRef.current = n;
+                    }}
                     data-testid="map-reshape-preview"
-                    data-valid={reshapeValid ? 'true' : 'false'}
-                    points={polygonPointsPx(reshape.curVertices, CELL)}
+                    data-valid={reshapeFrame.valid ? 'true' : 'false'}
+                    points={reshapeFrame.pointsPx}
                     fill="rgba(0,0,0,0.08)"
-                    stroke={reshapeValid ? '#059669' : '#dc2626'}
+                    stroke={reshapeFrame.valid ? PREVIEW_VALID_STROKE : PREVIEW_INVALID_STROKE}
                     strokeWidth={2}
                     pointerEvents="none"
                   />
@@ -1835,6 +1989,7 @@ export function GridMapEditor({
                 {reshapeVertices.map((p, idx) => (
                   <g key={idx}>
                     <circle
+                      data-handle-circle={idx}
                       cx={p.x * CELL}
                       cy={p.y * CELL}
                       r={handleVisibleR}
@@ -1844,6 +1999,7 @@ export function GridMapEditor({
                       pointerEvents="none"
                     />
                     <circle
+                      data-handle-circle={idx}
                       data-reshape-handle={idx}
                       data-testid={`map-reshape-handle-${idx}`}
                       role="button"
@@ -1910,4 +2066,4 @@ export function GridMapEditor({
       </div>
     </div>
   );
-}
+});

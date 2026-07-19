@@ -9,6 +9,10 @@ import { useGardenContext } from '../garden/garden-context';
 import { GridMapEditor } from '../garden/GridMapEditor';
 import { useActiveSeason } from '../garden/useActiveSeason';
 
+/** Stable no-ops (E3): GridMapEditor is memoized; inline closures would defeat it. */
+const noopSelectElement = () => {};
+const noopSelectionComplete = () => {};
+
 export function HistoryPage() {
   const { t } = useTranslation();
   const { selectedGarden, loading: gardenLoading, error: gardenError } = useGardenContext();
@@ -174,8 +178,8 @@ export function HistoryPage() {
               elements={historyMap.elements}
               elementIdsWithPlantings={elementIdsWithPlantings}
               selectedElementId={null}
-              onSelectElement={() => {}}
-              onSelectionComplete={() => {}}
+              onSelectElement={noopSelectElement}
+              onSelectionComplete={noopSelectionComplete}
               readOnly
             />
           </div>

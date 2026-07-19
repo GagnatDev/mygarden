@@ -232,6 +232,34 @@ export function AreaMapPage() {
     }
   }, [elements, selectedElementId]);
 
+  /** Stable identity (E3): GridMapEditor is memoized, so its props must not churn. */
+  const handleAreaBackgroundChanged = useCallback(() => {
+    void loadAreaAndElements({ soft: true });
+    void refreshGardens({ soft: true });
+  }, [loadAreaAndElements, refreshGardens]);
+
+  /** Memoized (E3): an inline JSX addon would re-render the map on every page render. */
+  const toolbarAddon = useMemo(() => {
+    if (layer !== 'historical') return null;
+    return (
+      <label className="flex items-center gap-2 text-sm font-medium text-stone-700">
+        <span className="sr-only">{t('garden.historicalSeason')}</span>
+        <select
+          data-testid="map-historical-season"
+          className="rounded-lg border border-stone-200 bg-white px-2 py-1.5 text-sm font-normal text-stone-700"
+          value={comparisonSeasonId ?? ''}
+          onChange={(e) => setComparisonSeasonId(e.target.value || null)}
+        >
+          {seasons.map((s) => (
+            <option key={s.id} value={s.id}>
+              {s.name}
+            </option>
+          ))}
+        </select>
+      </label>
+    );
+  }, [layer, comparisonSeasonId, seasons, t]);
+
   const selectedElement = elements.find((e) => e.id === selectedElementId) ?? null;
 
   const elementIdsWithPlantings = useMemo(() => {
@@ -465,10 +493,7 @@ export function AreaMapPage() {
             <GridMapEditor
               gardenId={gardenId}
               area={area}
-              onAreaBackgroundChanged={() => {
-                void loadAreaAndElements({ soft: true });
-                void refreshGardens({ soft: true });
-              }}
+              onAreaBackgroundChanged={handleAreaBackgroundChanged}
               elements={elements}
               elementIdsWithPlantings={elementIdsWithPlantings}
               layer={layer}
@@ -478,25 +503,7 @@ export function AreaMapPage() {
               elementOverlayBadgesById={layerComputed.elementOverlayBadgesById}
               legendItems={layerComputed.legendItems}
               historicalGhostElements={layerComputed.historicalGhostElements}
-              toolbarAddon={
-                layer === 'historical' ? (
-                  <label className="flex items-center gap-2 text-sm font-medium text-stone-700">
-                    <span className="sr-only">{t('garden.historicalSeason')}</span>
-                    <select
-                      data-testid="map-historical-season"
-                      className="rounded-lg border border-stone-200 bg-white px-2 py-1.5 text-sm font-normal text-stone-700"
-                      value={comparisonSeasonId ?? ''}
-                      onChange={(e) => setComparisonSeasonId(e.target.value || null)}
-                    >
-                      {seasons.map((s) => (
-                        <option key={s.id} value={s.id}>
-                          {s.name}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                ) : null
-              }
+              toolbarAddon={toolbarAddon}
               selectedElementId={selectedElementId}
               onSelectElement={handleSelectElement}
               onSelectionComplete={setPendingSelection}
