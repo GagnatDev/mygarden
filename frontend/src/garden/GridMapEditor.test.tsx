@@ -55,6 +55,7 @@ async function testI18n() {
             cancel: 'Cancel',
             resizeHandleAria: 'Resize {{name}} ({{direction}})',
             reshapeHandleAria: 'Reshape {{name}}, vertex {{index}}',
+            resizeAreaHandleAria: 'Resize area ({{direction}})',
             polygonFinish: 'Finish',
             polygonClear: 'Clear',
             mapLayer: 'Layer',
@@ -1908,5 +1909,171 @@ describe('GridMapEditor polygon reshape handles', () => {
         { x: 2, y: 2 },
       ],
     });
+  });
+});
+
+describe('GridMapEditor area resize handles', () => {
+  it('renders the three non-origin corner handles when nothing is selected', async () => {
+    await renderEditor({ onResizeArea: vi.fn() });
+    expect(screen.getByTestId('map-area-resize-handle-ne')).toBeInTheDocument();
+    expect(screen.getByTestId('map-area-resize-handle-se')).toBeInTheDocument();
+    expect(screen.getByTestId('map-area-resize-handle-sw')).toBeInTheDocument();
+    // The top-left corner is the fixed origin; the mid-edge handles are not shown.
+    for (const h of ['nw', 'n', 'e', 's', 'w']) {
+      expect(screen.queryByTestId(`map-area-resize-handle-${h}`)).toBeNull();
+    }
+    expect(screen.queryByTestId('map-area-resize-preview')).toBeNull();
+  });
+
+  it('hides the handles without onResizeArea, when an element is selected, or in readOnly', async () => {
+    const { unmount: u1 } = await renderEditor();
+    expect(screen.queryByTestId('map-area-resize-handles')).toBeNull();
+    u1();
+
+    const { unmount: u2 } = await renderEditor({
+      onResizeArea: vi.fn(),
+      selectedElementId: 'a1',
+    });
+    expect(screen.queryByTestId('map-area-resize-handles')).toBeNull();
+    u2();
+
+    await renderEditor({ onResizeArea: vi.fn(), readOnly: true });
+    expect(screen.queryByTestId('map-area-resize-handles')).toBeNull();
+  });
+
+  it('dragging the se handle grows the area and persists on release', async () => {
+    const onResizeArea = vi.fn();
+    await renderEditor({ onResizeArea });
+
+    const map = screen.getByTestId('grid-map');
+    mockGridMapBoundingRect(map, mapArea.gridWidth, mapArea.gridHeight);
+
+    fireEvent.pointerDown(screen.getByTestId('map-area-resize-handle-se'), {
+      clientX: mapArea.gridWidth * CELL,
+      clientY: mapArea.gridHeight * CELL,
+      pointerId: 1,
+      pointerType: 'mouse',
+      button: 0,
+      buttons: 1,
+    });
+    fireEvent.pointerMove(map, {
+      clientX: 6 * CELL + 2,
+      clientY: 5 * CELL - 2,
+      pointerId: 1,
+      pointerType: 'mouse',
+      buttons: 1,
+    });
+    const preview = screen.getByTestId('map-area-resize-preview');
+    expect(preview.getAttribute('width')).toBe(String(6 * CELL));
+    expect(preview.getAttribute('height')).toBe(String(5 * CELL));
+
+    fireEvent.pointerUp(map, {
+      clientX: 6 * CELL + 2,
+      clientY: 5 * CELL - 2,
+      pointerId: 1,
+      pointerType: 'mouse',
+      button: 0,
+      buttons: 0,
+    });
+    expect(onResizeArea).toHaveBeenCalledWith(6, 5);
+    expect(screen.queryByTestId('map-area-resize-preview')).toBeNull();
+  });
+
+  it('cannot shrink the area smaller than the elements it contains', async () => {
+    // bedElement occupies (0,0)–(2,1), so the floor is 2×1.
+    const onResizeArea = vi.fn();
+    await renderEditor({ onResizeArea });
+
+    const map = screen.getByTestId('grid-map');
+    mockGridMapBoundingRect(map, mapArea.gridWidth, mapArea.gridHeight);
+
+    fireEvent.pointerDown(screen.getByTestId('map-area-resize-handle-se'), {
+      clientX: mapArea.gridWidth * CELL,
+      clientY: mapArea.gridHeight * CELL,
+      pointerId: 1,
+      pointerType: 'mouse',
+      button: 0,
+      buttons: 1,
+    });
+    // Drag toward the origin, well past the element bounding box.
+    fireEvent.pointerMove(map, {
+      clientX: 0,
+      clientY: 0,
+      pointerId: 1,
+      pointerType: 'mouse',
+      buttons: 1,
+    });
+    const preview = screen.getByTestId('map-area-resize-preview');
+    expect(preview.getAttribute('width')).toBe(String(2 * CELL));
+    expect(preview.getAttribute('height')).toBe(String(1 * CELL));
+
+    fireEvent.pointerUp(map, {
+      clientX: 0,
+      clientY: 0,
+      pointerId: 1,
+      pointerType: 'mouse',
+      button: 0,
+      buttons: 0,
+    });
+    expect(onResizeArea).toHaveBeenCalledWith(2, 1);
+  });
+
+  it('dragging the ne handle changes only the width', async () => {
+    const onResizeArea = vi.fn();
+    await renderEditor({ onResizeArea });
+
+    const map = screen.getByTestId('grid-map');
+    mockGridMapBoundingRect(map, mapArea.gridWidth, mapArea.gridHeight);
+
+    fireEvent.pointerDown(screen.getByTestId('map-area-resize-handle-ne'), {
+      clientX: mapArea.gridWidth * CELL,
+      clientY: 0,
+      pointerId: 1,
+      pointerType: 'mouse',
+      button: 0,
+      buttons: 1,
+    });
+    fireEvent.pointerMove(map, {
+      clientX: 7 * CELL,
+      clientY: 5 * CELL,
+      pointerId: 1,
+      pointerType: 'mouse',
+      buttons: 1,
+    });
+    fireEvent.pointerUp(map, {
+      clientX: 7 * CELL,
+      clientY: 5 * CELL,
+      pointerId: 1,
+      pointerType: 'mouse',
+      button: 0,
+      buttons: 0,
+    });
+    expect(onResizeArea).toHaveBeenCalledWith(7, mapArea.gridHeight);
+  });
+
+  it('a release without a size change does not call onResizeArea', async () => {
+    const onResizeArea = vi.fn();
+    await renderEditor({ onResizeArea });
+
+    const map = screen.getByTestId('grid-map');
+    mockGridMapBoundingRect(map, mapArea.gridWidth, mapArea.gridHeight);
+
+    fireEvent.pointerDown(screen.getByTestId('map-area-resize-handle-se'), {
+      clientX: mapArea.gridWidth * CELL,
+      clientY: mapArea.gridHeight * CELL,
+      pointerId: 1,
+      pointerType: 'mouse',
+      button: 0,
+      buttons: 1,
+    });
+    fireEvent.pointerUp(map, {
+      clientX: mapArea.gridWidth * CELL,
+      clientY: mapArea.gridHeight * CELL,
+      pointerId: 1,
+      pointerType: 'mouse',
+      button: 0,
+      buttons: 0,
+    });
+    expect(onResizeArea).not.toHaveBeenCalled();
   });
 });

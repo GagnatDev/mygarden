@@ -99,6 +99,7 @@
     "addPolygon": "Legg til polygon",
     "resizeHandleAria": "Endre størrelse på {{name}} ({{direction}})",
     "reshapeHandleAria": "Endre form på {{name}}, hjørne {{index}}",
+    "resizeAreaHandleAria": "Endre størrelse på området ({{direction}})",
     "positionX": "X (ruter)",
     "positionY": "Y (ruter)",
     "widthCells": "Bredde (ruter)",
@@ -130,6 +131,7 @@
       "unplanned": "Uplanlagt"
     },
     "moveAreaFailed": "Kunne ikke flytte området. Sjekk at det er innenfor rutenettet og ikke overlapper et annet område.",
+    "resizeAreaFailed": "Kunne ikke endre størrelsen på området. Det kan ikke gjøres mindre enn elementene det inneholder.",
     "zoomIn": "Zoom inn",
     "zoomOut": "Zoom ut",
     "zoomFit": "Tilpass visningen",

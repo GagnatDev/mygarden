@@ -31,6 +31,14 @@ import { GridMapAreasSvg } from './GridMapAreasSvg';
 import { GridMapSvgGridLayer } from './GridMapSvgGridLayer';
 import { isValidMovePosition, isValidResizeRect, type GridRect } from './grid-rect';
 import {
+  AREA_RESIZE_HANDLES,
+  areaHandleAnchor,
+  areaSizesEqual,
+  minAreaSizeForElements,
+  resizeAreaToPointer,
+  type AreaSize,
+} from './area-resize-helpers';
+import {
   HANDLE_HIT_RADIUS_PX,
   HANDLE_VISIBLE_RADIUS_PX,
   handleAnchor,
@@ -189,6 +197,12 @@ interface ReshapeDragState {
   curVertices: GridPoint[];
 }
 
+interface AreaResizeDragState {
+  handle: ResizeHandle;
+  orig: AreaSize;
+  cur: AreaSize;
+}
+
 export interface GridMapEditorProps {
   gardenId: string;
   area: Area;
@@ -221,6 +235,8 @@ export interface GridMapEditorProps {
   onResizeElement?: (elementId: string, rect: GridRect) => void;
   /** Reshape a polygon element (vertex drag + release); parent persists shape + bbox via API. */
   onReshapeElement?: (elementId: string, shape: ElementShape, rect: GridRect) => void;
+  /** Resize the area itself via corner handles (release commits); parent persists via API. */
+  onResizeArea?: (gridWidth: number, gridHeight: number) => void;
   /** When true, map is view-only (pan/zoom only, no new selections or element clicks). */
   readOnly?: boolean;
   /** Called after a successful background upload or remove (e.g. refresh area). */
@@ -250,6 +266,7 @@ export const GridMapEditor = memo(function GridMapEditor({
   onMoveElement,
   onResizeElement,
   onReshapeElement,
+  onResizeArea,
   readOnly = false,
   onAreaBackgroundChanged,
 }: GridMapEditorProps) {
@@ -322,6 +339,8 @@ export const GridMapEditor = memo(function GridMapEditor({
   const [resize, setResize] = useState<ResizeDragState | null>(null);
   const reshapeRef = useRef<ReshapeDragState | null>(null);
   const [reshape, setReshape] = useState<ReshapeDragState | null>(null);
+  const areaResizeRef = useRef<AreaResizeDragState | null>(null);
+  const [areaResize, setAreaResize] = useState<AreaResizeDragState | null>(null);
   const [poly, setPoly] = useState<Array<{ x: number; y: number }> | null>(null);
 
   /**
@@ -336,6 +355,8 @@ export const GridMapEditor = memo(function GridMapEditor({
   const resizeHandlesGroupRef = useRef<SVGGElement | null>(null);
   const reshapePreviewNodeRef = useRef<SVGPolygonElement | null>(null);
   const reshapeHandlesGroupRef = useRef<SVGGElement | null>(null);
+  const areaResizePreviewNodeRef = useRef<SVGRectElement | null>(null);
+  const areaResizeHandlesGroupRef = useRef<SVGGElement | null>(null);
 
   const bgStorageKey = `mygarden.mapBgOpacity.${gardenId}.${area.id}`;
   const [bgOpacityPct, setBgOpacityPct] = useState(50);
@@ -591,6 +612,32 @@ export const GridMapEditor = memo(function GridMapEditor({
   );
 
   /**
+   * Smallest area (in cells) that still contains every element; dragging an
+   * area-resize handle can never shrink below this (R: no smaller than
+   * existing elements). Mirrors the backend's shrink check.
+   */
+  const areaMinSize = useMemo(() => minAreaSizeForElements(elements), [elements]);
+
+  /** Apply one area-resize-drag frame to the mounted preview + handle nodes (E1). */
+  const applyAreaResizeFrameToDom = useCallback((rs: AreaResizeDragState) => {
+    const node = areaResizePreviewNodeRef.current;
+    if (node) {
+      node.setAttribute('width', String(rs.cur.gridWidth * CELL));
+      node.setAttribute('height', String(rs.cur.gridHeight * CELL));
+    }
+    const group = areaResizeHandlesGroupRef.current;
+    if (group) {
+      for (const handle of AREA_RESIZE_HANDLES) {
+        const a = areaHandleAnchor(rs.cur, handle);
+        for (const circle of group.querySelectorAll(`[data-handle-circle="${handle}"]`)) {
+          circle.setAttribute('cx', String(a.x * CELL));
+          circle.setAttribute('cy', String(a.y * CELL));
+        }
+      }
+    }
+  }, []);
+
+  /**
    * Sync the mounted preview nodes at gesture begin (guides render only here —
    * React keeps their group empty) and whenever `elements` changes mid-drag
    * (validity may shift under a soft reload). Reads the ref, not the state, so
@@ -605,6 +652,9 @@ export const GridMapEditor = memo(function GridMapEditor({
   useLayoutEffect(() => {
     if (reshape && reshapeRef.current) applyReshapeFrameToDom(reshapeRef.current);
   }, [reshape, applyReshapeFrameToDom]);
+  useLayoutEffect(() => {
+    if (areaResize && areaResizeRef.current) applyAreaResizeFrameToDom(areaResizeRef.current);
+  }, [areaResize, applyAreaResizeFrameToDom]);
 
   const polygonDraft = poly;
   const polygonPreviewPointsPx = useMemo(() => {
@@ -815,6 +865,43 @@ export const GridMapEditor = memo(function GridMapEditor({
       onResizeElement?.(rs.elementId, rs.cur);
     },
     [setResizeBoth, elements, gw, gh, onResizeElement],
+  );
+
+  const setAreaResizeBoth = useCallback((next: AreaResizeDragState | null) => {
+    areaResizeRef.current = next;
+    setAreaResize(next);
+  }, []);
+
+  const beginAreaResize = useCallback(
+    (e: React.PointerEvent, handle: ResizeHandle) => {
+      if (readOnly || mode !== 'browse' || !onResizeArea) return;
+      if (typeof e.button === 'number' && e.button !== 0) return;
+      if (moveRef.current || resizeRef.current || reshapeRef.current || areaResizeRef.current) return;
+      e.preventDefault();
+      worldRef.current?.setPointerCapture?.(e.pointerId);
+      const orig: AreaSize = { gridWidth: gw, gridHeight: gh };
+      setAreaResizeBoth({ handle, orig, cur: orig });
+    },
+    [readOnly, mode, onResizeArea, gw, gh, setAreaResizeBoth],
+  );
+
+  const finishAreaResize = useCallback(
+    (pointerId: number | undefined) => {
+      const rs = areaResizeRef.current;
+      if (!rs) return;
+      setAreaResizeBoth(null);
+      try {
+        if (typeof pointerId === 'number') {
+          worldRef.current?.releasePointerCapture(pointerId);
+        }
+      } catch {
+        /* ignore */
+      }
+      if (areaSizesEqual(rs.cur, rs.orig)) return;
+      // resizeAreaToPointer already clamps to [min, cap]; the backend re-checks.
+      onResizeArea?.(rs.cur.gridWidth, rs.cur.gridHeight);
+    },
+    [setAreaResizeBoth, onResizeArea],
   );
 
   /** Long-press tracking for touch presses on elements (B1, R2, R9). */
@@ -1123,6 +1210,17 @@ export const GridMapEditor = memo(function GridMapEditor({
       applyResizeFrameToDom(next);
       return;
     }
+    const ars = areaResizeRef.current;
+    if (ars) {
+      const w = clientToWorldUnclamped(e.clientX, e.clientY);
+      if (!w) return;
+      const cur = resizeAreaToPointer(ars.orig, ars.handle, w.x / CELL, w.y / CELL, areaMinSize);
+      if (areaSizesEqual(cur, ars.cur)) return;
+      const next = { ...ars, cur };
+      areaResizeRef.current = next;
+      applyAreaResizeFrameToDom(next);
+      return;
+    }
     const ms = moveRef.current;
     if (ms) {
       const g = clientToGrid(e.clientX, e.clientY);
@@ -1215,6 +1313,10 @@ export const GridMapEditor = memo(function GridMapEditor({
       finishResize(e.pointerId);
       return;
     }
+    if (areaResizeRef.current) {
+      finishAreaResize(e.pointerId);
+      return;
+    }
     if (finishingMove) {
       finishMoveAt(e.pointerId, e.clientX, e.clientY);
       return;
@@ -1252,6 +1354,7 @@ export const GridMapEditor = memo(function GridMapEditor({
     if (targetEl?.closest('[data-area-shape]')) return;
     if (targetEl?.closest('[data-resize-handle]')) return;
     if (targetEl?.closest('[data-reshape-handle]')) return;
+    if (targetEl?.closest('[data-area-resize-handle]')) return;
     e.preventDefault();
     applyFitView();
   };
@@ -1261,6 +1364,7 @@ export const GridMapEditor = memo(function GridMapEditor({
     setMoveBoth(null);
     setResizeBoth(null);
     setReshapeBoth(null);
+    setAreaResizeBoth(null);
     dragRef.current = null;
     cancelLongPress();
     setSpacePanPointerDown(false);
@@ -1296,13 +1400,14 @@ export const GridMapEditor = memo(function GridMapEditor({
     if (moveRef.current) setMoveBoth(null);
     if (resizeRef.current) setResizeBoth(null);
     if (reshapeRef.current) setReshapeBoth(null);
+    if (areaResizeRef.current) setAreaResizeBoth(null);
     const d = dragRef.current;
     if (d) {
       dragRef.current = null;
       if (d.kind === 'pan') flushLiveView();
       if (d.kind === 'select') setPreview(null);
     }
-  }, [cancelLongPress, setMoveBoth, setResizeBoth, setReshapeBoth, flushLiveView]);
+  }, [cancelLongPress, setMoveBoth, setResizeBoth, setReshapeBoth, setAreaResizeBoth, flushLiveView]);
 
   const onTouchStart = (e: React.TouchEvent) => {
     if (e.touches.length === 1) {
@@ -1312,6 +1417,7 @@ export const GridMapEditor = memo(function GridMapEditor({
         !targetEl?.closest('[data-area-shape]') &&
         !targetEl?.closest('[data-resize-handle]') &&
         !targetEl?.closest('[data-reshape-handle]') &&
+        !targetEl?.closest('[data-area-resize-handle]') &&
         mode !== 'add-polygon'
           ? { time: Date.now(), x: touch.clientX, y: touch.clientY }
           : null;
@@ -1485,6 +1591,21 @@ export const GridMapEditor = memo(function GridMapEditor({
   const reshapeFrame = reshape
     ? computeReshapePreviewFrame(reshape, elements, gw, gh, CELL)
     : null;
+
+  /**
+   * Area corner handles show in browse mode when nothing else is grabbed and no
+   * element is selected (element handles own the corners when a selection is
+   * active). The NW corner is the fixed origin, so only NE/SE/SW are draggable.
+   */
+  const showAreaResizeHandles =
+    !readOnly &&
+    mode === 'browse' &&
+    !!onResizeArea &&
+    !selectedElementId &&
+    !move &&
+    !resize &&
+    !reshape;
+  const areaResizeSize: AreaSize = areaResize?.cur ?? { gridWidth: gw, gridHeight: gh };
 
   /** Handles keep a constant screen size: world radii shrink as the map zooms in. */
   const handleScale = Math.max(view.scale, 1e-6);
@@ -1763,6 +1884,9 @@ export const GridMapEditor = memo(function GridMapEditor({
             className="bg-white shadow-sm"
             style={{
               cursor: spacePanPointerDown ? 'grabbing' : spaceHeld ? 'grab' : undefined,
+              // Corner handles sit on the grid boundary and the grow-preview can
+              // extend past it; keep them visible instead of clipped to the viewport.
+              overflow: 'visible',
             }}
             width={worldW}
             height={worldH}
@@ -1955,6 +2079,69 @@ export const GridMapEditor = memo(function GridMapEditor({
                         onPointerDown={(ev) => {
                           ev.stopPropagation();
                           beginElementResize(ev, selectedForResize, h);
+                        }}
+                      />
+                    </g>
+                  );
+                })}
+              </g>
+            ) : null}
+
+            {showAreaResizeHandles ? (
+              /* Keyed by drag phase for the same reason as the resize handles (E1). */
+              <g
+                data-testid="map-area-resize-handles"
+                key={areaResize ? 'area-resize-drag' : 'area-resize-idle'}
+                ref={(n) => {
+                  areaResizeHandlesGroupRef.current = n;
+                }}
+              >
+                {areaResize ? (
+                  <rect
+                    ref={(n) => {
+                      areaResizePreviewNodeRef.current = n;
+                    }}
+                    data-testid="map-area-resize-preview"
+                    x={0}
+                    y={0}
+                    width={areaResizeSize.gridWidth * CELL}
+                    height={areaResizeSize.gridHeight * CELL}
+                    fill="none"
+                    stroke={PREVIEW_VALID_STROKE}
+                    strokeWidth={2}
+                    strokeDasharray="6 4"
+                    pointerEvents="none"
+                  />
+                ) : null}
+                {AREA_RESIZE_HANDLES.map((h) => {
+                  const a = areaHandleAnchor(areaResizeSize, h);
+                  return (
+                    <g key={h}>
+                      <circle
+                        data-handle-circle={h}
+                        cx={a.x * CELL}
+                        cy={a.y * CELL}
+                        r={handleVisibleR}
+                        fill="#ffffff"
+                        stroke="#059669"
+                        strokeWidth={1.5 / handleScale}
+                        pointerEvents="none"
+                      />
+                      <circle
+                        data-handle-circle={h}
+                        data-area-resize-handle={h}
+                        data-testid={`map-area-resize-handle-${h}`}
+                        role="button"
+                        aria-label={t('garden.resizeAreaHandleAria', { direction: h })}
+                        cx={a.x * CELL}
+                        cy={a.y * CELL}
+                        r={handleHitR}
+                        fill="transparent"
+                        style={{ cursor: handleCursor(h) }}
+                        pointerEvents="auto"
+                        onPointerDown={(ev) => {
+                          ev.stopPropagation();
+                          beginAreaResize(ev, h);
                         }}
                       />
                     </g>

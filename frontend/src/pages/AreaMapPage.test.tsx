@@ -44,7 +44,10 @@ const element: Element = {
   updatedAt: '',
 } as unknown as Element;
 
-vi.mock('../api/areas', () => ({ getArea: vi.fn(() => Promise.resolve(area)) }));
+vi.mock('../api/areas', () => ({
+  getArea: vi.fn(() => Promise.resolve(area)),
+  patchArea: vi.fn(() => Promise.resolve(area)),
+}));
 vi.mock('../api/elements', () => ({
   listElements: vi.fn(() => Promise.resolve([element])),
   patchElement: vi.fn(() => Promise.resolve(element)),
@@ -60,10 +63,22 @@ vi.mock('../garden/useActiveSeason', () => ({
 
 // Mock the editor so the test drives selection directly and stays free of gesture/DOM plumbing.
 vi.mock('../garden/GridMapEditor', () => ({
-  GridMapEditor: (props: { onSelectElement: (id: string | null) => void }) => (
-    <button type="button" data-testid="mock-select" onClick={() => props.onSelectElement('e1')}>
-      select
-    </button>
+  GridMapEditor: (props: {
+    onSelectElement: (id: string | null) => void;
+    onResizeArea?: (gridWidth: number, gridHeight: number) => void;
+  }) => (
+    <>
+      <button type="button" data-testid="mock-select" onClick={() => props.onSelectElement('e1')}>
+        select
+      </button>
+      <button
+        type="button"
+        data-testid="mock-resize-area"
+        onClick={() => props.onResizeArea?.(8, 9)}
+      >
+        resize area
+      </button>
+    </>
   ),
 }));
 
@@ -155,6 +170,17 @@ describe('AreaMapPage mobile selection', () => {
       expect(screen.queryByTestId('element-peek-bar')).not.toBeInTheDocument(),
     );
     expect(screen.getByTestId('area-detail-panel')).not.toHaveClass('hidden');
+  });
+
+  it('resizing the area persists the new dimensions via patchArea', async () => {
+    const { patchArea } = await import('../api/areas');
+    await renderPage();
+
+    fireEvent.click(screen.getByTestId('mock-resize-area'));
+
+    await waitFor(() =>
+      expect(patchArea).toHaveBeenCalledWith('g1', 'ar1', { gridWidth: 8, gridHeight: 9 }),
+    );
   });
 
   it('closing from the peek bar deselects the element', async () => {
