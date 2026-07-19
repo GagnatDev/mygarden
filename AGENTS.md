@@ -24,6 +24,10 @@ When writing or executing implementation plans (roadmaps, phased work, Cursor pl
 - **Plans should name coverage.** Spell out what to test (unit vs integration, critical paths, CI gates) per task or phase so expectations are explicit, not implied.
 - **Commits stay green.** Commit whenever a sensible unit of work is finished (e.g. a module plus its tests). Never commit with failing tests.
 
+### Running tests in a sandbox
+
+Backend integration tests need a real MongoDB. By default the harness uses Testcontainers, which can't pull an image in sandboxes where Docker Hub is blocked. In that case run `pnpm test:backend` (backend only) or `pnpm test:sandbox` (frontend + backend): these start MongoDB from a reachable Docker Hub mirror and point the tests at it via `MONGO_TEST_URI`, with no Testcontainers. See `.claude/skills/verify-changes/SKILL.md`. CI on GitHub Actions is unaffected and keeps using Testcontainers.
+
 ## Cursor Cloud agents
 
 Cursor Cloud agents (isolated VMs only — not local development) should follow `.cursor/skills/cursor-cloud-environment/SKILL.md`.
