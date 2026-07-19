@@ -61,7 +61,13 @@
     "createSubmit": "Create area",
     "delete": "Delete",
     "confirmDelete": "Delete this area and its elements?",
-    "titleRequired": "Enter a title."
+    "titleRequired": "Enter a title.",
+    "viewList": "List",
+    "viewMap": "Map",
+    "overviewAriaLabel": "Garden overview map",
+    "overviewTileAria": "Open area {{title}}",
+    "overviewHint": "Drag to pan, pinch or scroll to zoom. Tap an area to open it; drag it to place it (on touch, press and hold first). Dashed areas are not placed yet.",
+    "placeFailed": "Could not save the area placement."
   },
   "elements": {
     "hasPlantingsHint": "has plantings",

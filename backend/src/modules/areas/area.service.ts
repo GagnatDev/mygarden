@@ -15,7 +15,17 @@ export interface CreateAreaDto {
 }
 
 export type PatchAreaDto = Partial<
-  Pick<Area, 'title' | 'description' | 'gridWidth' | 'gridHeight' | 'cellSizeMeters' | 'sortIndex'>
+  Pick<
+    Area,
+    | 'title'
+    | 'description'
+    | 'gridWidth'
+    | 'gridHeight'
+    | 'cellSizeMeters'
+    | 'sortIndex'
+    | 'overviewX'
+    | 'overviewY'
+  >
 >;
 
 export class AreaService {

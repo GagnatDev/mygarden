@@ -16,6 +16,8 @@ function toArea(doc: AreaDoc): Area {
     cellSizeMeters: doc.cellSizeMeters,
     sortIndex: doc.sortIndex ?? 0,
     backgroundImageKey: doc.backgroundImageKey ?? null,
+    overviewX: doc.overviewX ?? null,
+    overviewY: doc.overviewY ?? null,
     createdAt: doc.createdAt,
     updatedAt: doc.updatedAt,
   };
@@ -61,6 +63,8 @@ export class AreaRepositoryMongo implements IAreaRepository {
         | 'cellSizeMeters'
         | 'sortIndex'
         | 'backgroundImageKey'
+        | 'overviewX'
+        | 'overviewY'
       >
     >,
   ): Promise<Area | null> {

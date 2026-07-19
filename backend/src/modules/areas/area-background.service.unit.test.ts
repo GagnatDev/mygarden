@@ -18,6 +18,8 @@ function sampleArea(gardenId: string, areaId: string): Area {
     cellSizeMeters: 1,
     backgroundImageKey: null,
     sortIndex: 0,
+    overviewX: null,
+    overviewY: null,
     createdAt: now,
     updatedAt: now,
   };

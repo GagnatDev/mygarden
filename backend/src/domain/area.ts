@@ -8,6 +8,9 @@ export interface Area {
   cellSizeMeters: number;
   backgroundImageKey: string | null;
   sortIndex: number;
+  /** Garden-overview placement in meters; null = unplaced. */
+  overviewX: number | null;
+  overviewY: number | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -27,6 +30,8 @@ export function toPublicArea(a: Area) {
     gridHeight: a.gridHeight,
     cellSizeMeters: a.cellSizeMeters,
     sortIndex: a.sortIndex,
+    overviewX: a.overviewX,
+    overviewY: a.overviewY,
     backgroundImageUrl: a.backgroundImageKey ? areaBackgroundImageApiPath(a.gardenId, a.id) : null,
     createdAt: a.createdAt.toISOString(),
     updatedAt: a.updatedAt.toISOString(),
