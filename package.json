@@ -9,6 +9,10 @@
     "lint": "pnpm -r run lint",
     "typecheck": "pnpm -r run typecheck",
     "test": "pnpm -r run test",
+    "test:db:up": "bash scripts/test-db.sh up",
+    "test:db:down": "bash scripts/test-db.sh down",
+    "test:backend": "MONGO_TEST_URI=\"$(bash scripts/test-db.sh up)\" pnpm --filter backend test",
+    "test:sandbox": "MONGO_TEST_URI=\"$(bash scripts/test-db.sh up)\" pnpm -r run test",
     "build": "pnpm -r run build",
     "dev:local": "bash scripts/dev-local.sh",
     "db:clean": "docker compose down -v --remove-orphans && docker compose -f docker-compose.dev.yml down -v --remove-orphans"
