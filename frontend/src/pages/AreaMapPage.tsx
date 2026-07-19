@@ -34,6 +34,8 @@ export function AreaMapPage() {
   const [elements, setElements] = useState<Element[]>([]);
   const [mapLoading, setMapLoading] = useState(false);
   const [selectedElementId, setSelectedElementId] = useState<string | null>(null);
+  /** Mobile only: whether the detail sheet is expanded (vs. the compact peek bar). */
+  const [detailExpanded, setDetailExpanded] = useState(false);
   const [pendingSelection, setPendingSelection] = useState<ElementDraftSelection | null>(null);
   const [layer, setLayer] = useState<MapLayer>('element-type');
   const selectedGarden = useMemo(
@@ -164,6 +166,16 @@ export function AreaMapPage() {
       cancelled = true;
     };
   }, [gardenId, layer, comparisonSeasonId]);
+
+  /**
+   * A new selection (tap, or the auto-select after a move) starts collapsed so the
+   * on-map resize/reshape handles stay visible on mobile; the peek bar's Details
+   * button expands the full sheet. On desktop the sheet is always the sidebar.
+   */
+  const handleSelectElement = useCallback((id: string | null) => {
+    setSelectedElementId(id);
+    setDetailExpanded(false);
+  }, []);
 
   const handleMoveElement = useCallback(
     async (elementId: string, gridX: number, gridY: number) => {
@@ -486,7 +498,7 @@ export function AreaMapPage() {
                 ) : null
               }
               selectedElementId={selectedElementId}
-              onSelectElement={setSelectedElementId}
+              onSelectElement={handleSelectElement}
               onSelectionComplete={setPendingSelection}
               onMoveElement={handleMoveElement}
               onResizeElement={handleResizeElement}
@@ -496,12 +508,47 @@ export function AreaMapPage() {
         </div>
         {selectedElement && seasonId ? (
           <>
-            {/* Dim the map behind the mobile bottom sheet; desktop keeps the sidebar. */}
-            <div
-              className="fixed inset-0 z-40 bg-black/30 md:hidden"
-              aria-hidden
-              onClick={() => setSelectedElementId(null)}
-            />
+            {/*
+              Mobile: while collapsed, show a compact peek bar instead of the full
+              sheet so the on-map resize/reshape handles stay visible and grabbable
+              (no full-screen overlay intercepting touches). Tapping Details expands
+              the sheet. Desktop is unaffected (peek bar and overlay are md:hidden;
+              the sheet renders as the sidebar).
+            */}
+            {!detailExpanded ? (
+              <div
+                className="fixed inset-x-0 bottom-0 z-40 flex items-center justify-between gap-3 border-t border-stone-200 bg-white px-4 py-3 shadow-xl md:hidden"
+                data-testid="element-peek-bar"
+              >
+                <span className="min-w-0 flex-1 truncate text-sm font-medium text-stone-900">
+                  {t('garden.elementSelected', { name: selectedElement.name })}
+                </span>
+                <button
+                  type="button"
+                  data-testid="element-peek-details"
+                  className="shrink-0 rounded-lg bg-stone-800 px-3 py-1.5 text-sm font-medium text-white"
+                  onClick={() => setDetailExpanded(true)}
+                >
+                  {t('garden.openDetails')}
+                </button>
+                <button
+                  type="button"
+                  data-testid="element-peek-close"
+                  className="shrink-0 rounded-lg px-2 py-1.5 text-sm text-stone-500 hover:bg-stone-100"
+                  onClick={() => setSelectedElementId(null)}
+                >
+                  {t('garden.close')}
+                </button>
+              </div>
+            ) : null}
+            {/* Dim the map only when the full sheet is expanded; collapse back to peek on tap. */}
+            {detailExpanded ? (
+              <div
+                className="fixed inset-0 z-40 bg-black/30 md:hidden"
+                aria-hidden
+                onClick={() => setDetailExpanded(false)}
+              />
+            ) : null}
             <ElementDetailPanel
               gardenId={gardenId}
               areaId={areaId}
@@ -509,6 +556,7 @@ export function AreaMapPage() {
               element={selectedElement}
               plantings={plantingsForSelectedElement}
               sitePlants={sitePlantsForSelectedElement}
+              className={detailExpanded ? '' : 'hidden md:block'}
               onClose={() => setSelectedElementId(null)}
               onChanged={async () => {
                 await loadAreaAndElements({ soft: true });
