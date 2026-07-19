@@ -92,6 +92,7 @@
     "addRectangle": "Add rectangle",
     "addPolygon": "Add polygon",
     "resizeHandleAria": "Resize {{name}} ({{direction}})",
+    "reshapeHandleAria": "Reshape {{name}}, vertex {{index}}",
     "positionX": "X (cells)",
     "positionY": "Y (cells)",
     "widthCells": "Width (cells)",

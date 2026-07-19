@@ -54,6 +54,7 @@ async function testI18n() {
             addPolygon: 'Add polygon',
             cancel: 'Cancel',
             resizeHandleAria: 'Resize {{name}} ({{direction}})',
+            reshapeHandleAria: 'Reshape {{name}}, vertex {{index}}',
             polygonFinish: 'Finish',
             polygonClear: 'Clear',
             mapLayer: 'Layer',
@@ -1625,5 +1626,287 @@ describe('GridMapEditor rectangle resize handles', () => {
     });
     expect(onSelectElement).not.toHaveBeenCalled();
     expect(onResizeElement).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('GridMapEditor polygon reshape handles', () => {
+  const triangle: Element = {
+    id: 'p1',
+    areaId: 'ar1',
+    name: 'Pond',
+    type: 'other',
+    color: '#3366cc',
+    gridX: 0,
+    gridY: 0,
+    gridWidth: 2,
+    gridHeight: 2,
+    shape: {
+      kind: 'polygon',
+      vertices: [
+        { x: 0, y: 0 },
+        { x: 2, y: 0 },
+        { x: 2, y: 2 },
+      ],
+    },
+    createdAt: '2020-01-01T00:00:00.000Z',
+    updatedAt: '2020-01-01T00:00:00.000Z',
+  };
+
+  it('renders one handle per vertex when a polygon is selected and onReshapeElement is provided', async () => {
+    await renderEditor({
+      elements: [triangle],
+      selectedElementId: 'p1',
+      onReshapeElement: vi.fn(),
+    });
+    for (const idx of [0, 1, 2]) {
+      expect(screen.getByTestId(`map-reshape-handle-${idx}`)).toBeInTheDocument();
+    }
+    expect(screen.queryByTestId('map-reshape-preview')).toBeNull();
+  });
+
+  it('renders no reshape handles without a selection, without the callback, in readOnly, or for rectangles', async () => {
+    const { unmount: u1 } = await renderEditor({ elements: [triangle], onReshapeElement: vi.fn() });
+    expect(screen.queryByTestId('map-reshape-handles')).toBeNull();
+    u1();
+
+    const { unmount: u2 } = await renderEditor({ elements: [triangle], selectedElementId: 'p1' });
+    expect(screen.queryByTestId('map-reshape-handles')).toBeNull();
+    u2();
+
+    const { unmount: u3 } = await renderEditor({
+      elements: [triangle],
+      selectedElementId: 'p1',
+      onReshapeElement: vi.fn(),
+      readOnly: true,
+    });
+    expect(screen.queryByTestId('map-reshape-handles')).toBeNull();
+    u3();
+
+    // A rectangle element gets resize handles, never reshape handles.
+    await renderEditor({
+      elements: [bedElement],
+      selectedElementId: 'a1',
+      onReshapeElement: vi.fn(),
+    });
+    expect(screen.queryByTestId('map-reshape-handles')).toBeNull();
+  });
+
+  it('dragging a vertex reshapes the polygon and persists shape + bbox on release', async () => {
+    const onReshapeElement = vi.fn();
+    await renderEditor({ elements: [triangle], selectedElementId: 'p1', onReshapeElement });
+
+    const map = screen.getByTestId('grid-map');
+    mockGridMapBoundingRect(map, mapArea.gridWidth, mapArea.gridHeight);
+
+    fireEvent.pointerDown(screen.getByTestId('map-reshape-handle-1'), {
+      clientX: 2 * CELL,
+      clientY: 0,
+      pointerId: 1,
+      pointerType: 'mouse',
+      button: 0,
+      buttons: 1,
+    });
+    fireEvent.pointerMove(map, {
+      clientX: 3 * CELL,
+      clientY: 0,
+      pointerId: 1,
+      pointerType: 'mouse',
+      buttons: 1,
+    });
+    const preview = screen.getByTestId('map-reshape-preview');
+    expect(preview).toHaveAttribute('data-valid', 'true');
+
+    fireEvent.pointerUp(map, {
+      clientX: 3 * CELL,
+      clientY: 0,
+      pointerId: 1,
+      pointerType: 'mouse',
+      button: 0,
+      buttons: 0,
+    });
+    expect(onReshapeElement).toHaveBeenCalledWith(
+      'p1',
+      {
+        kind: 'polygon',
+        vertices: [
+          { x: 0, y: 0 },
+          { x: 3, y: 0 },
+          { x: 2, y: 2 },
+        ],
+      },
+      { gridX: 0, gridY: 0, gridWidth: 3, gridHeight: 2 },
+    );
+    expect(screen.queryByTestId('map-reshape-preview')).toBeNull();
+  });
+
+  it('shows an invalid preview over another element and reverts on release', async () => {
+    const onReshapeElement = vi.fn();
+    const otherEl: Element = {
+      id: 'a2',
+      areaId: 'ar1',
+      name: 'Other',
+      type: 'path',
+      color: '#999',
+      gridX: 3,
+      gridY: 0,
+      gridWidth: 1,
+      gridHeight: 1,
+      createdAt: '2020-01-01T00:00:00.000Z',
+      updatedAt: '2020-01-01T00:00:00.000Z',
+    };
+    await renderEditor({
+      elements: [triangle, otherEl],
+      selectedElementId: 'p1',
+      onReshapeElement,
+    });
+
+    const map = screen.getByTestId('grid-map');
+    mockGridMapBoundingRect(map, mapArea.gridWidth, mapArea.gridHeight);
+
+    fireEvent.pointerDown(screen.getByTestId('map-reshape-handle-1'), {
+      clientX: 2 * CELL,
+      clientY: 0,
+      pointerId: 1,
+      pointerType: 'mouse',
+      button: 0,
+      buttons: 1,
+    });
+    // Vertex to x=3.5 → bbox width 4 (cols 0..3), overlapping the element at (3,0).
+    fireEvent.pointerMove(map, {
+      clientX: 3.5 * CELL,
+      clientY: 0,
+      pointerId: 1,
+      pointerType: 'mouse',
+      buttons: 1,
+    });
+    expect(screen.getByTestId('map-reshape-preview')).toHaveAttribute('data-valid', 'false');
+
+    fireEvent.pointerUp(map, {
+      clientX: 3.5 * CELL,
+      clientY: 0,
+      pointerId: 1,
+      pointerType: 'mouse',
+      button: 0,
+      buttons: 0,
+    });
+    expect(onReshapeElement).not.toHaveBeenCalled();
+    expect(screen.queryByTestId('map-reshape-preview')).toBeNull();
+  });
+
+  it('a reshape release without a vertex change does not call onReshapeElement', async () => {
+    const onReshapeElement = vi.fn();
+    await renderEditor({ elements: [triangle], selectedElementId: 'p1', onReshapeElement });
+
+    const map = screen.getByTestId('grid-map');
+    mockGridMapBoundingRect(map, mapArea.gridWidth, mapArea.gridHeight);
+
+    fireEvent.pointerDown(screen.getByTestId('map-reshape-handle-1'), {
+      clientX: 2 * CELL,
+      clientY: 0,
+      pointerId: 1,
+      pointerType: 'mouse',
+      button: 0,
+      buttons: 1,
+    });
+    fireEvent.pointerUp(map, {
+      clientX: 2 * CELL,
+      clientY: 0,
+      pointerId: 1,
+      pointerType: 'mouse',
+      button: 0,
+      buttons: 0,
+    });
+    expect(onReshapeElement).not.toHaveBeenCalled();
+  });
+
+  it('starting a reshape does not pan the view or select anything', async () => {
+    const onReshapeElement = vi.fn();
+    const onSelectElement = vi.fn();
+    await renderEditor({
+      elements: [triangle],
+      selectedElementId: 'p1',
+      onReshapeElement,
+      onSelectElement,
+    });
+
+    const map = screen.getByTestId('grid-map');
+    const viewport = screen.getByTestId('grid-map-viewport');
+    mockGridMapBoundingRect(map, mapArea.gridWidth, mapArea.gridHeight);
+    const before = parseMapViewportTransform(viewport);
+
+    fireEvent.pointerDown(screen.getByTestId('map-reshape-handle-2'), {
+      clientX: 2 * CELL,
+      clientY: 2 * CELL,
+      pointerId: 1,
+      pointerType: 'mouse',
+      button: 0,
+      buttons: 1,
+    });
+    fireEvent.pointerMove(map, {
+      clientX: 1 * CELL,
+      clientY: 2 * CELL,
+      pointerId: 1,
+      pointerType: 'mouse',
+      buttons: 1,
+    });
+    const after = parseMapViewportTransform(viewport);
+    expect(after.tx).toBe(before.tx);
+    expect(after.ty).toBe(before.ty);
+
+    fireEvent.pointerUp(map, {
+      clientX: 1 * CELL,
+      clientY: 2 * CELL,
+      pointerId: 1,
+      pointerType: 'mouse',
+      button: 0,
+      buttons: 0,
+    });
+    expect(onSelectElement).not.toHaveBeenCalled();
+    expect(onReshapeElement).toHaveBeenCalledTimes(1);
+  });
+
+  it('reshapes by touch, driven by pointer events during a single-finger drag', async () => {
+    const onReshapeElement = vi.fn();
+    await renderEditor({ elements: [triangle], selectedElementId: 'p1', onReshapeElement });
+
+    const map = screen.getByTestId('grid-map');
+    mockGridMapBoundingRect(map, mapArea.gridWidth, mapArea.gridHeight);
+
+    const handle = screen.getByTestId('map-reshape-handle-1');
+    fireEvent.pointerDown(handle, {
+      clientX: 2 * CELL,
+      clientY: 0,
+      pointerId: 7,
+      pointerType: 'touch',
+      button: 0,
+      buttons: 1,
+    });
+    fireEvent.touchStart(handle, { touches: [{ identifier: 7, clientX: 2 * CELL, clientY: 0 }] });
+    fireEvent.pointerMove(map, {
+      clientX: 3 * CELL,
+      clientY: 0,
+      pointerId: 7,
+      pointerType: 'touch',
+      buttons: 1,
+    });
+    expect(screen.getByTestId('map-reshape-preview')).toHaveAttribute('data-valid', 'true');
+    fireEvent.pointerUp(map, {
+      clientX: 3 * CELL,
+      clientY: 0,
+      pointerId: 7,
+      pointerType: 'touch',
+      button: 0,
+      buttons: 0,
+    });
+    fireEvent.touchEnd(map, { touches: [], changedTouches: [] });
+    expect(onReshapeElement).toHaveBeenCalledTimes(1);
+    expect(onReshapeElement.mock.calls[0]![1]).toEqual({
+      kind: 'polygon',
+      vertices: [
+        { x: 0, y: 0 },
+        { x: 3, y: 0 },
+        { x: 2, y: 2 },
+      ],
+    });
   });
 });

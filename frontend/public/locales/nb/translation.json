@@ -92,6 +92,7 @@
     "addRectangle": "Legg til rektangel",
     "addPolygon": "Legg til polygon",
     "resizeHandleAria": "Endre størrelse på {{name}} ({{direction}})",
+    "reshapeHandleAria": "Endre form på {{name}}, hjørne {{index}}",
     "positionX": "X (ruter)",
     "positionY": "Y (ruter)",
     "widthCells": "Bredde (ruter)",
