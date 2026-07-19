@@ -4,7 +4,8 @@ import { I18nextProvider, initReactI18next } from 'react-i18next';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Area } from '../api/areas';
 import type { Element } from '../api/elements';
-import { CELL, GridMapEditor } from './GridMapEditor';
+import { LONG_PRESS_MS } from './gesture-helpers';
+import { CELL, GridMapEditor, type GridMapEditorProps } from './GridMapEditor';
 
 const { apiFetchMock } = vi.hoisted(() => ({ apiFetchMock: vi.fn() }));
 
@@ -49,12 +50,12 @@ async function testI18n() {
       en: {
         translation: {
           garden: {
-            toolSelect: 'Select',
-            toolDrawPolygon: 'Polygon',
+            addRectangle: 'Add rectangle',
+            addPolygon: 'Add polygon',
+            cancel: 'Cancel',
+            resizeHandleAria: 'Resize {{name}} ({{direction}})',
             polygonFinish: 'Finish',
             polygonClear: 'Clear',
-            toolMove: 'Move',
-            toolPan: 'Pan',
             mapLayer: 'Layer',
             layers: {
               areaType: 'Area type',
@@ -97,6 +98,7 @@ afterEach(() => {
   localStorage.clear();
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
+  vi.useRealTimers();
 });
 
 /**
@@ -159,25 +161,33 @@ function mockGridMapBoundingRect(map: HTMLElement, gw: number, gh: number) {
   } as DOMRect);
 }
 
+async function renderEditor(props: Partial<GridMapEditorProps> = {}) {
+  const i18nInstance = await testI18n();
+  const defaults = {
+    gardenId: 'g1',
+    area: mapArea,
+    elements: [bedElement],
+    selectedElementId: null,
+    onSelectElement: vi.fn(),
+    onSelectionComplete: vi.fn(),
+  };
+  const merged = { ...defaults, ...props };
+  const utils = render(
+    <I18nextProvider i18n={i18nInstance}>
+      <GridMapEditor {...merged} />
+    </I18nextProvider>,
+  );
+  return { ...utils, i18nInstance, props: merged };
+}
+
+function tapAt(map: HTMLElement, clientX: number, clientY: number, pointerId: number) {
+  fireEvent.pointerDown(map, { clientX, clientY, button: 0, pointerId, pointerType: 'mouse' });
+  fireEvent.pointerUp(map, { clientX, clientY, button: 0, pointerId, pointerType: 'mouse' });
+}
+
 describe('GridMapEditor', () => {
   it('renders grid with correct number of cells and shows placed elements', async () => {
-    const onSelectElement = vi.fn();
-    const onSelectionComplete = vi.fn();
-    const onToolChange = vi.fn();
-    const i18nInstance = await testI18n();
-
-    render(
-      <I18nextProvider i18n={i18nInstance}>
-        <GridMapEditor
-          gardenId="g1" area={mapArea} elements={[bedElement]}
-          selectedElementId={null}
-          onSelectElement={onSelectElement}
-          onSelectionComplete={onSelectionComplete}
-          tool="select"
-          onToolChange={onToolChange}
-        />
-      </I18nextProvider>,
-    );
+    await renderEditor();
 
     const map = screen.getByTestId('grid-map');
     expect(map.querySelectorAll('[data-testid="grid-map-cell-layer"]')).toHaveLength(1);
@@ -187,26 +197,12 @@ describe('GridMapEditor', () => {
   });
 
   it('uses one cell layer for large grids instead of one DOM node per cell', async () => {
-    const onSelectElement = vi.fn();
-    const i18nInstance = await testI18n();
     const bigMapArea: Area = {
       ...mapArea,
       gridWidth: 200,
       gridHeight: 200,
     };
-
-    render(
-      <I18nextProvider i18n={i18nInstance}>
-        <GridMapEditor
-          gardenId="g1" area={bigMapArea} elements={[]}
-          selectedElementId={null}
-          onSelectElement={onSelectElement}
-          onSelectionComplete={vi.fn()}
-          tool="select"
-          onToolChange={vi.fn()}
-        />
-      </I18nextProvider>,
-    );
+    await renderEditor({ area: bigMapArea, elements: [] });
 
     const map = screen.getByTestId('grid-map');
     expect(map.querySelectorAll('[data-testid="grid-map-cell-layer"]')).toHaveLength(1);
@@ -216,63 +212,89 @@ describe('GridMapEditor', () => {
     expect(layer.getAttribute('height')).toBe('5600');
   });
 
-  it('selects an element when its label is clicked in select mode', async () => {
-    const onSelectElement = vi.fn();
-    const i18nInstance = await testI18n();
+  it('has no tool switcher: browse is the only persistent mode', async () => {
+    await renderEditor();
+    expect(screen.queryByRole('button', { name: /^select$/i })).toBeNull();
+    expect(screen.queryByRole('button', { name: /^move$/i })).toBeNull();
+    expect(screen.queryByRole('button', { name: /^pan$/i })).toBeNull();
+    expect(screen.getByTestId('map-add-rect')).toBeInTheDocument();
+    expect(screen.getByTestId('map-add-polygon')).toBeInTheDocument();
+    expect(screen.queryByTestId('map-add-cancel')).toBeNull();
+  });
 
-    render(
-      <I18nextProvider i18n={i18nInstance}>
-        <GridMapEditor
-          gardenId="g1" area={mapArea} elements={[bedElement]}
-          selectedElementId={null}
-          onSelectElement={onSelectElement}
-          onSelectionComplete={vi.fn()}
-          tool="select"
-          onToolChange={vi.fn()}
-        />
-      </I18nextProvider>,
-    );
+  it('selects an element when it is clicked in browse mode', async () => {
+    const onSelectElement = vi.fn();
+    await renderEditor({ onSelectElement });
 
     fireEvent.click(screen.getByTestId('map-area-a1'));
     expect(onSelectElement).toHaveBeenCalledWith('a1');
   });
 
+  it('selects an element on a sub-threshold mouse press and release', async () => {
+    const onSelectElement = vi.fn();
+    const onMoveElement = vi.fn();
+    await renderEditor({ onSelectElement, onMoveElement });
+
+    const map = screen.getByTestId('grid-map');
+    mockGridMapBoundingRect(map, mapArea.gridWidth, mapArea.gridHeight);
+    const bed = screen.getByTestId('map-area-a1');
+
+    fireEvent.pointerDown(bed, {
+      clientX: 14,
+      clientY: 7,
+      pointerId: 1,
+      pointerType: 'mouse',
+      button: 0,
+      buttons: 1,
+    });
+    fireEvent.pointerUp(map, {
+      clientX: 15,
+      clientY: 7,
+      pointerId: 1,
+      pointerType: 'mouse',
+      button: 0,
+      buttons: 0,
+    });
+    expect(onSelectElement).toHaveBeenCalledWith('a1');
+    expect(onMoveElement).not.toHaveBeenCalled();
+  });
+
+  it('deselects when the background is clicked without dragging', async () => {
+    const onSelectElement = vi.fn();
+    await renderEditor({ onSelectElement, selectedElementId: 'a1' });
+
+    const map = screen.getByTestId('grid-map');
+    mockGridMapBoundingRect(map, mapArea.gridWidth, mapArea.gridHeight);
+
+    fireEvent.pointerDown(map, {
+      clientX: 90,
+      clientY: 70,
+      pointerId: 1,
+      pointerType: 'mouse',
+      button: 0,
+      buttons: 1,
+    });
+    fireEvent.pointerUp(map, {
+      clientX: 91,
+      clientY: 70,
+      pointerId: 1,
+      pointerType: 'mouse',
+      button: 0,
+      buttons: 0,
+    });
+    expect(onSelectElement).toHaveBeenCalledWith(null);
+  });
+
   it('shows a subtle indicator when the element has plantings', async () => {
-    const i18nInstance = await testI18n();
-    render(
-      <I18nextProvider i18n={i18nInstance}>
-        <GridMapEditor
-          gardenId="g1" area={mapArea} elements={[bedElement]}
-          elementIdsWithPlantings={new Set(['a1'])}
-          selectedElementId={null}
-          onSelectElement={vi.fn()}
-          onSelectionComplete={vi.fn()}
-          tool="select"
-          onToolChange={vi.fn()}
-        />
-      </I18nextProvider>,
-    );
+    await renderEditor({ elementIdsWithPlantings: new Set(['a1']) });
     expect(screen.getByTestId('map-area-planting-indicator-a1')).toBeInTheDocument();
     expect(screen.getByTestId('map-area-a1')).toHaveAttribute('aria-label', expect.stringMatching(/has plantings/i));
   });
 
-  it('move mode shows ghost and preview, calls onMoveElement with snapped grid coords', async () => {
+  it('mouse drag on an element shows ghost and preview and calls onMoveElement with snapped grid coords', async () => {
     const onMoveElement = vi.fn();
     const onSelectElement = vi.fn();
-    const i18nInstance = await testI18n();
-    render(
-      <I18nextProvider i18n={i18nInstance}>
-        <GridMapEditor
-          gardenId="g1" area={mapArea} elements={[bedElement]}
-          selectedElementId={null}
-          onSelectElement={onSelectElement}
-          onSelectionComplete={vi.fn()}
-          onMoveElement={onMoveElement}
-          tool="move"
-          onToolChange={vi.fn()}
-        />
-      </I18nextProvider>,
-    );
+    await renderEditor({ onMoveElement, onSelectElement });
 
     const map = screen.getByTestId('grid-map');
     mockGridMapBoundingRect(map, mapArea.gridWidth, mapArea.gridHeight);
@@ -309,12 +331,11 @@ describe('GridMapEditor', () => {
       buttons: 0,
     });
     expect(onMoveElement).toHaveBeenCalledWith('a1', 2, 0);
-    expect(onSelectElement).not.toHaveBeenCalled();
+    expect(onSelectElement).toHaveBeenCalledWith('a1');
   });
 
-  it('move mode shows red preview when position overlaps another area', async () => {
+  it('shows red preview and does not persist when the move overlaps another element', async () => {
     const onMoveElement = vi.fn();
-    const i18nInstance = await testI18n();
     const otherEl: Element = {
       id: 'a2',
       areaId: 'ar1',
@@ -328,22 +349,7 @@ describe('GridMapEditor', () => {
       createdAt: '2020-01-01T00:00:00.000Z',
       updatedAt: '2020-01-01T00:00:00.000Z',
     };
-
-    render(
-      <I18nextProvider i18n={i18nInstance}>
-        <GridMapEditor
-          gardenId="g1"
-          area={mapArea}
-          elements={[bedElement, otherEl]}
-          selectedElementId={null}
-          onSelectElement={vi.fn()}
-          onSelectionComplete={vi.fn()}
-          onMoveElement={onMoveElement}
-          tool="move"
-          onToolChange={vi.fn()}
-        />
-      </I18nextProvider>,
-    );
+    await renderEditor({ elements: [bedElement, otherEl], onMoveElement });
 
     const map = screen.getByTestId('grid-map');
     mockGridMapBoundingRect(map, mapArea.gridWidth, mapArea.gridHeight);
@@ -377,9 +383,8 @@ describe('GridMapEditor', () => {
     expect(onMoveElement).not.toHaveBeenCalled();
   });
 
-  it('move mode renders alignment guides when edges align with another area', async () => {
+  it('renders alignment guides when the dragged rect edges align with another element', async () => {
     const onMoveElement = vi.fn();
-    const i18nInstance = await testI18n();
     const wideMapArea: Area = { ...mapArea, gridWidth: 6, gridHeight: 4 };
     const alignEl1: Element = {
       ...bedElement,
@@ -399,22 +404,7 @@ describe('GridMapEditor', () => {
       createdAt: '2020-01-01T00:00:00.000Z',
       updatedAt: '2020-01-01T00:00:00.000Z',
     };
-
-    render(
-      <I18nextProvider i18n={i18nInstance}>
-        <GridMapEditor
-          gardenId="g1"
-          area={wideMapArea}
-          elements={[alignEl1, alignEl2]}
-          selectedElementId={null}
-          onSelectElement={vi.fn()}
-          onSelectionComplete={vi.fn()}
-          onMoveElement={onMoveElement}
-          tool="move"
-          onToolChange={vi.fn()}
-        />
-      </I18nextProvider>,
-    );
+    await renderEditor({ area: wideMapArea, elements: [alignEl1, alignEl2], onMoveElement });
 
     const map = screen.getByTestId('grid-map');
     mockGridMapBoundingRect(map, wideMapArea.gridWidth, wideMapArea.gridHeight);
@@ -433,27 +423,106 @@ describe('GridMapEditor', () => {
     expect(verticalGuides.some((el) => el.getAttribute('data-grid-line') === '2')).toBe(true);
   });
 
+  it('long-press on an element starts a touch move; drag then persists it', async () => {
+    const onMoveElement = vi.fn();
+    const onSelectElement = vi.fn();
+    await renderEditor({ onMoveElement, onSelectElement });
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'Date'] });
+
+    const map = screen.getByTestId('grid-map');
+    mockGridMapBoundingRect(map, mapArea.gridWidth, mapArea.gridHeight);
+    const bed = screen.getByTestId('map-area-a1');
+
+    fireEvent.touchStart(bed, { touches: [{ identifier: 0, clientX: 14, clientY: 7 }] });
+    expect(screen.queryByTestId('map-move-ghost')).toBeNull();
+
+    act(() => {
+      vi.advanceTimersByTime(LONG_PRESS_MS);
+    });
+    expect(screen.getByTestId('map-move-ghost')).toBeInTheDocument();
+
+    fireEvent.touchMove(map, { touches: [{ identifier: 0, clientX: 14 + 2 * CELL, clientY: 7 }] });
+    const preview = screen.getByTestId('map-move-preview');
+    expect(preview.getAttribute('x')).toBe(String(2 * CELL));
+
+    fireEvent.touchEnd(map, { touches: [], changedTouches: [] });
+    expect(onMoveElement).toHaveBeenCalledWith('a1', 2, 0);
+    expect(onSelectElement).toHaveBeenCalledWith('a1');
+  });
+
+  it('does not start a touch move when the finger leaves the slop before the long-press', async () => {
+    const onMoveElement = vi.fn();
+    const onSelectElement = vi.fn();
+    await renderEditor({ onMoveElement, onSelectElement });
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'Date'] });
+
+    const map = screen.getByTestId('grid-map');
+    mockGridMapBoundingRect(map, mapArea.gridWidth, mapArea.gridHeight);
+    const bed = screen.getByTestId('map-area-a1');
+
+    fireEvent.touchStart(bed, { touches: [{ identifier: 0, clientX: 14, clientY: 7 }] });
+    fireEvent.touchMove(map, { touches: [{ identifier: 0, clientX: 34, clientY: 7 }] });
+
+    act(() => {
+      vi.advanceTimersByTime(LONG_PRESS_MS + 50);
+    });
+    expect(screen.queryByTestId('map-move-ghost')).toBeNull();
+
+    fireEvent.touchEnd(map, { touches: [], changedTouches: [] });
+    expect(onMoveElement).not.toHaveBeenCalled();
+    expect(onSelectElement).not.toHaveBeenCalled();
+  });
+
+  it('a quick touch tap on an element selects it', async () => {
+    const onSelectElement = vi.fn();
+    await renderEditor({ onSelectElement, onMoveElement: vi.fn() });
+
+    const map = screen.getByTestId('grid-map');
+    const bed = screen.getByTestId('map-area-a1');
+
+    fireEvent.touchStart(bed, { touches: [{ identifier: 0, clientX: 14, clientY: 7 }] });
+    fireEvent.touchEnd(map, { touches: [], changedTouches: [{ identifier: 0, clientX: 14, clientY: 7 }] });
+
+    expect(onSelectElement).toHaveBeenCalledWith('a1');
+  });
+
+  it('a second finger cancels an in-progress element move without persisting', async () => {
+    const onMoveElement = vi.fn();
+    await renderEditor({ onMoveElement });
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'Date'] });
+
+    const map = screen.getByTestId('grid-map');
+    mockGridMapBoundingRect(map, mapArea.gridWidth, mapArea.gridHeight);
+    const bed = screen.getByTestId('map-area-a1');
+
+    fireEvent.touchStart(bed, { touches: [{ identifier: 0, clientX: 14, clientY: 7 }] });
+    act(() => {
+      vi.advanceTimersByTime(LONG_PRESS_MS);
+    });
+    expect(screen.getByTestId('map-move-ghost')).toBeInTheDocument();
+
+    fireEvent.touchStart(map, {
+      touches: [
+        { identifier: 0, clientX: 14, clientY: 7 },
+        { identifier: 1, clientX: 100, clientY: 80 },
+      ],
+    });
+    expect(screen.queryByTestId('map-move-ghost')).toBeNull();
+
+    fireEvent.touchEnd(map, { touches: [], changedTouches: [] });
+    expect(onMoveElement).not.toHaveBeenCalled();
+  });
+
   it('renders per-layer badge/color overrides and shows legend for non-default layers', async () => {
-    const i18nInstance = await testI18n();
-    render(
-      <I18nextProvider i18n={i18nInstance}>
-        <GridMapEditor
-          gardenId="g1" area={mapArea} elements={[bedElement]}
-          selectedElementId={null}
-          onSelectElement={vi.fn()}
-          onSelectionComplete={vi.fn()}
-          tool="select"
-          onToolChange={vi.fn()}
-          layer="status"
-          elementColorById={{ a1: '#00ff00' }}
-          elementBadgeById={{ a1: { text: 'Sown', toneClass: 'bg-blue-600' } }}
-          legendItems={[
-            { label: 'Sown', color: '#00ff00' },
-            { label: 'Harvested', color: '#ff00ff' },
-          ]}
-        />
-      </I18nextProvider>,
-    );
+    await renderEditor({
+      layer: 'status',
+      elementColorById: { a1: '#00ff00' },
+      elementBadgeById: { a1: { text: 'Sown', toneClass: 'bg-blue-600' } },
+      legendItems: [
+        { label: 'Sown', color: '#00ff00' },
+        { label: 'Harvested', color: '#ff00ff' },
+      ],
+    });
 
     expect(screen.getByTestId('map-layer-legend')).toBeInTheDocument();
     expect(screen.getByTestId('map-area-badge-a1')).toHaveTextContent('Sown');
@@ -463,205 +532,67 @@ describe('GridMapEditor', () => {
   });
 
   it('historical layer can render ghost areas and per-area overlay badges', async () => {
-    const i18nInstance = await testI18n();
-    render(
-      <I18nextProvider i18n={i18nInstance}>
-        <GridMapEditor
-          gardenId="g1" area={mapArea} elements={[bedElement]}
-          selectedElementId={null}
-          onSelectElement={vi.fn()}
-          onSelectionComplete={vi.fn()}
-          tool="select"
-          onToolChange={vi.fn()}
-          layer="historical"
-          historicalGhostElements={[
-            { id: 'old-a', name: 'Old bed', gridX: 2, gridY: 1, gridWidth: 1, gridHeight: 1 },
-          ]}
-          elementOverlayBadgesById={{ a1: ['Tomato', 'Carrot'] }}
-        />
-      </I18nextProvider>,
-    );
+    await renderEditor({
+      layer: 'historical',
+      historicalGhostElements: [
+        { id: 'old-a', name: 'Old bed', gridX: 2, gridY: 1, gridWidth: 1, gridHeight: 1 },
+      ],
+      elementOverlayBadgesById: { a1: ['Tomato', 'Carrot'] },
+    });
 
     expect(screen.getAllByTestId('map-historical-ghost-area')).toHaveLength(1);
     expect(screen.getByTestId('map-area-overlay-badges-a1')).toHaveTextContent('Tomato');
   });
 
-  it('draw-polygon tool shows Finish and completes when Finish is tapped', async () => {
+  it('add-rectangle mode: drag draws a marquee, completes the selection, and exits the mode', async () => {
     const onSelectionComplete = vi.fn();
-    const i18nInstance = await testI18n();
-    render(
-      <I18nextProvider i18n={i18nInstance}>
-        <GridMapEditor
-          gardenId="g1" area={mapArea} elements={[bedElement]}
-          selectedElementId={null}
-          onSelectElement={vi.fn()}
-          onSelectionComplete={onSelectionComplete}
-          tool="draw-polygon"
-          onToolChange={vi.fn()}
-        />
-      </I18nextProvider>,
-    );
+    await renderEditor({ onSelectionComplete });
 
     const map = screen.getByTestId('grid-map');
     mockGridMapBoundingRect(map, mapArea.gridWidth, mapArea.gridHeight);
 
-    fireEvent.pointerDown(map, { clientX: CELL * 0.5, clientY: CELL * 0.5, button: 0, pointerId: 1 });
-    fireEvent.pointerDown(map, { clientX: CELL * 2.5, clientY: CELL * 0.5, button: 0, pointerId: 2 });
-    fireEvent.pointerDown(map, { clientX: CELL * 2.5, clientY: CELL * 2.0, button: 0, pointerId: 3 });
+    fireEvent.click(screen.getByTestId('map-add-rect'));
+    expect(screen.getByTestId('map-add-rect')).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByTestId('map-area-a1')).toHaveAttribute('pointer-events', 'none');
 
-    fireEvent.click(screen.getByTestId('map-polygon-finish'));
-    expect(onSelectionComplete).toHaveBeenCalledTimes(1);
-    expect(onSelectionComplete.mock.calls[0]![0]!.shape?.kind).toBe('polygon');
-  });
-
-  it('draw-polygon tool collects vertices and completes on double click', async () => {
-    const onSelectionComplete = vi.fn();
-    const i18nInstance = await testI18n();
-    render(
-      <I18nextProvider i18n={i18nInstance}>
-        <GridMapEditor
-          gardenId="g1" area={mapArea} elements={[bedElement]}
-          selectedElementId={null}
-          onSelectElement={vi.fn()}
-          onSelectionComplete={onSelectionComplete}
-          tool="draw-polygon"
-          onToolChange={vi.fn()}
-        />
-      </I18nextProvider>,
-    );
-
-    const map = screen.getByTestId('grid-map');
-    mockGridMapBoundingRect(map, mapArea.gridWidth, mapArea.gridHeight);
-
-    fireEvent.pointerDown(map, { clientX: CELL * 0.5, clientY: CELL * 0.5, button: 0, pointerId: 1 });
-    fireEvent.pointerDown(map, { clientX: CELL * 2.5, clientY: CELL * 0.5, button: 0, pointerId: 2 });
-    fireEvent.pointerDown(map, { clientX: CELL * 2.5, clientY: CELL * 2.0, button: 0, pointerId: 3 });
-
-    expect(screen.getByTestId('map-polygon-draft')).toBeInTheDocument();
-
-    fireEvent.doubleClick(map, { clientX: CELL * 2.5, clientY: CELL * 2.0 });
-    expect(onSelectionComplete).toHaveBeenCalledTimes(1);
-    const sel = onSelectionComplete.mock.calls[0]![0]!;
-    expect(sel.shape?.kind).toBe('polygon');
-    expect(sel.gridWidth).toBeGreaterThan(0);
-    expect(sel.gridHeight).toBeGreaterThan(0);
-  });
-
-  it('renders polygon areas as svg polygon, not only a bounding rect', async () => {
-    const onSelectElement = vi.fn();
-    const i18nInstance = await testI18n();
-    const polyElement: Element = {
-      ...bedElement,
-      shape: {
-        kind: 'polygon',
-        vertices: [
-          { x: 0, y: 0 },
-          { x: 2, y: 0 },
-          { x: 2, y: 1 },
-          { x: 0, y: 1 },
-        ],
-      },
-    };
-    render(
-      <I18nextProvider i18n={i18nInstance}>
-        <GridMapEditor
-          gardenId="g1"
-          area={mapArea}
-          elements={[polyElement]}
-          selectedElementId={null}
-          onSelectElement={onSelectElement}
-          onSelectionComplete={vi.fn()}
-          tool="select"
-          onToolChange={vi.fn()}
-        />
-      </I18nextProvider>,
-    );
-    expect(screen.getByTestId('map-area-polygon-a1')).toBeInTheDocument();
-    expect(screen.getByTestId('map-area-a1')).toHaveAttribute('data-area-shape', 'polygon');
-  });
-
-  it('renders svg background image under the grid when url loads', async () => {
-    const pngB64 =
-      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
-    const bytes = Uint8Array.from(atob(pngB64), (ch) => ch.charCodeAt(0));
-    apiFetchMock.mockResolvedValue(
-      new Response(bytes, { status: 200, headers: { 'Content-Type': 'image/png' } }),
-    );
-    const onSelectElement = vi.fn();
-    const i18nInstance = await testI18n();
-    render(
-      <I18nextProvider i18n={i18nInstance}>
-        <GridMapEditor
-          gardenId="g1"
-          area={{ ...mapArea, backgroundImageUrl: '/gardens/g1/areas/ar1/background-image' }}
-          elements={[bedElement]}
-          selectedElementId={null}
-          onSelectElement={onSelectElement}
-          onSelectionComplete={vi.fn()}
-          tool="select"
-          onToolChange={vi.fn()}
-        />
-      </I18nextProvider>,
-    );
-    await waitFor(() => {
-      expect(apiFetchMock.mock.calls.some((c) => c[0] === '/gardens/g1/areas/ar1/background-image')).toBe(true);
+    fireEvent.pointerDown(map, {
+      clientX: CELL * 0.5,
+      clientY: CELL * 1.5,
+      pointerId: 1,
+      pointerType: 'mouse',
+      button: 0,
+      buttons: 1,
     });
-    await waitFor(() => {
-      expect(screen.getByTestId('map-background-image')).toBeInTheDocument();
+    fireEvent.pointerMove(map, {
+      clientX: CELL * 2.5,
+      clientY: CELL * 2.5,
+      pointerId: 1,
+      pointerType: 'mouse',
+      buttons: 1,
     });
-    const img = screen.getByTestId('map-background-image');
-    expect(img).toHaveAttribute('width', String(mapArea.gridWidth * CELL));
-    expect(img).toHaveAttribute('height', String(mapArea.gridHeight * CELL));
-    expect(img).toHaveAttribute('preserveAspectRatio', 'xMidYMid slice');
-    expect(apiFetchMock.mock.calls.some((c) => c[0] === '/gardens/g1/areas/ar1/background-image')).toBe(true);
+    expect(screen.getByTestId('map-selection-preview')).toBeInTheDocument();
+
+    fireEvent.pointerUp(map, {
+      clientX: CELL * 2.5,
+      clientY: CELL * 2.5,
+      pointerId: 1,
+      pointerType: 'mouse',
+      button: 0,
+      buttons: 0,
+    });
+    expect(onSelectionComplete).toHaveBeenCalledWith({
+      gridX: 0,
+      gridY: 1,
+      gridWidth: 3,
+      gridHeight: 2,
+    });
+    expect(screen.getByTestId('map-add-rect')).toHaveAttribute('aria-pressed', 'false');
   });
 
-  it('opacity slider updates rendered opacity and persists to localStorage', async () => {
-    apiFetchMock.mockResolvedValue(
-      new Response(new Uint8Array([1, 2, 3]), {
-        status: 200,
-        headers: { 'Content-Type': 'image/png' },
-      }),
-    );
-    const i18nInstance = await testI18n();
-    render(
-      <I18nextProvider i18n={i18nInstance}>
-        <GridMapEditor
-          gardenId="g1"
-          area={{ ...mapArea, backgroundImageUrl: '/gardens/g1/areas/ar1/background-image' }}
-          elements={[bedElement]}
-          selectedElementId={null}
-          onSelectElement={vi.fn()}
-          onSelectionComplete={vi.fn()}
-          tool="select"
-          onToolChange={vi.fn()}
-        />
-      </I18nextProvider>,
-    );
-    const slider = await waitFor(() => screen.getByTestId('map-background-opacity'));
-    fireEvent.change(slider, { target: { value: '30' } });
-    const img = screen.getByTestId('map-background-image');
-    expect(img.getAttribute('opacity')).toBe('0.3');
-    expect(localStorage.getItem('mygarden.mapBgOpacity.g1.ar1')).toBe('30');
-  });
-
-  it('pan tool drags update viewport transform and do not start marquee selection', async () => {
+  it('background drag in browse mode pans instead of drawing a marquee', async () => {
     const onSelectionComplete = vi.fn();
-    const i18nInstance = await testI18n();
-    render(
-      <I18nextProvider i18n={i18nInstance}>
-        <GridMapEditor
-          gardenId="g1"
-          area={mapArea}
-          elements={[bedElement]}
-          selectedElementId={null}
-          onSelectElement={vi.fn()}
-          onSelectionComplete={onSelectionComplete}
-          tool="pan"
-          onToolChange={vi.fn()}
-        />
-      </I18nextProvider>,
-    );
+    const onSelectElement = vi.fn();
+    await renderEditor({ onSelectionComplete, onSelectElement });
 
     const map = screen.getByTestId('grid-map');
     const viewport = screen.getByTestId('grid-map-viewport');
@@ -707,22 +638,185 @@ describe('GridMapEditor', () => {
     expect(after.tx).toBeCloseTo(mid.tx, 5);
     expect(after.ty).toBeCloseTo(mid.ty, 5);
     expect(onSelectionComplete).not.toHaveBeenCalled();
+    // A real drag never counts as a background tap.
+    expect(onSelectElement).not.toHaveBeenCalled();
   });
 
-  it('Space+drag pans in select mode without starting a selection preview', async () => {
-    const i18nInstance = await testI18n();
-    render(
-      <I18nextProvider i18n={i18nInstance}>
-        <GridMapEditor
-          gardenId="g1" area={mapArea} elements={[bedElement]}
-          selectedElementId={null}
-          onSelectElement={vi.fn()}
-          onSelectionComplete={vi.fn()}
-          tool="select"
-          onToolChange={vi.fn()}
-        />
-      </I18nextProvider>,
+  it('Esc and the Cancel button exit an add mode', async () => {
+    await renderEditor();
+
+    fireEvent.click(screen.getByTestId('map-add-polygon'));
+    expect(screen.getByTestId('map-add-polygon')).toHaveAttribute('aria-pressed', 'true');
+
+    fireEvent.keyDown(window, { key: 'Escape' });
+    expect(screen.getByTestId('map-add-polygon')).toHaveAttribute('aria-pressed', 'false');
+    expect(screen.queryByTestId('map-add-cancel')).toBeNull();
+
+    fireEvent.click(screen.getByTestId('map-add-rect'));
+    expect(screen.getByTestId('map-add-rect')).toHaveAttribute('aria-pressed', 'true');
+    fireEvent.click(screen.getByTestId('map-add-cancel'));
+    expect(screen.getByTestId('map-add-rect')).toHaveAttribute('aria-pressed', 'false');
+  });
+
+  it('add-polygon mode shows Finish and completes when Finish is tapped, exiting the mode', async () => {
+    const onSelectionComplete = vi.fn();
+    await renderEditor({ onSelectionComplete });
+
+    const map = screen.getByTestId('grid-map');
+    mockGridMapBoundingRect(map, mapArea.gridWidth, mapArea.gridHeight);
+
+    fireEvent.click(screen.getByTestId('map-add-polygon'));
+    tapAt(map, CELL * 0.5, CELL * 0.5, 1);
+    tapAt(map, CELL * 2.5, CELL * 0.5, 2);
+    tapAt(map, CELL * 2.5, CELL * 2.0, 3);
+
+    fireEvent.click(screen.getByTestId('map-polygon-finish'));
+    expect(onSelectionComplete).toHaveBeenCalledTimes(1);
+    expect(onSelectionComplete.mock.calls[0]![0]!.shape?.kind).toBe('polygon');
+    expect(screen.getByTestId('map-add-polygon')).toHaveAttribute('aria-pressed', 'false');
+  });
+
+  it('add-polygon mode collects vertices on taps and completes on double click', async () => {
+    const onSelectionComplete = vi.fn();
+    await renderEditor({ onSelectionComplete });
+
+    const map = screen.getByTestId('grid-map');
+    mockGridMapBoundingRect(map, mapArea.gridWidth, mapArea.gridHeight);
+
+    fireEvent.click(screen.getByTestId('map-add-polygon'));
+    tapAt(map, CELL * 0.5, CELL * 0.5, 1);
+    tapAt(map, CELL * 2.5, CELL * 0.5, 2);
+    tapAt(map, CELL * 2.5, CELL * 2.0, 3);
+
+    expect(screen.getByTestId('map-polygon-draft')).toBeInTheDocument();
+
+    fireEvent.doubleClick(map, { clientX: CELL * 2.5, clientY: CELL * 2.0 });
+    expect(onSelectionComplete).toHaveBeenCalledTimes(1);
+    const sel = onSelectionComplete.mock.calls[0]![0]!;
+    expect(sel.shape?.kind).toBe('polygon');
+    expect(sel.gridWidth).toBeGreaterThan(0);
+    expect(sel.gridHeight).toBeGreaterThan(0);
+  });
+
+  it('a drag in add-polygon mode does not place a vertex', async () => {
+    await renderEditor();
+
+    const map = screen.getByTestId('grid-map');
+    mockGridMapBoundingRect(map, mapArea.gridWidth, mapArea.gridHeight);
+
+    fireEvent.click(screen.getByTestId('map-add-polygon'));
+    fireEvent.pointerDown(map, {
+      clientX: CELL * 0.5,
+      clientY: CELL * 0.5,
+      pointerId: 1,
+      pointerType: 'mouse',
+      button: 0,
+      buttons: 1,
+    });
+    fireEvent.pointerMove(map, {
+      clientX: CELL * 2.5,
+      clientY: CELL * 0.5,
+      pointerId: 1,
+      pointerType: 'mouse',
+      buttons: 1,
+    });
+    fireEvent.pointerUp(map, {
+      clientX: CELL * 2.5,
+      clientY: CELL * 0.5,
+      pointerId: 1,
+      pointerType: 'mouse',
+      button: 0,
+      buttons: 0,
+    });
+    expect(screen.queryByTestId('map-polygon-draft')).toBeNull();
+  });
+
+  it('two-finger navigation keeps working inside add-polygon mode without adding vertices', async () => {
+    await renderEditor();
+
+    const map = screen.getByTestId('grid-map');
+    const viewport = screen.getByTestId('grid-map-viewport');
+
+    fireEvent.click(screen.getByTestId('map-add-polygon'));
+    fireEvent.touchStart(map, {
+      touches: [
+        { identifier: 0, clientX: 100, clientY: 100 },
+        { identifier: 1, clientX: 200, clientY: 100 },
+      ],
+    });
+    fireEvent.touchMove(map, {
+      touches: [
+        { identifier: 0, clientX: 130, clientY: 120 },
+        { identifier: 1, clientX: 230, clientY: 120 },
+      ],
+    });
+    const v = parseMapViewportTransform(viewport);
+    expect(v.tx).toBeCloseTo(30, 5);
+    expect(v.ty).toBeCloseTo(20, 5);
+    expect(screen.queryByTestId('map-polygon-draft')).toBeNull();
+    fireEvent.touchEnd(map, { touches: [], changedTouches: [] });
+  });
+
+  it('renders polygon areas as svg polygon, not only a bounding rect', async () => {
+    const polyElement: Element = {
+      ...bedElement,
+      shape: {
+        kind: 'polygon',
+        vertices: [
+          { x: 0, y: 0 },
+          { x: 2, y: 0 },
+          { x: 2, y: 1 },
+          { x: 0, y: 1 },
+        ],
+      },
+    };
+    await renderEditor({ elements: [polyElement] });
+    expect(screen.getByTestId('map-area-polygon-a1')).toBeInTheDocument();
+    expect(screen.getByTestId('map-area-a1')).toHaveAttribute('data-area-shape', 'polygon');
+  });
+
+  it('renders svg background image under the grid when url loads', async () => {
+    const pngB64 =
+      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
+    const bytes = Uint8Array.from(atob(pngB64), (ch) => ch.charCodeAt(0));
+    apiFetchMock.mockResolvedValue(
+      new Response(bytes, { status: 200, headers: { 'Content-Type': 'image/png' } }),
     );
+    await renderEditor({
+      area: { ...mapArea, backgroundImageUrl: '/gardens/g1/areas/ar1/background-image' },
+    });
+    await waitFor(() => {
+      expect(apiFetchMock.mock.calls.some((c) => c[0] === '/gardens/g1/areas/ar1/background-image')).toBe(true);
+    });
+    await waitFor(() => {
+      expect(screen.getByTestId('map-background-image')).toBeInTheDocument();
+    });
+    const img = screen.getByTestId('map-background-image');
+    expect(img).toHaveAttribute('width', String(mapArea.gridWidth * CELL));
+    expect(img).toHaveAttribute('height', String(mapArea.gridHeight * CELL));
+    expect(img).toHaveAttribute('preserveAspectRatio', 'xMidYMid slice');
+  });
+
+  it('opacity slider updates rendered opacity and persists to localStorage', async () => {
+    apiFetchMock.mockResolvedValue(
+      new Response(new Uint8Array([1, 2, 3]), {
+        status: 200,
+        headers: { 'Content-Type': 'image/png' },
+      }),
+    );
+    await renderEditor({
+      area: { ...mapArea, backgroundImageUrl: '/gardens/g1/areas/ar1/background-image' },
+    });
+    const slider = await waitFor(() => screen.getByTestId('map-background-opacity'));
+    fireEvent.change(slider, { target: { value: '30' } });
+    const img = screen.getByTestId('map-background-image');
+    expect(img.getAttribute('opacity')).toBe('0.3');
+    expect(localStorage.getItem('mygarden.mapBgOpacity.g1.ar1')).toBe('30');
+  });
+
+  it('Space+drag pans without starting a selection preview or deselecting', async () => {
+    const onSelectElement = vi.fn();
+    await renderEditor({ onSelectElement });
 
     const map = screen.getByTestId('grid-map');
     const viewport = screen.getByTestId('grid-map-viewport');
@@ -764,30 +858,20 @@ describe('GridMapEditor', () => {
       buttons: 0,
     });
     fireEvent.keyUp(document.body, { code: 'Space', key: ' ' });
+    expect(onSelectElement).not.toHaveBeenCalled();
   });
 
   it('Space+drag during polygon draw pans without adding vertices', async () => {
     const onSelectionComplete = vi.fn();
-    const i18nInstance = await testI18n();
-    render(
-      <I18nextProvider i18n={i18nInstance}>
-        <GridMapEditor
-          gardenId="g1" area={mapArea} elements={[bedElement]}
-          selectedElementId={null}
-          onSelectElement={vi.fn()}
-          onSelectionComplete={onSelectionComplete}
-          tool="draw-polygon"
-          onToolChange={vi.fn()}
-        />
-      </I18nextProvider>,
-    );
+    await renderEditor({ onSelectionComplete });
 
     const map = screen.getByTestId('grid-map');
     const viewport = screen.getByTestId('grid-map-viewport');
     mockGridMapBoundingRect(map, mapArea.gridWidth, mapArea.gridHeight);
 
-    fireEvent.pointerDown(map, { clientX: CELL * 0.5, clientY: CELL * 0.5, button: 0, pointerId: 1 });
-    fireEvent.pointerDown(map, { clientX: CELL * 2.5, clientY: CELL * 0.5, button: 0, pointerId: 2 });
+    fireEvent.click(screen.getByTestId('map-add-polygon'));
+    tapAt(map, CELL * 0.5, CELL * 0.5, 1);
+    tapAt(map, CELL * 2.5, CELL * 0.5, 2);
     expect(screen.getByTestId('map-polygon-draft').querySelectorAll('circle')).toHaveLength(2);
 
     fireEvent.keyDown(document.body, { code: 'Space', key: ' ' });
@@ -825,24 +909,13 @@ describe('GridMapEditor', () => {
 
   it('does not switch an in-progress marquee to Space+pan when Space is pressed mid-drag', async () => {
     const onSelectionComplete = vi.fn();
-    const i18nInstance = await testI18n();
-    render(
-      <I18nextProvider i18n={i18nInstance}>
-        <GridMapEditor
-          gardenId="g1" area={mapArea} elements={[bedElement]}
-          selectedElementId={null}
-          onSelectElement={vi.fn()}
-          onSelectionComplete={onSelectionComplete}
-          tool="select"
-          onToolChange={vi.fn()}
-        />
-      </I18nextProvider>,
-    );
+    await renderEditor({ onSelectionComplete });
 
     const map = screen.getByTestId('grid-map');
     const viewport = screen.getByTestId('grid-map-viewport');
     mockGridMapBoundingRect(map, mapArea.gridWidth, mapArea.gridHeight);
 
+    fireEvent.click(screen.getByTestId('map-add-rect'));
     const before = parseMapViewportTransform(viewport);
     fireEvent.pointerDown(map, {
       clientX: CELL * 0.5,
@@ -877,19 +950,7 @@ describe('GridMapEditor', () => {
   });
 
   it('Shift+wheel pans horizontally without changing scale; Alt+wheel pans vertically; plain wheel changes scale', async () => {
-    const i18nInstance = await testI18n();
-    render(
-      <I18nextProvider i18n={i18nInstance}>
-        <GridMapEditor
-          gardenId="g1" area={mapArea} elements={[bedElement]}
-          selectedElementId={null}
-          onSelectElement={vi.fn()}
-          onSelectionComplete={vi.fn()}
-          tool="select"
-          onToolChange={vi.fn()}
-        />
-      </I18nextProvider>,
-    );
+    await renderEditor();
 
     const container = screen.getByTestId('grid-map-container');
     const viewport = screen.getByTestId('grid-map-viewport');
@@ -966,21 +1027,8 @@ describe('GridMapEditor', () => {
 
   it('fits the whole grid on mount, centered, even below MIN_MAP_SCALE for large grids', async () => {
     mockMapContainerSize(400, 300);
-    const i18nInstance = await testI18n();
     const bigMapArea: Area = { ...mapArea, gridWidth: 200, gridHeight: 200 };
-
-    render(
-      <I18nextProvider i18n={i18nInstance}>
-        <GridMapEditor
-          gardenId="g1" area={bigMapArea} elements={[]}
-          selectedElementId={null}
-          onSelectElement={vi.fn()}
-          onSelectionComplete={vi.fn()}
-          tool="select"
-          onToolChange={vi.fn()}
-        />
-      </I18nextProvider>,
-    );
+    await renderEditor({ area: bigMapArea, elements: [] });
 
     const v = parseMapViewportTransform(screen.getByTestId('grid-map-viewport'));
     // world = 200 * 28 = 5600px; fit = (300 - 48) / 5600 = 0.045, below MIN_MAP_SCALE (0.35)
@@ -991,20 +1039,7 @@ describe('GridMapEditor', () => {
 
   it('clamps the mount fit to MAX_MAP_SCALE for small grids in large containers', async () => {
     mockMapContainerSize(800, 600);
-    const i18nInstance = await testI18n();
-
-    render(
-      <I18nextProvider i18n={i18nInstance}>
-        <GridMapEditor
-          gardenId="g1" area={mapArea} elements={[bedElement]}
-          selectedElementId={null}
-          onSelectElement={vi.fn()}
-          onSelectionComplete={vi.fn()}
-          tool="select"
-          onToolChange={vi.fn()}
-        />
-      </I18nextProvider>,
-    );
+    await renderEditor();
 
     const v = parseMapViewportTransform(screen.getByTestId('grid-map-viewport'));
     expect(v.scale).toBe(4);
@@ -1012,20 +1047,7 @@ describe('GridMapEditor', () => {
 
   it('fit button restores the fitted view after zooming, and zoom out clamps at the fit scale', async () => {
     mockMapContainerSize(400, 300);
-    const i18nInstance = await testI18n();
-
-    render(
-      <I18nextProvider i18n={i18nInstance}>
-        <GridMapEditor
-          gardenId="g1" area={mapArea} elements={[bedElement]}
-          selectedElementId={null}
-          onSelectElement={vi.fn()}
-          onSelectionComplete={vi.fn()}
-          tool="select"
-          onToolChange={vi.fn()}
-        />
-      </I18nextProvider>,
-    );
+    await renderEditor();
 
     const viewport = screen.getByTestId('grid-map-viewport');
     // world = 112 x 84; fit = min(352/112, 252/84) = 3
@@ -1042,21 +1064,8 @@ describe('GridMapEditor', () => {
 
   it('zoom out button can go below MIN_MAP_SCALE down to the fit scale of a large grid', async () => {
     mockMapContainerSize(400, 300);
-    const i18nInstance = await testI18n();
     const bigMapArea: Area = { ...mapArea, gridWidth: 200, gridHeight: 200 };
-
-    render(
-      <I18nextProvider i18n={i18nInstance}>
-        <GridMapEditor
-          gardenId="g1" area={bigMapArea} elements={[]}
-          selectedElementId={null}
-          onSelectElement={vi.fn()}
-          onSelectionComplete={vi.fn()}
-          tool="select"
-          onToolChange={vi.fn()}
-        />
-      </I18nextProvider>,
-    );
+    await renderEditor({ area: bigMapArea, elements: [] });
 
     const viewport = screen.getByTestId('grid-map-viewport');
     expect(parseMapViewportTransform(viewport).scale).toBeCloseTo(0.045, 9);
@@ -1073,20 +1082,7 @@ describe('GridMapEditor', () => {
 
   it('double-click on empty background re-fits; double-click on an element does not', async () => {
     mockMapContainerSize(400, 300);
-    const i18nInstance = await testI18n();
-
-    render(
-      <I18nextProvider i18n={i18nInstance}>
-        <GridMapEditor
-          gardenId="g1" area={mapArea} elements={[bedElement]}
-          selectedElementId={null}
-          onSelectElement={vi.fn()}
-          onSelectionComplete={vi.fn()}
-          tool="select"
-          onToolChange={vi.fn()}
-        />
-      </I18nextProvider>,
-    );
+    await renderEditor();
 
     const map = screen.getByTestId('grid-map');
     const viewport = screen.getByTestId('grid-map-viewport');
@@ -1103,21 +1099,7 @@ describe('GridMapEditor', () => {
 
   it('double-click re-fits in readOnly mode', async () => {
     mockMapContainerSize(400, 300);
-    const i18nInstance = await testI18n();
-
-    render(
-      <I18nextProvider i18n={i18nInstance}>
-        <GridMapEditor
-          gardenId="g1" area={mapArea} elements={[bedElement]}
-          selectedElementId={null}
-          onSelectElement={vi.fn()}
-          onSelectionComplete={vi.fn()}
-          tool="select"
-          onToolChange={vi.fn()}
-          readOnly
-        />
-      </I18nextProvider>,
-    );
+    await renderEditor({ readOnly: true });
 
     const viewport = screen.getByTestId('grid-map-viewport');
     fireEvent.click(screen.getByRole('button', { name: /zoom in/i }));
@@ -1129,20 +1111,7 @@ describe('GridMapEditor', () => {
 
   it('double-tap on empty background re-fits', async () => {
     mockMapContainerSize(400, 300);
-    const i18nInstance = await testI18n();
-
-    render(
-      <I18nextProvider i18n={i18nInstance}>
-        <GridMapEditor
-          gardenId="g1" area={mapArea} elements={[bedElement]}
-          selectedElementId={null}
-          onSelectElement={vi.fn()}
-          onSelectionComplete={vi.fn()}
-          tool="select"
-          onToolChange={vi.fn()}
-        />
-      </I18nextProvider>,
-    );
+    await renderEditor();
 
     const map = screen.getByTestId('grid-map');
     const viewport = screen.getByTestId('grid-map-viewport');
@@ -1156,6 +1125,20 @@ describe('GridMapEditor', () => {
     fireEvent.touchEnd(map, { touches: [], changedTouches: [{ clientX: 32, clientY: 31 }] });
 
     expect(parseMapViewportTransform(viewport).scale).toBeCloseTo(3, 9);
+  });
+
+  it('readOnly hides add controls and never selects elements', async () => {
+    const onSelectElement = vi.fn();
+    await renderEditor({ readOnly: true, onSelectElement });
+
+    expect(screen.queryByTestId('map-add-rect')).toBeNull();
+    expect(screen.queryByTestId('map-add-polygon')).toBeNull();
+    expect(screen.getByTestId('map-area-a1')).toHaveAttribute('pointer-events', 'none');
+
+    const map = screen.getByTestId('grid-map');
+    fireEvent.pointerDown(map, { clientX: 20, clientY: 20, pointerId: 1, pointerType: 'mouse', button: 0 });
+    fireEvent.pointerUp(map, { clientX: 20, clientY: 20, pointerId: 1, pointerType: 'mouse', button: 0 });
+    expect(onSelectElement).not.toHaveBeenCalled();
   });
 
   it('re-fits on container resize until the user zooms manually', async () => {
@@ -1174,20 +1157,7 @@ describe('GridMapEditor', () => {
       },
     );
     const size = mockMapContainerSize(400, 300);
-    const i18nInstance = await testI18n();
-
-    render(
-      <I18nextProvider i18n={i18nInstance}>
-        <GridMapEditor
-          gardenId="g1" area={mapArea} elements={[bedElement]}
-          selectedElementId={null}
-          onSelectElement={vi.fn()}
-          onSelectionComplete={vi.fn()}
-          tool="select"
-          onToolChange={vi.fn()}
-        />
-      </I18nextProvider>,
-    );
+    await renderEditor();
 
     const viewport = screen.getByTestId('grid-map-viewport');
     expect(parseMapViewportTransform(viewport).scale).toBeCloseTo(3, 9);
@@ -1213,20 +1183,7 @@ describe('GridMapEditor', () => {
 
   it('re-fits when switching to another area', async () => {
     mockMapContainerSize(400, 300);
-    const i18nInstance = await testI18n();
-
-    const { rerender } = render(
-      <I18nextProvider i18n={i18nInstance}>
-        <GridMapEditor
-          gardenId="g1" area={mapArea} elements={[bedElement]}
-          selectedElementId={null}
-          onSelectElement={vi.fn()}
-          onSelectionComplete={vi.fn()}
-          tool="select"
-          onToolChange={vi.fn()}
-        />
-      </I18nextProvider>,
-    );
+    const { rerender, i18nInstance } = await renderEditor();
 
     const viewport = screen.getByTestId('grid-map-viewport');
     fireEvent.click(screen.getByRole('button', { name: /zoom in/i }));
@@ -1240,8 +1197,6 @@ describe('GridMapEditor', () => {
           selectedElementId={null}
           onSelectElement={vi.fn()}
           onSelectionComplete={vi.fn()}
-          tool="select"
-          onToolChange={vi.fn()}
         />
       </I18nextProvider>,
     );
@@ -1251,20 +1206,7 @@ describe('GridMapEditor', () => {
   });
 
   async function renderForTwoFinger(props: { readOnly?: boolean } = {}) {
-    const i18nInstance = await testI18n();
-    render(
-      <I18nextProvider i18n={i18nInstance}>
-        <GridMapEditor
-          gardenId="g1" area={mapArea} elements={[bedElement]}
-          selectedElementId={null}
-          onSelectElement={vi.fn()}
-          onSelectionComplete={vi.fn()}
-          tool="select"
-          onToolChange={vi.fn()}
-          {...props}
-        />
-      </I18nextProvider>,
-    );
+    await renderEditor(props);
     return {
       map: screen.getByTestId('grid-map'),
       viewport: screen.getByTestId('grid-map-viewport'),
@@ -1373,5 +1315,257 @@ describe('GridMapEditor', () => {
     expect(v.tx).toBeCloseTo(20, 5);
     expect(v.ty).toBeCloseTo(10, 5);
     expect(v.scale).toBe(1);
+  });
+});
+
+describe('GridMapEditor rectangle resize handles', () => {
+  const HANDLE_IDS = ['nw', 'n', 'ne', 'e', 'se', 's', 'sw', 'w'];
+
+  it('renders 8 handles when a rectangle element is selected and onResizeElement is provided', async () => {
+    await renderEditor({ selectedElementId: 'a1', onResizeElement: vi.fn() });
+    for (const h of HANDLE_IDS) {
+      expect(screen.getByTestId(`map-resize-handle-${h}`)).toBeInTheDocument();
+    }
+    expect(screen.queryByTestId('map-resize-preview')).toBeNull();
+  });
+
+  it('renders no handles without a selection, without onResizeElement, in readOnly, or for polygons', async () => {
+    const { unmount: u1 } = await renderEditor({ onResizeElement: vi.fn() });
+    expect(screen.queryByTestId('map-resize-handles')).toBeNull();
+    u1();
+
+    const { unmount: u2 } = await renderEditor({ selectedElementId: 'a1' });
+    expect(screen.queryByTestId('map-resize-handles')).toBeNull();
+    u2();
+
+    const { unmount: u3 } = await renderEditor({
+      selectedElementId: 'a1',
+      onResizeElement: vi.fn(),
+      readOnly: true,
+    });
+    expect(screen.queryByTestId('map-resize-handles')).toBeNull();
+    u3();
+
+    const polyElement: Element = {
+      ...bedElement,
+      shape: {
+        kind: 'polygon',
+        vertices: [
+          { x: 0, y: 0 },
+          { x: 2, y: 0 },
+          { x: 2, y: 1 },
+        ],
+      },
+    };
+    await renderEditor({
+      elements: [polyElement],
+      selectedElementId: 'a1',
+      onResizeElement: vi.fn(),
+    });
+    expect(screen.queryByTestId('map-resize-handles')).toBeNull();
+  });
+
+  it('dragging the se handle grows the rect with grid snapping and persists on release', async () => {
+    const onResizeElement = vi.fn();
+    await renderEditor({ selectedElementId: 'a1', onResizeElement });
+
+    const map = screen.getByTestId('grid-map');
+    mockGridMapBoundingRect(map, mapArea.gridWidth, mapArea.gridHeight);
+
+    fireEvent.pointerDown(screen.getByTestId('map-resize-handle-se'), {
+      clientX: 2 * CELL,
+      clientY: CELL,
+      pointerId: 1,
+      pointerType: 'mouse',
+      button: 0,
+      buttons: 1,
+    });
+    // Pointer near the (3, 2) cell boundary: edges snap to the nearest boundary.
+    fireEvent.pointerMove(map, {
+      clientX: 3 * CELL + 3,
+      clientY: 2 * CELL - 3,
+      pointerId: 1,
+      pointerType: 'mouse',
+      buttons: 1,
+    });
+    const previewEl = screen.getByTestId('map-resize-preview');
+    expect(previewEl).toHaveAttribute('data-valid', 'true');
+    expect(previewEl.getAttribute('width')).toBe(String(3 * CELL));
+    expect(previewEl.getAttribute('height')).toBe(String(2 * CELL));
+
+    fireEvent.pointerUp(map, {
+      clientX: 3 * CELL + 3,
+      clientY: 2 * CELL - 3,
+      pointerId: 1,
+      pointerType: 'mouse',
+      button: 0,
+      buttons: 0,
+    });
+    expect(onResizeElement).toHaveBeenCalledWith('a1', {
+      gridX: 0,
+      gridY: 0,
+      gridWidth: 3,
+      gridHeight: 2,
+    });
+    expect(screen.queryByTestId('map-resize-preview')).toBeNull();
+  });
+
+  it('dragging the w handle shifts the origin while keeping the right edge', async () => {
+    const onResizeElement = vi.fn();
+    const shifted: Element = { ...bedElement, gridX: 1 };
+    await renderEditor({ elements: [shifted], selectedElementId: 'a1', onResizeElement });
+
+    const map = screen.getByTestId('grid-map');
+    mockGridMapBoundingRect(map, mapArea.gridWidth, mapArea.gridHeight);
+
+    fireEvent.pointerDown(screen.getByTestId('map-resize-handle-w'), {
+      clientX: CELL,
+      clientY: CELL / 2,
+      pointerId: 1,
+      pointerType: 'mouse',
+      button: 0,
+      buttons: 1,
+    });
+    fireEvent.pointerMove(map, {
+      clientX: 0,
+      clientY: CELL / 2,
+      pointerId: 1,
+      pointerType: 'mouse',
+      buttons: 1,
+    });
+    fireEvent.pointerUp(map, {
+      clientX: 0,
+      clientY: CELL / 2,
+      pointerId: 1,
+      pointerType: 'mouse',
+      button: 0,
+      buttons: 0,
+    });
+    expect(onResizeElement).toHaveBeenCalledWith('a1', {
+      gridX: 0,
+      gridY: 0,
+      gridWidth: 3,
+      gridHeight: 1,
+    });
+  });
+
+  it('shows an invalid preview over another element and reverts on release', async () => {
+    const onResizeElement = vi.fn();
+    const otherEl: Element = {
+      id: 'a2',
+      areaId: 'ar1',
+      name: 'Other',
+      type: 'path',
+      color: '#999',
+      gridX: 3,
+      gridY: 0,
+      gridWidth: 1,
+      gridHeight: 1,
+      createdAt: '2020-01-01T00:00:00.000Z',
+      updatedAt: '2020-01-01T00:00:00.000Z',
+    };
+    await renderEditor({
+      elements: [bedElement, otherEl],
+      selectedElementId: 'a1',
+      onResizeElement,
+    });
+
+    const map = screen.getByTestId('grid-map');
+    mockGridMapBoundingRect(map, mapArea.gridWidth, mapArea.gridHeight);
+
+    fireEvent.pointerDown(screen.getByTestId('map-resize-handle-e'), {
+      clientX: 2 * CELL,
+      clientY: CELL / 2,
+      pointerId: 1,
+      pointerType: 'mouse',
+      button: 0,
+      buttons: 1,
+    });
+    fireEvent.pointerMove(map, {
+      clientX: 4 * CELL,
+      clientY: CELL / 2,
+      pointerId: 1,
+      pointerType: 'mouse',
+      buttons: 1,
+    });
+    expect(screen.getByTestId('map-resize-preview')).toHaveAttribute('data-valid', 'false');
+
+    fireEvent.pointerUp(map, {
+      clientX: 4 * CELL,
+      clientY: CELL / 2,
+      pointerId: 1,
+      pointerType: 'mouse',
+      button: 0,
+      buttons: 0,
+    });
+    expect(onResizeElement).not.toHaveBeenCalled();
+    expect(screen.queryByTestId('map-resize-preview')).toBeNull();
+  });
+
+  it('a resize release without a size change does not call onResizeElement', async () => {
+    const onResizeElement = vi.fn();
+    await renderEditor({ selectedElementId: 'a1', onResizeElement });
+
+    const map = screen.getByTestId('grid-map');
+    mockGridMapBoundingRect(map, mapArea.gridWidth, mapArea.gridHeight);
+
+    fireEvent.pointerDown(screen.getByTestId('map-resize-handle-se'), {
+      clientX: 2 * CELL,
+      clientY: CELL,
+      pointerId: 1,
+      pointerType: 'mouse',
+      button: 0,
+      buttons: 1,
+    });
+    fireEvent.pointerUp(map, {
+      clientX: 2 * CELL,
+      clientY: CELL,
+      pointerId: 1,
+      pointerType: 'mouse',
+      button: 0,
+      buttons: 0,
+    });
+    expect(onResizeElement).not.toHaveBeenCalled();
+  });
+
+  it('starting a resize does not pan the view or select anything', async () => {
+    const onResizeElement = vi.fn();
+    const onSelectElement = vi.fn();
+    await renderEditor({ selectedElementId: 'a1', onResizeElement, onSelectElement });
+
+    const map = screen.getByTestId('grid-map');
+    const viewport = screen.getByTestId('grid-map-viewport');
+    mockGridMapBoundingRect(map, mapArea.gridWidth, mapArea.gridHeight);
+    const before = parseMapViewportTransform(viewport);
+
+    fireEvent.pointerDown(screen.getByTestId('map-resize-handle-e'), {
+      clientX: 2 * CELL,
+      clientY: CELL / 2,
+      pointerId: 1,
+      pointerType: 'mouse',
+      button: 0,
+      buttons: 1,
+    });
+    fireEvent.pointerMove(map, {
+      clientX: 3 * CELL,
+      clientY: CELL / 2,
+      pointerId: 1,
+      pointerType: 'mouse',
+      buttons: 1,
+    });
+    const after = parseMapViewportTransform(viewport);
+    expect(after.tx).toBe(before.tx);
+    expect(after.ty).toBe(before.ty);
+
+    fireEvent.pointerUp(map, {
+      clientX: 3 * CELL,
+      clientY: CELL / 2,
+      pointerId: 1,
+      pointerType: 'mouse',
+      button: 0,
+      buttons: 0,
+    });
+    expect(onSelectElement).not.toHaveBeenCalled();
+    expect(onResizeElement).toHaveBeenCalledTimes(1);
   });
 });

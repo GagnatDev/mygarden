@@ -20,7 +20,6 @@ import {
   GridMapEditor,
   type ElementDraftSelection,
   type MapLayer,
-  type MapTool,
 } from '../garden/GridMapEditor';
 import { deriveElementStatus, derivePlanVsActual } from '../garden/layer-helpers';
 import { useActiveSeason } from '../garden/useActiveSeason';
@@ -36,7 +35,6 @@ export function AreaMapPage() {
   const [mapLoading, setMapLoading] = useState(false);
   const [selectedElementId, setSelectedElementId] = useState<string | null>(null);
   const [pendingSelection, setPendingSelection] = useState<ElementDraftSelection | null>(null);
-  const [tool, setTool] = useState<MapTool>('select');
   const [layer, setLayer] = useState<MapLayer>('element-type');
   const selectedGarden = useMemo(
     () => gardens.find((g) => g.id === gardenId) ?? null,
@@ -181,17 +179,28 @@ export function AreaMapPage() {
     [gardenId, areaId, loadAreaAndElements, t],
   );
 
+  const handleResizeElement = useCallback(
+    async (
+      elementId: string,
+      rect: { gridX: number; gridY: number; gridWidth: number; gridHeight: number },
+    ) => {
+      if (!gardenId || !areaId) return;
+      setMapMoveError(null);
+      try {
+        await patchElement(gardenId, areaId, elementId, rect);
+        await loadAreaAndElements({ soft: true });
+      } catch (e) {
+        setMapMoveError(e instanceof Error ? e.message : t('garden.moveAreaFailed'));
+      }
+    },
+    [gardenId, areaId, loadAreaAndElements, t],
+  );
+
   useEffect(() => {
     if (selectedElementId && !elements.some((e) => e.id === selectedElementId)) {
       setSelectedElementId(null);
     }
   }, [elements, selectedElementId]);
-
-  useEffect(() => {
-    if (tool !== 'select') {
-      setSelectedElementId(null);
-    }
-  }, [tool]);
 
   const selectedElement = elements.find((e) => e.id === selectedElementId) ?? null;
 
@@ -460,12 +469,11 @@ export function AreaMapPage() {
               onSelectElement={setSelectedElementId}
               onSelectionComplete={setPendingSelection}
               onMoveElement={handleMoveElement}
-              tool={tool}
-              onToolChange={setTool}
+              onResizeElement={handleResizeElement}
             />
           )}
         </div>
-        {selectedElement && seasonId && tool === 'select' ? (
+        {selectedElement && seasonId ? (
           <ElementDetailPanel
             gardenId={gardenId}
             areaId={areaId}

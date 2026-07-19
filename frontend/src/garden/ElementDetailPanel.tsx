@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { Element, ElementType } from '../api/elements';
 import { deleteElement, patchElement } from '../api/elements';
@@ -48,11 +48,55 @@ export function ElementDetailPanel({
   const [busy, setBusy] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
 
+  /** Numeric position/size fields — rectangle elements only (C3). */
+  const isRectangle = element.shape?.kind !== 'polygon' && element.shape?.kind !== 'path';
+  const [gridXText, setGridXText] = useState(String(element.gridX));
+  const [gridYText, setGridYText] = useState(String(element.gridY));
+  const [gridWidthText, setGridWidthText] = useState(String(element.gridWidth));
+  const [gridHeightText, setGridHeightText] = useState(String(element.gridHeight));
+
+  useEffect(() => {
+    setGridXText(String(element.gridX));
+    setGridYText(String(element.gridY));
+    setGridWidthText(String(element.gridWidth));
+    setGridHeightText(String(element.gridHeight));
+  }, [element.id, element.gridX, element.gridY, element.gridWidth, element.gridHeight]);
+
+  function parseRectFields(): {
+    gridX: number;
+    gridY: number;
+    gridWidth: number;
+    gridHeight: number;
+  } | null {
+    const gridX = Number(gridXText);
+    const gridY = Number(gridYText);
+    const gridWidth = Number(gridWidthText);
+    const gridHeight = Number(gridHeightText);
+    const allInts = [gridX, gridY, gridWidth, gridHeight].every(
+      (n) => Number.isInteger(n) && Number.isFinite(n),
+    );
+    if (!allInts || gridX < 0 || gridY < 0 || gridWidth < 1 || gridHeight < 1) return null;
+    return { gridX, gridY, gridWidth, gridHeight };
+  }
+
   async function save() {
     setError(null);
+    let rect: ReturnType<typeof parseRectFields> = null;
+    if (isRectangle) {
+      rect = parseRectFields();
+      if (!rect) {
+        setError(t('garden.sizeFieldsInvalid'));
+        return;
+      }
+    }
     setBusy(true);
     try {
-      await patchElement(gardenId, areaId, element.id, { name: name.trim(), type, color });
+      await patchElement(gardenId, areaId, element.id, {
+        name: name.trim(),
+        type,
+        color,
+        ...(rect ?? {}),
+      });
       setEditing(false);
       await onChanged();
     } catch (e) {
@@ -186,6 +230,70 @@ export function ElementDetailPanel({
               onChange={(e) => setColor(e.target.value)}
             />
           </div>
+          {isRectangle ? (
+            <div className="grid grid-cols-2 gap-2" data-testid="element-size-fields">
+              <div>
+                <label htmlFor="edit-element-grid-x" className="block text-sm font-medium text-stone-700">
+                  {t('garden.positionX')}
+                </label>
+                <input
+                  id="edit-element-grid-x"
+                  data-testid="edit-element-grid-x"
+                  type="number"
+                  min={0}
+                  step={1}
+                  className="mt-1 w-full rounded-lg border border-stone-300 px-3 py-2"
+                  value={gridXText}
+                  onChange={(e) => setGridXText(e.target.value)}
+                />
+              </div>
+              <div>
+                <label htmlFor="edit-element-grid-y" className="block text-sm font-medium text-stone-700">
+                  {t('garden.positionY')}
+                </label>
+                <input
+                  id="edit-element-grid-y"
+                  data-testid="edit-element-grid-y"
+                  type="number"
+                  min={0}
+                  step={1}
+                  className="mt-1 w-full rounded-lg border border-stone-300 px-3 py-2"
+                  value={gridYText}
+                  onChange={(e) => setGridYText(e.target.value)}
+                />
+              </div>
+              <div>
+                <label htmlFor="edit-element-grid-width" className="block text-sm font-medium text-stone-700">
+                  {t('garden.widthCells')}
+                </label>
+                <input
+                  id="edit-element-grid-width"
+                  data-testid="edit-element-grid-width"
+                  type="number"
+                  min={1}
+                  step={1}
+                  className="mt-1 w-full rounded-lg border border-stone-300 px-3 py-2"
+                  value={gridWidthText}
+                  onChange={(e) => setGridWidthText(e.target.value)}
+                />
+              </div>
+              <div>
+                <label htmlFor="edit-element-grid-height" className="block text-sm font-medium text-stone-700">
+                  {t('garden.heightCells')}
+                </label>
+                <input
+                  id="edit-element-grid-height"
+                  data-testid="edit-element-grid-height"
+                  type="number"
+                  min={1}
+                  step={1}
+                  className="mt-1 w-full rounded-lg border border-stone-300 px-3 py-2"
+                  value={gridHeightText}
+                  onChange={(e) => setGridHeightText(e.target.value)}
+                />
+              </div>
+            </div>
+          ) : null}
         </div>
       ) : null}
 
@@ -210,6 +318,10 @@ export function ElementDetailPanel({
                 setName(element.name);
                 setType(element.type);
                 setColor(element.color);
+                setGridXText(String(element.gridX));
+                setGridYText(String(element.gridY));
+                setGridWidthText(String(element.gridWidth));
+                setGridHeightText(String(element.gridHeight));
                 setError(null);
               }}
             >
