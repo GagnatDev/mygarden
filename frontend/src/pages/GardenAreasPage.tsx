@@ -1,19 +1,35 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Link, Navigate, useParams } from 'react-router-dom';
+import { Link, Navigate, useNavigate, useParams } from 'react-router-dom';
 import { deleteGarden, patchGarden } from '../api/gardens';
 import type { Area } from '../api/areas';
-import { deleteArea, listAreas } from '../api/areas';
+import { deleteArea, listAreas, patchArea } from '../api/areas';
 import { AreaCreateModal } from '../garden/AreaCreateModal';
+import { GardenOverviewMap } from '../garden/GardenOverviewMap';
 import { useGardenContext } from '../garden/garden-context';
+
+type AreasView = 'list' | 'map';
+
+const AREAS_VIEW_STORAGE_KEY = 'mygarden.areasView';
+
+function loadStoredAreasView(): AreasView {
+  try {
+    return localStorage.getItem(AREAS_VIEW_STORAGE_KEY) === 'map' ? 'map' : 'list';
+  } catch {
+    return 'list';
+  }
+}
 
 export function GardenAreasPage() {
   const { t } = useTranslation();
   const { gardenId = '' } = useParams<{ gardenId: string }>();
+  const navigate = useNavigate();
   const { gardens, loading, error, setSelectedGardenId, refreshGardens } = useGardenContext();
 
   const [areas, setAreas] = useState<Area[]>([]);
   const [areasLoading, setAreasLoading] = useState(false);
+  const [areasView, setAreasView] = useState<AreasView>(loadStoredAreasView);
+  const [placeError, setPlaceError] = useState<string | null>(null);
   const [gardenName, setGardenName] = useState('');
   const [editingName, setEditingName] = useState(false);
   const [nameBusy, setNameBusy] = useState(false);
@@ -50,6 +66,37 @@ export function GardenAreasPage() {
   useEffect(() => {
     void loadAreas();
   }, [loadAreas]);
+
+  const switchAreasView = useCallback((next: AreasView) => {
+    setAreasView(next);
+    try {
+      localStorage.setItem(AREAS_VIEW_STORAGE_KEY, next);
+    } catch {
+      /* ignore */
+    }
+  }, []);
+
+  const handleOpenArea = useCallback(
+    (areaId: string) => {
+      navigate(`/gardens/${gardenId}/areas/${areaId}`);
+    },
+    [navigate, gardenId],
+  );
+
+  /** Optimistic placement: update the tile immediately, revert by reload on failure. */
+  const handlePlaceArea = useCallback(
+    (areaId: string, overviewX: number, overviewY: number) => {
+      setPlaceError(null);
+      setAreas((prev) =>
+        prev.map((a) => (a.id === areaId ? { ...a, overviewX, overviewY } : a)),
+      );
+      void patchArea(gardenId, areaId, { overviewX, overviewY }).catch((e: unknown) => {
+        setPlaceError(e instanceof Error ? e.message : t('areas.placeFailed'));
+        void loadAreas();
+      });
+    },
+    [gardenId, loadAreas, t],
+  );
 
   async function saveGardenName() {
     if (!selectedGarden || !gardenName.trim()) return;
@@ -206,9 +253,31 @@ export function GardenAreasPage() {
         </div>
       </div>
 
-      <section>
+      <section className="flex min-h-0 flex-1 flex-col">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <h2 className="text-lg font-semibold text-stone-900">{t('areas.sectionTitle')}</h2>
+          <div className="flex items-center gap-3">
+            <h2 className="text-lg font-semibold text-stone-900">{t('areas.sectionTitle')}</h2>
+            <div className="flex rounded-lg border border-stone-200 bg-white p-0.5 text-sm">
+              <button
+                type="button"
+                data-testid="areas-view-list"
+                aria-pressed={areasView === 'list'}
+                className={`rounded-md px-3 py-1.5 font-medium ${areasView === 'list' ? 'bg-emerald-100 text-emerald-900' : 'text-stone-600'}`}
+                onClick={() => switchAreasView('list')}
+              >
+                {t('areas.viewList')}
+              </button>
+              <button
+                type="button"
+                data-testid="areas-view-map"
+                aria-pressed={areasView === 'map'}
+                className={`rounded-md px-3 py-1.5 font-medium ${areasView === 'map' ? 'bg-emerald-100 text-emerald-900' : 'text-stone-600'}`}
+                onClick={() => switchAreasView('map')}
+              >
+                {t('areas.viewMap')}
+              </button>
+            </div>
+          </div>
           <button
             type="button"
             className="rounded-lg bg-emerald-700 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-800"
@@ -217,8 +286,22 @@ export function GardenAreasPage() {
             {t('areas.addArea')}
           </button>
         </div>
+        {placeError ? (
+          <p className="mt-2 text-sm text-red-600" role="alert">
+            {placeError}
+          </p>
+        ) : null}
         {areasLoading ? (
           <p className="mt-4 text-stone-600">{t('auth.loading')}</p>
+        ) : areasView === 'map' ? (
+          <div className="mt-4 flex min-h-[60dvh] flex-1 flex-col">
+            <GardenOverviewMap
+              areas={areas}
+              onOpenArea={handleOpenArea}
+              onPlaceArea={handlePlaceArea}
+            />
+            <p className="mt-2 text-xs text-stone-500">{t('areas.overviewHint')}</p>
+          </div>
         ) : areas.length === 0 ? (
           <p className="mt-2 text-stone-600">{t('areas.emptyHint')}</p>
         ) : (

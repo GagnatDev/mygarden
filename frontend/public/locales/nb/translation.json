@@ -61,7 +61,13 @@
     "createSubmit": "Opprett område",
     "delete": "Slett",
     "confirmDelete": "Slette dette området og elementene?",
-    "titleRequired": "Skriv inn en tittel."
+    "titleRequired": "Skriv inn en tittel.",
+    "viewList": "Liste",
+    "viewMap": "Kart",
+    "overviewAriaLabel": "Oversiktskart over hagen",
+    "overviewTileAria": "Åpne området {{title}}",
+    "overviewHint": "Dra for å panorere, knip eller rull for å zoome. Trykk på et område for å åpne det; dra det for å plassere det (på berøringsskjerm, hold først). Stiplede områder er ikke plassert ennå.",
+    "placeFailed": "Kunne ikke lagre plasseringen av området."
   },
   "elements": {
     "hasPlantingsHint": "har plantinger",
