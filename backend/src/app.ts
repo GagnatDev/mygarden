@@ -29,9 +29,9 @@ export function createApp(env: Env, logger: pino.Logger, container: AppContainer
     app.use(cors({ origin: true, credentials: true }));
   }
 
+  app.use(requestLogger(logger));
   app.use(cookieParser());
   app.use(express.json());
-  app.use(requestLogger(logger));
 
   app.use('/health', healthRouter);
 
