@@ -188,6 +188,9 @@ export function GridMapEditor({
   const { t } = useTranslation();
   const backgroundImageUrl = area.backgroundImageUrl ?? null;
   const [mode, setMode] = useState<MapMode>('browse');
+  /** Map settings overflow (D1): bottom sheet on mobile, popover on desktop. */
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const settingsWrapRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const viewportRef = useRef<HTMLDivElement>(null);
   const worldRef = useRef<SVGSVGElement>(null);
@@ -487,6 +490,25 @@ export function GridMapEditor({
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [readOnly, mode]);
+
+  /** Close the Map settings overflow on outside click (popover) or Escape. */
+  useEffect(() => {
+    if (!settingsOpen) return;
+    const onDown = (e: MouseEvent) => {
+      if (settingsWrapRef.current && !settingsWrapRef.current.contains(e.target as Node)) {
+        setSettingsOpen(false);
+      }
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setSettingsOpen(false);
+    };
+    document.addEventListener('mousedown', onDown);
+    window.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onDown);
+      window.removeEventListener('keydown', onKey);
+    };
+  }, [settingsOpen]);
 
   const setMoveBoth = useCallback((next: MoveDragState | null) => {
     moveRef.current = next;
@@ -1216,6 +1238,14 @@ export function GridMapEditor({
   const addModeButtonClass = (active: boolean) =>
     `rounded-md px-3 py-1.5 font-medium ${active ? 'bg-emerald-100 text-emerald-900' : 'text-stone-600'}`;
 
+  /** Background upload/remove only make sense on the editable map. */
+  const showBackgroundControls = !readOnly;
+  /** The opacity slider is useful wherever a photo is shown, incl. read-only. */
+  const showOpacityControl = Boolean(backgroundImageUrl);
+  /** Whether the Map settings overflow has anything to show (D1). */
+  const hasMapSettings =
+    showBackgroundControls || showOpacityControl || Boolean(toolbarAddon);
+
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-2">
       <div className="flex flex-wrap items-center gap-2">
@@ -1290,97 +1320,109 @@ export function GridMapEditor({
             <option value="historical">{t('garden.layers.historical')}</option>
           </select>
         </label>
-        {toolbarAddon ? <div className="flex items-center gap-2">{toolbarAddon}</div> : null}
-        {!readOnly ? (
-          <div className="flex flex-wrap items-center gap-2 rounded-lg border border-stone-200 bg-white px-2 py-1.5 text-sm">
-            <input
-              ref={bgFileInputRef}
-              type="file"
-              accept="image/jpeg,image/png,image/webp"
-              className="sr-only"
-              data-testid="map-background-file-input"
-              onChange={onBackgroundFileSelected}
-            />
+        {hasMapSettings ? (
+          <div className="relative" ref={settingsWrapRef}>
             <button
               type="button"
-              data-testid="map-background-upload"
-              disabled={bgActionBusy}
-              className="rounded-md px-2 py-1 font-medium text-stone-700 hover:bg-stone-50 disabled:opacity-50"
-              onClick={() => bgFileInputRef.current?.click()}
+              data-testid="map-settings-toggle"
+              aria-haspopup="dialog"
+              aria-expanded={settingsOpen}
+              className="rounded-lg border border-stone-200 bg-white px-3 py-1.5 text-sm font-medium text-stone-700 hover:bg-stone-50"
+              onClick={() => setSettingsOpen((o) => !o)}
             >
-              {bgActionBusy ? t('garden.backgroundUploading') : t('garden.backgroundUpload')}
+              {t('garden.mapSettings')}
             </button>
-            {backgroundImageUrl ? (
-              <button
-                type="button"
-                data-testid="map-background-remove"
-                disabled={bgActionBusy}
-                className="rounded-md px-2 py-1 font-medium text-red-800 hover:bg-red-50 disabled:opacity-50"
-                onClick={() => void onRemoveBackground()}
-              >
-                {t('garden.backgroundRemove')}
-              </button>
-            ) : null}
-            {bgActionError ? (
-              <span className="text-xs text-red-600" role="alert">
-                {bgActionError}
-              </span>
+            {settingsOpen ? (
+              <>
+                {/* Backdrop dims the map behind the mobile bottom sheet only. */}
+                <div
+                  className="fixed inset-0 z-40 bg-black/30 md:hidden"
+                  aria-hidden
+                  onClick={() => setSettingsOpen(false)}
+                />
+                <div
+                  role="dialog"
+                  aria-label={t('garden.mapSettings')}
+                  data-testid="map-settings-panel"
+                  className="fixed inset-x-0 bottom-0 z-50 flex flex-col gap-3 rounded-t-2xl border-t border-stone-200 bg-white p-4 shadow-xl md:absolute md:inset-x-auto md:bottom-auto md:right-0 md:top-full md:mt-1 md:w-72 md:rounded-xl md:border md:shadow-lg"
+                >
+                  <div className="flex items-center justify-between md:hidden">
+                    <span className="text-sm font-semibold text-stone-900">
+                      {t('garden.mapSettings')}
+                    </span>
+                    <button
+                      type="button"
+                      className="rounded-lg px-2 py-1 text-sm text-stone-500 hover:bg-stone-100"
+                      onClick={() => setSettingsOpen(false)}
+                    >
+                      {t('garden.close')}
+                    </button>
+                  </div>
+
+                  {showBackgroundControls ? (
+                    <div className="flex flex-col gap-2 text-sm">
+                      <input
+                        ref={bgFileInputRef}
+                        type="file"
+                        accept="image/jpeg,image/png,image/webp"
+                        className="sr-only"
+                        data-testid="map-background-file-input"
+                        onChange={onBackgroundFileSelected}
+                      />
+                      <div className="flex flex-wrap items-center gap-2">
+                        <button
+                          type="button"
+                          data-testid="map-background-upload"
+                          disabled={bgActionBusy}
+                          className="rounded-md border border-stone-200 px-2 py-1 font-medium text-stone-700 hover:bg-stone-50 disabled:opacity-50"
+                          onClick={() => bgFileInputRef.current?.click()}
+                        >
+                          {bgActionBusy ? t('garden.backgroundUploading') : t('garden.backgroundUpload')}
+                        </button>
+                        {backgroundImageUrl ? (
+                          <button
+                            type="button"
+                            data-testid="map-background-remove"
+                            disabled={bgActionBusy}
+                            className="rounded-md border border-red-200 px-2 py-1 font-medium text-red-800 hover:bg-red-50 disabled:opacity-50"
+                            onClick={() => void onRemoveBackground()}
+                          >
+                            {t('garden.backgroundRemove')}
+                          </button>
+                        ) : null}
+                      </div>
+                      {bgActionError ? (
+                        <span className="text-xs text-red-600" role="alert">
+                          {bgActionError}
+                        </span>
+                      ) : null}
+                    </div>
+                  ) : null}
+
+                  {showOpacityControl ? (
+                    <label className="flex items-center gap-2 text-sm text-stone-700">
+                      <span className="font-medium">{t('garden.backgroundOpacity')}</span>
+                      <input
+                        data-testid="map-background-opacity"
+                        type="range"
+                        min={0}
+                        max={100}
+                        value={bgOpacityPct}
+                        className="min-w-0 flex-1"
+                        onChange={(e) => setBgOpacityPct(Number(e.target.value))}
+                      />
+                      <span className="tabular-nums text-stone-600">{bgOpacityPct}%</span>
+                    </label>
+                  ) : null}
+
+                  {toolbarAddon ? (
+                    <div className="flex items-center gap-2">{toolbarAddon}</div>
+                  ) : null}
+                </div>
+              </>
             ) : null}
           </div>
         ) : null}
-        {backgroundImageUrl ? (
-          <label className="flex items-center gap-2 text-sm text-stone-700">
-            <span className="font-medium">{t('garden.backgroundOpacity')}</span>
-            <input
-              data-testid="map-background-opacity"
-              type="range"
-              min={0}
-              max={100}
-              value={bgOpacityPct}
-              onChange={(e) => setBgOpacityPct(Number(e.target.value))}
-            />
-            <span className="tabular-nums text-stone-600">{bgOpacityPct}%</span>
-          </label>
-        ) : null}
-        <div className="flex items-center gap-1">
-          <button
-            type="button"
-            className="rounded-lg border border-stone-200 px-2 py-1 text-sm"
-            onClick={() => {
-              viewTouchedRef.current = true;
-              setView((v) => ({
-                ...v,
-                scale: clamp(v.scale / 1.15, minScaleRef.current, MAX_MAP_SCALE),
-              }));
-            }}
-            aria-label={t('garden.zoomOut')}
-          >
-            −
-          </button>
-          <button
-            type="button"
-            className="rounded-lg border border-stone-200 px-2 py-1 text-sm"
-            onClick={() => {
-              viewTouchedRef.current = true;
-              setView((v) => ({
-                ...v,
-                scale: clamp(v.scale * 1.15, minScaleRef.current, MAX_MAP_SCALE),
-              }));
-            }}
-            aria-label={t('garden.zoomIn')}
-          >
-            +
-          </button>
-          <button
-            type="button"
-            className="rounded-lg border border-stone-200 px-2 py-1 text-sm"
-            data-testid="map-zoom-fit"
-            onClick={applyFitView}
-            aria-label={t('garden.zoomFit')}
-          >
-            ⤢
-          </button>
-        </div>
       </div>
 
       {layer !== 'element-type' && legendItems && legendItems.length > 0 ? (
@@ -1405,6 +1447,56 @@ export function GridMapEditor({
         onTouchCancel={onTouchCancel}
         style={{ touchAction: 'none' }}
       >
+        {/* Floating view controls (D2): standard bottom-right web-map placement,
+            ≥44 px touch targets. The wrapper is click-through; only the cluster
+            catches events, and it stops touch propagation so the container's
+            gesture handlers ignore taps on the buttons. */}
+        <div className="pointer-events-none absolute inset-x-0 bottom-0 z-10 flex justify-end p-3">
+          <div
+            data-testid="map-view-controls"
+            className="pointer-events-auto flex flex-col overflow-hidden rounded-xl border border-stone-200 bg-white/95 shadow-lg"
+            onPointerDown={(e) => e.stopPropagation()}
+            onTouchStart={(e) => e.stopPropagation()}
+          >
+            <button
+              type="button"
+              className="flex h-11 w-11 items-center justify-center text-lg text-stone-700 hover:bg-stone-100"
+              onClick={() => {
+                viewTouchedRef.current = true;
+                setView((v) => ({
+                  ...v,
+                  scale: clamp(v.scale * 1.15, minScaleRef.current, MAX_MAP_SCALE),
+                }));
+              }}
+              aria-label={t('garden.zoomIn')}
+            >
+              +
+            </button>
+            <button
+              type="button"
+              className="flex h-11 w-11 items-center justify-center border-t border-stone-200 text-lg text-stone-700 hover:bg-stone-100"
+              onClick={() => {
+                viewTouchedRef.current = true;
+                setView((v) => ({
+                  ...v,
+                  scale: clamp(v.scale / 1.15, minScaleRef.current, MAX_MAP_SCALE),
+                }));
+              }}
+              aria-label={t('garden.zoomOut')}
+            >
+              −
+            </button>
+            <button
+              type="button"
+              data-testid="map-zoom-fit"
+              className="flex h-11 w-11 items-center justify-center border-t border-stone-200 text-lg text-stone-700 hover:bg-stone-100"
+              onClick={applyFitView}
+              aria-label={t('garden.zoomFit')}
+            >
+              ⤢
+            </button>
+          </div>
+        </div>
         <div
           ref={viewportRef}
           data-testid="grid-map-viewport"

@@ -57,6 +57,8 @@ async function testI18n() {
             polygonFinish: 'Finish',
             polygonClear: 'Clear',
             mapLayer: 'Layer',
+            mapSettings: 'Map settings',
+            close: 'Close',
             layers: {
               areaType: 'Area type',
               status: 'Status',
@@ -220,6 +222,61 @@ describe('GridMapEditor', () => {
     expect(screen.getByTestId('map-add-rect')).toBeInTheDocument();
     expect(screen.getByTestId('map-add-polygon')).toBeInTheDocument();
     expect(screen.queryByTestId('map-add-cancel')).toBeNull();
+  });
+
+  it('keeps background controls behind the Map settings overflow, not in the toolbar', async () => {
+    await renderEditor();
+    // The overflow toggle is in the toolbar; the controls are hidden until opened.
+    expect(screen.getByTestId('map-settings-toggle')).toBeInTheDocument();
+    expect(screen.queryByTestId('map-settings-panel')).toBeNull();
+    expect(screen.queryByTestId('map-background-upload')).toBeNull();
+
+    fireEvent.click(screen.getByTestId('map-settings-toggle'));
+    expect(screen.getByTestId('map-settings-panel')).toBeInTheDocument();
+    expect(screen.getByTestId('map-background-upload')).toBeInTheDocument();
+
+    // Toggling again closes it.
+    fireEvent.click(screen.getByTestId('map-settings-toggle'));
+    expect(screen.queryByTestId('map-settings-panel')).toBeNull();
+  });
+
+  it('closes the Map settings overflow on Escape', async () => {
+    await renderEditor();
+    fireEvent.click(screen.getByTestId('map-settings-toggle'));
+    expect(screen.getByTestId('map-settings-panel')).toBeInTheDocument();
+    fireEvent.keyDown(window, { key: 'Escape' });
+    expect(screen.queryByTestId('map-settings-panel')).toBeNull();
+  });
+
+  it('renders the toolbar addon inside the Map settings overflow', async () => {
+    await renderEditor({
+      toolbarAddon: <span data-testid="my-addon">Season</span>,
+    });
+    expect(screen.queryByTestId('my-addon')).toBeNull();
+    fireEvent.click(screen.getByTestId('map-settings-toggle'));
+    const panel = screen.getByTestId('map-settings-panel');
+    expect(panel).toContainElement(screen.getByTestId('my-addon'));
+  });
+
+  it('has no Map settings overflow in read-only mode without a photo or addon', async () => {
+    await renderEditor({ readOnly: true });
+    expect(screen.queryByTestId('map-settings-toggle')).toBeNull();
+  });
+
+  it('moves the zoom and fit controls into a floating cluster over the map', async () => {
+    mockMapContainerSize(400, 300);
+    await renderEditor();
+    const cluster = screen.getByTestId('map-view-controls');
+    expect(cluster).toContainElement(screen.getByRole('button', { name: /zoom in/i }));
+    expect(cluster).toContainElement(screen.getByRole('button', { name: /zoom out/i }));
+    expect(cluster).toContainElement(screen.getByTestId('map-zoom-fit'));
+
+    // The relocated fit control still re-fits the view.
+    const viewport = screen.getByTestId('grid-map-viewport');
+    fireEvent.click(screen.getByRole('button', { name: /zoom in/i }));
+    expect(parseMapViewportTransform(viewport).scale).toBeCloseTo(3.45, 9);
+    fireEvent.click(screen.getByTestId('map-zoom-fit'));
+    expect(parseMapViewportTransform(viewport).scale).toBeCloseTo(3, 9);
   });
 
   it('selects an element when it is clicked in browse mode', async () => {
@@ -807,6 +864,7 @@ describe('GridMapEditor', () => {
     await renderEditor({
       area: { ...mapArea, backgroundImageUrl: '/gardens/g1/areas/ar1/background-image' },
     });
+    fireEvent.click(screen.getByTestId('map-settings-toggle'));
     const slider = await waitFor(() => screen.getByTestId('map-background-opacity'));
     fireEvent.change(slider, { target: { value: '30' } });
     const img = screen.getByTestId('map-background-image');
