@@ -145,6 +145,8 @@
     "cancel": "Avbryt",
     "saveArea": "Lagre område",
     "areaDetails": "Områdedetaljer",
+    "elementSelected": "{{name}} valgt",
+    "openDetails": "Detaljer",
     "close": "Lukk",
     "editArea": "Rediger",
     "saveChanges": "Lagre endringer",

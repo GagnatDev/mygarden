@@ -145,6 +145,8 @@
     "cancel": "Cancel",
     "saveArea": "Save area",
     "areaDetails": "Area details",
+    "elementSelected": "{{name}} selected",
+    "openDetails": "Details",
     "close": "Close",
     "editArea": "Edit",
     "saveChanges": "Save changes",

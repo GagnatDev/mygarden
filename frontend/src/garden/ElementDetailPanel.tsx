@@ -27,6 +27,8 @@ export interface ElementDetailPanelProps {
   sitePlants?: ElementSitePlantSummary[];
   onClose: () => void;
   onChanged: () => Promise<void>;
+  /** Extra classes on the panel root (e.g. to hide the mobile sheet while collapsed). */
+  className?: string;
 }
 
 export function ElementDetailPanel({
@@ -38,6 +40,7 @@ export function ElementDetailPanel({
   sitePlants = [],
   onClose,
   onChanged,
+  className = '',
 }: ElementDetailPanelProps) {
   const { t } = useTranslation();
   const [name, setName] = useState(element.name);
@@ -123,7 +126,7 @@ export function ElementDetailPanel({
 
   return (
     <aside
-      className="fixed inset-x-0 bottom-0 z-50 max-h-[80dvh] overflow-y-auto rounded-t-2xl border-t border-stone-200 bg-white p-4 shadow-xl md:static md:z-auto md:mt-0 md:max-h-none md:w-72 md:shrink-0 md:overflow-visible md:rounded-xl md:border md:shadow-sm"
+      className={`fixed inset-x-0 bottom-0 z-50 max-h-[80dvh] overflow-y-auto rounded-t-2xl border-t border-stone-200 bg-white p-4 shadow-xl md:static md:z-auto md:mt-0 md:max-h-none md:w-72 md:shrink-0 md:overflow-visible md:rounded-xl md:border md:shadow-sm${className ? ` ${className}` : ''}`}
       data-testid="area-detail-panel"
       aria-label={t('garden.areaDetails')}
     >
