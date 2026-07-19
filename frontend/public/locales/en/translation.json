@@ -100,6 +100,7 @@
     "polygonFinish": "Finish",
     "polygonClear": "Clear",
     "mapLayer": "Map layer",
+    "mapSettings": "Map settings",
     "layers": {
       "areaType": "Area type",
       "planVsActual": "Plan vs. actual",

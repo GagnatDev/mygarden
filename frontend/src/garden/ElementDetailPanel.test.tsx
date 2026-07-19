@@ -103,6 +103,19 @@ beforeEach(() => {
   deleteElementMock.mockReset();
 });
 
+describe('ElementDetailPanel layout', () => {
+  it('presents as a bottom sheet on mobile and a static sidebar on desktop', async () => {
+    await renderPanel();
+    const panel = screen.getByTestId('area-detail-panel');
+    // Mobile: fixed bottom sheet over the map.
+    expect(panel.className).toContain('fixed');
+    expect(panel.className).toContain('bottom-0');
+    // Desktop: reverts to the in-flow sidebar.
+    expect(panel.className).toContain('md:static');
+    expect(panel.className).toContain('md:w-72');
+  });
+});
+
 describe('ElementDetailPanel size fields', () => {
   it('shows editable X/Y/width/height fields for rectangle elements in edit mode', async () => {
     await renderPanel();

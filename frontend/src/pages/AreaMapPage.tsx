@@ -404,9 +404,11 @@ export function AreaMapPage() {
             <span className="mx-1">/</span>
             <span className="font-medium text-stone-900">{area.title}</span>
           </nav>
-          <h1 className="mt-2 text-2xl font-semibold text-stone-900">{area.title}</h1>
-          {area.description ? <p className="mt-1 text-sm text-stone-600">{area.description}</p> : null}
-          <p className="mt-1 text-sm text-stone-600">{t('garden.mapHint')}</p>
+          <h1 className="mt-1 text-xl font-semibold text-stone-900 md:mt-2 md:text-2xl">{area.title}</h1>
+          {area.description ? (
+            <p className="mt-1 hidden text-sm text-stone-600 md:block">{area.description}</p>
+          ) : null}
+          <p className="mt-1 hidden text-sm text-stone-600 md:block">{t('garden.mapHint')}</p>
         </div>
         {quickLogProps ? (
           <button
@@ -420,8 +422,8 @@ export function AreaMapPage() {
         ) : null}
       </div>
 
-      <div className="mt-6 flex min-h-0 flex-1 flex-col gap-4 md:flex-row md:items-stretch">
-        <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+      <div className="mt-4 flex min-h-0 flex-1 flex-col gap-4 md:mt-6 md:flex-row md:items-stretch">
+        <div className="flex min-h-[60dvh] min-w-0 flex-1 flex-col md:min-h-0">
           {mapMoveError ? (
             <p className="mb-2 text-sm text-red-600" role="alert">
               {mapMoveError}
@@ -474,19 +476,27 @@ export function AreaMapPage() {
           )}
         </div>
         {selectedElement && seasonId ? (
-          <ElementDetailPanel
-            gardenId={gardenId}
-            areaId={areaId}
-            seasonId={seasonId}
-            element={selectedElement}
-            plantings={plantingsForSelectedElement}
-            sitePlants={sitePlantsForSelectedElement}
-            onClose={() => setSelectedElementId(null)}
-            onChanged={async () => {
-              await loadAreaAndElements({ soft: true });
-              await refreshMapPlantings();
-            }}
-          />
+          <>
+            {/* Dim the map behind the mobile bottom sheet; desktop keeps the sidebar. */}
+            <div
+              className="fixed inset-0 z-40 bg-black/30 md:hidden"
+              aria-hidden
+              onClick={() => setSelectedElementId(null)}
+            />
+            <ElementDetailPanel
+              gardenId={gardenId}
+              areaId={areaId}
+              seasonId={seasonId}
+              element={selectedElement}
+              plantings={plantingsForSelectedElement}
+              sitePlants={sitePlantsForSelectedElement}
+              onClose={() => setSelectedElementId(null)}
+              onChanged={async () => {
+                await loadAreaAndElements({ soft: true });
+                await refreshMapPlantings();
+              }}
+            />
+          </>
         ) : null}
       </div>
 
