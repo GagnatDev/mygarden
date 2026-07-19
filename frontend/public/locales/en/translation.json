@@ -99,6 +99,7 @@
     "addPolygon": "Add polygon",
     "resizeHandleAria": "Resize {{name}} ({{direction}})",
     "reshapeHandleAria": "Reshape {{name}}, vertex {{index}}",
+    "resizeAreaHandleAria": "Resize area ({{direction}})",
     "positionX": "X (cells)",
     "positionY": "Y (cells)",
     "widthCells": "Width (cells)",
@@ -130,6 +131,7 @@
       "unplanned": "Unplanned"
     },
     "moveAreaFailed": "Could not move the area. Check that it stays inside the grid and does not overlap another area.",
+    "resizeAreaFailed": "Could not resize the area. It cannot be made smaller than the elements it contains.",
     "zoomIn": "Zoom in",
     "zoomOut": "Zoom out",
     "zoomFit": "Zoom to fit",

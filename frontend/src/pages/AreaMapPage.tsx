@@ -4,7 +4,7 @@ import { Link, Navigate, useParams } from 'react-router-dom';
 import type { Season } from '../api/gardens';
 import { listSeasons } from '../api/gardens';
 import type { Area } from '../api/areas';
-import { getArea } from '../api/areas';
+import { getArea, patchArea } from '../api/areas';
 import type { Element, ElementShape } from '../api/elements';
 import { listElements, patchElement } from '../api/elements';
 import type { ActivityLog } from '../api/logs';
@@ -206,6 +206,21 @@ export function AreaMapPage() {
       }
     },
     [gardenId, areaId, loadAreaAndElements, t],
+  );
+
+  const handleResizeArea = useCallback(
+    async (gridWidth: number, gridHeight: number) => {
+      if (!gardenId || !areaId) return;
+      setMapMoveError(null);
+      try {
+        await patchArea(gardenId, areaId, { gridWidth, gridHeight });
+        await loadAreaAndElements({ soft: true });
+        void refreshGardens({ soft: true });
+      } catch (e) {
+        setMapMoveError(e instanceof Error ? e.message : t('garden.resizeAreaFailed'));
+      }
+    },
+    [gardenId, areaId, loadAreaAndElements, refreshGardens, t],
   );
 
   const handleReshapeElement = useCallback(
@@ -510,6 +525,7 @@ export function AreaMapPage() {
               onMoveElement={handleMoveElement}
               onResizeElement={handleResizeElement}
               onReshapeElement={handleReshapeElement}
+              onResizeArea={handleResizeArea}
             />
           )}
         </div>
