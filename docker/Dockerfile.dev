@@ -10,5 +10,5 @@ RUN corepack enable && pnpm install --frozen-lockfile
 COPY backend ./backend
 COPY frontend ./frontend
 ENV NODE_ENV=development
-EXPOSE 3000 5173
-CMD ["sh", "-c", "pnpm --filter backend exec tsx watch src/server.ts & pnpm --filter frontend exec vite --host 0.0.0.0 --port 5173"]
+EXPOSE 8083 3003
+CMD ["sh", "-c", "pnpm --filter backend exec tsx watch src/server.ts & pnpm --filter frontend exec vite --host 0.0.0.0 --port 3003"]

@@ -33,14 +33,14 @@ Backend integration tests need the Docker socket reachable as `ubuntu` (group me
 
 ## Running services
 
-1. **MongoDB**: `docker run -d --name mongodb -p 27017:27017 mongo:7`. Verify with `docker exec mongodb mongosh --eval "db.runCommand({ping:1})" --quiet`.
-2. **Backend**: `pnpm --filter backend dev` (port 3000). Requires a `backend/.env` file with at minimum:
+1. **MongoDB**: `docker run -d --name mongodb -p 27018:27017 mongo:7`. Verify with `docker exec mongodb mongosh --eval "db.runCommand({ping:1})" --quiet`.
+2. **Backend**: `pnpm --filter backend dev` (port 8083). Requires a `backend/.env` file with at minimum:
    ```
-   MONGODB_URI=mongodb://localhost:27017/mygarden
+   MONGODB_URI=mongodb://localhost:27018/mygarden
    JWT_SECRET=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
    JWT_REFRESH_SECRET=bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
    ```
-3. **Frontend**: `pnpm --filter frontend dev` (port 5173, proxies `/api` and `/health` to `localhost:3000`).
+3. **Frontend**: `pnpm --filter frontend dev` (port 3003, proxies `/api` and `/health` to `localhost:8083`).
 
 ## Gotchas
 

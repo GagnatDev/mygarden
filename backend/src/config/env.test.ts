@@ -11,7 +11,7 @@ const base = {
 describe('loadEnv', () => {
   it('accepts valid config with defaults', () => {
     const env = loadEnv(base);
-    expect(env.PORT).toBe(3000);
+    expect(env.PORT).toBe(8083);
     expect(env.NODE_ENV).toBe('test');
     expect(env.JWT_SECRET).toHaveLength(32);
     expect(env.ACCESS_TOKEN_EXPIRES).toBe('15m');

@@ -9,7 +9,7 @@ These variables are validated at backend startup ([`backend/src/config/env.ts`](
 | Variable | Required | Description |
 |----------|----------|-------------|
 | `NODE_ENV` | No | Use `production` in production (default `development` if unset). |
-| `PORT` | No | HTTP listen port (default `3000`; Docker image defaults to `8080`). |
+| `PORT` | No | HTTP listen port (default `8083`; Docker image defaults to `8080`). |
 | `MONGODB_URI` | Yes | MongoDB connection string (e.g. Scaleway Managed MongoDB). |
 | `JWT_SECRET` | Yes | Signing key for access tokens (minimum 32 characters). |
 | `JWT_REFRESH_SECRET` | Yes | Signing key for refresh tokens (minimum 32 characters). |
@@ -79,4 +79,4 @@ export JWT_REFRESH_SECRET='...'  # 32+ chars
 docker compose -f docker-compose.prod.yml up --build
 ```
 
-Health check: `GET http://localhost:8080/health`.
+Health check: `GET http://localhost:8083/health`.
