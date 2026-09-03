@@ -21,9 +21,9 @@ pnpm install
 docker compose up --build
 ```
 
-- App: [http://localhost:8080](http://localhost:8080)
-- Health: [http://localhost:8080/health](http://localhost:8080/health)
-- MinIO console: [http://localhost:9001](http://localhost:9001) (see `docker-compose.yml` for dev credentials)
+- App: [http://localhost:8083](http://localhost:8083)
+- Health: [http://localhost:8083/health](http://localhost:8083/health)
+- MinIO console: [http://localhost:9201](http://localhost:9201) (see `docker-compose.yml` for dev credentials)
 
 Hot-reload development overlay:
 
@@ -34,7 +34,7 @@ docker compose -f docker-compose.yml -f docker-compose.dev.yml up
 ### Run without Docker
 
 ```bash
-# Terminal 1 — backend (default port 3000)
+# Terminal 1 — backend (default port 8083)
 pnpm --filter backend dev
 
 # Terminal 2 — frontend (Vite; proxies API in dev)
@@ -59,7 +59,7 @@ Build from the repo root:
 docker build -f docker/Dockerfile -t mygarden:local .
 ```
 
-The image listens on port **8080** by default (`PORT`).
+The image listens on port **8080** by default (`PORT`); local Compose usage overrides this to **8083** (see `docker-compose.yml`) to avoid colliding with other apps' local dev stacks.
 
 ## Deployment
 

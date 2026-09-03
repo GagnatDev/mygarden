@@ -7,10 +7,10 @@ services:
       context: .
       dockerfile: docker/Dockerfile
     ports:
-      - "8080:8080"
+      - "8083:8083"
     environment:
       NODE_ENV: production
-      PORT: 8080
+      PORT: 8083
       MONGODB_URI: ${MONGODB_URI:?set MONGODB_URI}
       JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET}
       JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:?set JWT_REFRESH_SECRET}

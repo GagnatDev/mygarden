@@ -37,9 +37,10 @@ export default defineConfig({
     }),
   ],
   server: {
+    port: 3003,
     proxy: {
-      '/health': { target: 'http://localhost:3000', changeOrigin: true },
-      '/api': { target: 'http://localhost:3000', changeOrigin: true },
+      '/health': { target: 'http://localhost:8083', changeOrigin: true },
+      '/api': { target: 'http://localhost:8083', changeOrigin: true },
     },
   },
 });

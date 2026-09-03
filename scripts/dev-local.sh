@@ -16,7 +16,7 @@ done
 ENV_FILE="$ROOT/backend/.env"
 if [[ ! -f "$ENV_FILE" ]]; then
   cat >"$ENV_FILE" <<'EOF'
-MONGODB_URI=mongodb://127.0.0.1:27017/mygarden
+MONGODB_URI=mongodb://127.0.0.1:27018/mygarden
 JWT_SECRET=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
 JWT_REFRESH_SECRET=bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
 NODE_ENV=development
