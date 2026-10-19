@@ -84,7 +84,7 @@ export class ActivityLogRepositoryMongo implements IActivityLogRepository {
     const doc = await ActivityLogModel.findByIdAndUpdate(
       id,
       { $set: patch },
-      { new: true, runValidators: true, timestamps: false },
+      { returnDocument: 'after', runValidators: true, timestamps: false },
     ).lean();
     if (!doc) return null;
     return toLog(doc as ActivityLogDoc);

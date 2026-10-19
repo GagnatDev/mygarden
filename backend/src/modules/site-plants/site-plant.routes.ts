@@ -22,9 +22,9 @@ export function createSitePlantsRouter(c: AppContainer): Router {
   r.post(
     '/',
     asyncHandler(async (req, res) => {
-      const parsed = createSitePlantBodySchema.safeParse(req.body);
+      const parsed = createSitePlantBodySchema.safeParse(req.body ?? {});
       if (!parsed.success) {
-        throw new HttpError(400, parsed.error.errors[0]?.message ?? 'Invalid body', 'Bad Request');
+        throw new HttpError(400, parsed.error.issues[0]?.message ?? 'Invalid body', 'Bad Request');
       }
       const gardenId = paramString(req.params.gardenId, 'garden id');
       const sp = await c.sitePlantService.create(gardenId, req.auth!.id, {
@@ -41,9 +41,9 @@ export function createSitePlantsRouter(c: AppContainer): Router {
   r.patch(
     '/:sitePlantId',
     asyncHandler(async (req, res) => {
-      const parsed = patchSitePlantBodySchema.safeParse(req.body);
+      const parsed = patchSitePlantBodySchema.safeParse(req.body ?? {});
       if (!parsed.success) {
-        throw new HttpError(400, parsed.error.errors[0]?.message ?? 'Invalid body', 'Bad Request');
+        throw new HttpError(400, parsed.error.issues[0]?.message ?? 'Invalid body', 'Bad Request');
       }
       const gardenId = paramString(req.params.gardenId, 'garden id');
       const sitePlantId = paramString(req.params.sitePlantId, 'site plant id');

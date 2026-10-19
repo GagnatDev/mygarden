@@ -38,9 +38,9 @@ export function createTasksRouter(c: AppContainer): Router {
   r.post(
     '/',
     asyncHandler(async (req, res) => {
-      const parsed = createManualTaskBodySchema.safeParse(req.body);
+      const parsed = createManualTaskBodySchema.safeParse(req.body ?? {});
       if (!parsed.success) {
-        throw new HttpError(400, parsed.error.errors[0]?.message ?? 'Invalid body', 'Bad Request');
+        throw new HttpError(400, parsed.error.issues[0]?.message ?? 'Invalid body', 'Bad Request');
       }
       const gardenId = paramString(req.params.gardenId, 'garden id');
       const task = await c.taskService.createManual(gardenId, {
@@ -57,9 +57,9 @@ export function createTasksRouter(c: AppContainer): Router {
   r.patch(
     '/:taskId',
     asyncHandler(async (req, res) => {
-      const parsed = patchTaskBodySchema.safeParse(req.body);
+      const parsed = patchTaskBodySchema.safeParse(req.body ?? {});
       if (!parsed.success) {
-        throw new HttpError(400, parsed.error.errors[0]?.message ?? 'Invalid body', 'Bad Request');
+        throw new HttpError(400, parsed.error.issues[0]?.message ?? 'Invalid body', 'Bad Request');
       }
       const gardenId = paramString(req.params.gardenId, 'garden id');
       const taskId = paramString(req.params.taskId, 'task id');

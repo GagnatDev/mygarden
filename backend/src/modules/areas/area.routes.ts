@@ -42,9 +42,9 @@ export function createAreasRouter(env: Env, c: AppContainer): Router {
   r.post(
     '/',
     asyncHandler(async (req, res) => {
-      const parsed = createAreaBodySchema.safeParse(req.body);
+      const parsed = createAreaBodySchema.safeParse(req.body ?? {});
       if (!parsed.success) {
-        throw new HttpError(400, parsed.error.errors[0]?.message ?? 'Invalid body', 'Bad Request');
+        throw new HttpError(400, parsed.error.issues[0]?.message ?? 'Invalid body', 'Bad Request');
       }
       const gardenId = paramString(req.params.gardenId, 'garden id');
       const area = await c.areaService.create(gardenId, parsed.data);
@@ -65,9 +65,9 @@ export function createAreasRouter(env: Env, c: AppContainer): Router {
   r.patch(
     '/:areaId',
     asyncHandler(async (req, res) => {
-      const parsed = patchAreaBodySchema.safeParse(req.body);
+      const parsed = patchAreaBodySchema.safeParse(req.body ?? {});
       if (!parsed.success) {
-        throw new HttpError(400, parsed.error.errors[0]?.message ?? 'Invalid body', 'Bad Request');
+        throw new HttpError(400, parsed.error.issues[0]?.message ?? 'Invalid body', 'Bad Request');
       }
       const gardenId = paramString(req.params.gardenId, 'garden id');
       const areaId = paramString(req.params.areaId, 'area id');

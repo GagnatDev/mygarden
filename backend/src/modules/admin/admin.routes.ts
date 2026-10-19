@@ -25,7 +25,7 @@ export function createAdminRouter(env: Env, c: AppContainer): Router {
   r.post(
     '/allowed-emails',
     asyncHandler(async (req, res) => {
-      const parsed = createAllowedEmailBodySchema.safeParse(req.body);
+      const parsed = createAllowedEmailBodySchema.safeParse(req.body ?? {});
       if (!parsed.success) {
         throw new HttpError(400, 'Invalid request body', 'Bad Request');
       }

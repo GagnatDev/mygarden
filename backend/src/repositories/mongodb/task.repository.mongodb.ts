@@ -93,7 +93,7 @@ export class TaskRepositoryMongo implements ITaskRepository {
     const doc = await TaskModel.findByIdAndUpdate(
       id,
       { $set: patch },
-      { new: true, runValidators: true },
+      { returnDocument: 'after', runValidators: true },
     ).lean();
     if (!doc) return null;
     return toTask(doc as TaskDoc);

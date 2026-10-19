@@ -58,7 +58,7 @@ export class PlantProfileRepositoryMongo implements IPlantProfileRepository {
     const doc = await PlantProfileModel.findOneAndUpdate(
       { _id: id, userId },
       { $set: patch },
-      { new: true, runValidators: true },
+      { returnDocument: 'after', runValidators: true },
     ).lean();
     if (!doc) return null;
     return toProfile(doc as PlantProfileDoc);
@@ -77,7 +77,7 @@ export class PlantProfileRepositoryMongo implements IPlantProfileRepository {
     const doc = await PlantProfileModel.findOneAndUpdate(
       { _id: id, userId },
       { $set: { images } },
-      { new: true, runValidators: true },
+      { returnDocument: 'after', runValidators: true },
     ).lean();
     if (!doc) return null;
     return toProfile(doc as PlantProfileDoc);

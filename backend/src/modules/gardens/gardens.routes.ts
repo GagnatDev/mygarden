@@ -31,9 +31,9 @@ export function createGardensRouter(env: Env, c: AppContainer): Router {
   r.post(
     '/',
     asyncHandler(async (req, res) => {
-      const parsed = createGardenBodySchema.safeParse(req.body);
+      const parsed = createGardenBodySchema.safeParse(req.body ?? {});
       if (!parsed.success) {
-        throw new HttpError(400, parsed.error.errors[0]?.message ?? 'Invalid body', 'Bad Request');
+        throw new HttpError(400, parsed.error.issues[0]?.message ?? 'Invalid body', 'Bad Request');
       }
       const garden = await c.gardenService.createForUser(req.auth!.id, parsed.data);
       res.status(201).json(toPublicGarden(garden));
@@ -55,9 +55,9 @@ export function createGardensRouter(env: Env, c: AppContainer): Router {
   scoped.patch(
     '/',
     asyncHandler(async (req, res) => {
-      const parsed = patchGardenBodySchema.safeParse(req.body);
+      const parsed = patchGardenBodySchema.safeParse(req.body ?? {});
       if (!parsed.success) {
-        throw new HttpError(400, parsed.error.errors[0]?.message ?? 'Invalid body', 'Bad Request');
+        throw new HttpError(400, parsed.error.issues[0]?.message ?? 'Invalid body', 'Bad Request');
       }
       const gardenId = paramString(req.params.gardenId, 'garden id');
       const garden = await c.gardenService.updateForMembership(

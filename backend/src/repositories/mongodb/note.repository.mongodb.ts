@@ -84,7 +84,7 @@ export class NoteRepositoryMongo implements INoteRepository {
   }
 
   async update(id: string, patch: Partial<Pick<Note, 'body' | 'updatedAt'>>): Promise<Note | null> {
-    const doc = await NoteModel.findByIdAndUpdate(id, { $set: patch }, { new: true, runValidators: true }).lean();
+    const doc = await NoteModel.findByIdAndUpdate(id, { $set: patch }, { returnDocument: 'after', runValidators: true }).lean();
     if (!doc) return null;
     return toNote(doc as NoteDoc);
   }
@@ -93,7 +93,7 @@ export class NoteRepositoryMongo implements INoteRepository {
     const doc = await NoteModel.findByIdAndUpdate(
       input.noteId,
       { $set: { photo: input.photo } },
-      { new: true, runValidators: true },
+      { returnDocument: 'after', runValidators: true },
     ).lean();
     if (!doc) return null;
     return toNote(doc as NoteDoc);

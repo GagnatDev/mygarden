@@ -87,7 +87,7 @@ export class ElementRepositoryMongo implements IElementRepository {
     const doc = await ElementModel.findByIdAndUpdate(
       id,
       { $set: patch },
-      { new: true, runValidators: true },
+      { returnDocument: 'after', runValidators: true },
     ).lean();
     if (!doc) return null;
     return toElement(doc as ElementDoc);

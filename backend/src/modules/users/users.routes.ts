@@ -25,9 +25,9 @@ export function createUsersRouter(env: Env, c: AppContainer): Router {
   r.patch(
     '/me',
     asyncHandler(async (req, res) => {
-      const parsed = patchMeBodySchema.safeParse(req.body);
+      const parsed = patchMeBodySchema.safeParse(req.body ?? {});
       if (!parsed.success) {
-        throw new HttpError(400, parsed.error.errors[0]?.message ?? 'Invalid body', 'Bad Request');
+        throw new HttpError(400, parsed.error.issues[0]?.message ?? 'Invalid body', 'Bad Request');
       }
       const { displayName, language } = parsed.data;
       const patch: { displayName?: string; language?: 'nb' | 'en' } = {};

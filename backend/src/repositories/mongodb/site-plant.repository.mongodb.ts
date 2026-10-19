@@ -56,7 +56,7 @@ export class SitePlantRepositoryMongo implements ISitePlantRepository {
       Pick<SitePlant, 'elementId' | 'plantProfileId' | 'plantName' | 'establishedDate' | 'notes'>
     >,
   ): Promise<SitePlant | null> {
-    const doc = await SitePlantModel.findByIdAndUpdate(id, { $set: patch }, { new: true, runValidators: true }).lean();
+    const doc = await SitePlantModel.findByIdAndUpdate(id, { $set: patch }, { returnDocument: 'after', runValidators: true }).lean();
     if (!doc) return null;
     return toSitePlant(doc as SitePlantDoc);
   }

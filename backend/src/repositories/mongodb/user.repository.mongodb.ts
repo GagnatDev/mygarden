@@ -60,7 +60,7 @@ export class UserRepositoryMongo implements IUserRepository {
     const doc = await UserModel.findByIdAndUpdate(
       id,
       { $set: patch },
-      { new: true, runValidators: true },
+      { returnDocument: 'after', runValidators: true },
     ).lean();
     if (!doc) return null;
     return toUser(doc as UserDoc);
