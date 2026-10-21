@@ -46,7 +46,8 @@ export function createApp(env: Env, logger: pino.Logger, container: AppContainer
   if (env.NODE_ENV === 'production') {
     const publicDir = path.join(process.cwd(), '..', 'public');
     app.use(express.static(publicDir));
-    app.get('*', (_req, res, next) => {
+    // Express 5 / path-to-regexp 8 requires a named wildcard; `{*splat}` also matches `/`.
+    app.get('/{*splat}', (_req, res, next) => {
       res.sendFile(path.join(publicDir, 'index.html'), (err) => {
         if (err) next(err);
       });
