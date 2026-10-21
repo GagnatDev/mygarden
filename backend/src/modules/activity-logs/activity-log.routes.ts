@@ -33,9 +33,9 @@ export function createActivityLogsRouter(c: AppContainer): Router {
   r.post(
     '/',
     asyncHandler(async (req, res) => {
-      const parsed = createActivityLogBodySchema.safeParse(req.body);
+      const parsed = createActivityLogBodySchema.safeParse(req.body ?? {});
       if (!parsed.success) {
-        throw new HttpError(400, parsed.error.errors[0]?.message ?? 'Invalid body', 'Bad Request');
+        throw new HttpError(400, parsed.error.issues[0]?.message ?? 'Invalid body', 'Bad Request');
       }
       const gardenId = paramString(req.params.gardenId, 'garden id');
       const log = await c.activityLogService.create(gardenId, req.auth!.id, {
@@ -55,9 +55,9 @@ export function createActivityLogsRouter(c: AppContainer): Router {
   r.patch(
     '/:logId',
     asyncHandler(async (req, res) => {
-      const parsed = patchActivityLogBodySchema.safeParse(req.body);
+      const parsed = patchActivityLogBodySchema.safeParse(req.body ?? {});
       if (!parsed.success) {
-        throw new HttpError(400, parsed.error.errors[0]?.message ?? 'Invalid body', 'Bad Request');
+        throw new HttpError(400, parsed.error.issues[0]?.message ?? 'Invalid body', 'Bad Request');
       }
       const gardenId = paramString(req.params.gardenId, 'garden id');
       const logId = paramString(req.params.logId, 'log id');

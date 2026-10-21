@@ -53,7 +53,7 @@ export class SeasonRepositoryMongo implements ISeasonRepository {
     id: string,
     patch: Partial<Pick<Season, 'name' | 'startDate' | 'endDate' | 'isActive'>>,
   ): Promise<Season | null> {
-    const doc = await SeasonModel.findByIdAndUpdate(id, { $set: patch }, { new: true, runValidators: true }).lean();
+    const doc = await SeasonModel.findByIdAndUpdate(id, { $set: patch }, { returnDocument: 'after', runValidators: true }).lean();
     if (!doc) return null;
     return toSeason(doc as SeasonDoc);
   }

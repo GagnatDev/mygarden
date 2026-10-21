@@ -42,7 +42,7 @@ export class GardenRepositoryMongo implements IGardenRepository {
     const doc = await GardenModel.findByIdAndUpdate(
       id,
       { $set: patch },
-      { new: true, runValidators: true },
+      { returnDocument: 'after', runValidators: true },
     ).lean();
     if (!doc) return null;
     return toGarden(doc as GardenDoc);

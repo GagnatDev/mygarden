@@ -71,7 +71,7 @@ export class AreaRepositoryMongo implements IAreaRepository {
     const doc = await AreaModel.findByIdAndUpdate(
       id,
       { $set: patch },
-      { new: true, runValidators: true },
+      { returnDocument: 'after', runValidators: true },
     ).lean();
     if (!doc) return null;
     return toArea(doc as AreaDoc);

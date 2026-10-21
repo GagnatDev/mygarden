@@ -8,5 +8,7 @@ export default defineConfig({
     hookTimeout: 120_000,
     maxWorkers: 1,
     fileParallelism: false,
+    include: ['src/**/*.test.ts'],
+    exclude: ['**/node_modules/**', '**/dist/**'],
   },
 });

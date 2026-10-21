@@ -16,7 +16,7 @@ export function requireAppOwner(env: Env, users: IUserRepository): RequestHandle
       throw new HttpError(401, 'User not found', 'Unauthorized');
     }
 
-    let isOwner = false;
+    let isOwner: boolean;
     if (env.ADMIN_EMAIL) {
       isOwner = user.email.toLowerCase() === env.ADMIN_EMAIL;
     } else {

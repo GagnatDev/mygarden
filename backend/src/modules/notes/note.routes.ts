@@ -116,9 +116,9 @@ export function createNotesRouter(env: Env, c: AppContainer): Router {
   r.post(
     '/',
     asyncHandler(async (req, res) => {
-      const parsed = createNoteBodySchema.safeParse(req.body);
+      const parsed = createNoteBodySchema.safeParse(req.body ?? {});
       if (!parsed.success) {
-        throw new HttpError(400, parsed.error.errors[0]?.message ?? 'Invalid body', 'Bad Request');
+        throw new HttpError(400, parsed.error.issues[0]?.message ?? 'Invalid body', 'Bad Request');
       }
       const gardenId = paramString(req.params.gardenId, 'garden id');
       const note = await c.noteService.create(gardenId, req.auth!.id, parsed.data);
@@ -129,9 +129,9 @@ export function createNotesRouter(env: Env, c: AppContainer): Router {
   r.patch(
     '/:noteId',
     asyncHandler(async (req, res) => {
-      const parsed = patchNoteBodySchema.safeParse(req.body);
+      const parsed = patchNoteBodySchema.safeParse(req.body ?? {});
       if (!parsed.success) {
-        throw new HttpError(400, parsed.error.errors[0]?.message ?? 'Invalid body', 'Bad Request');
+        throw new HttpError(400, parsed.error.issues[0]?.message ?? 'Invalid body', 'Bad Request');
       }
       const gardenId = paramString(req.params.gardenId, 'garden id');
       const noteId = paramString(req.params.noteId, 'note id');

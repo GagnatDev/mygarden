@@ -15,6 +15,12 @@ const testEnv: Env = {
   ACCESS_TOKEN_EXPIRES: '15m',
   REFRESH_TOKEN_EXPIRES: '7d',
   BCRYPT_ROUNDS: 12,
+  ADMIN_EMAIL: undefined,
+  S3_ENDPOINT: undefined,
+  S3_REGION: undefined,
+  S3_BUCKET: undefined,
+  S3_ACCESS_KEY_ID: undefined,
+  S3_SECRET_ACCESS_KEY: undefined,
 };
 
 const logger = pino({ level: 'silent' });

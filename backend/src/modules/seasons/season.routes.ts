@@ -25,9 +25,9 @@ export function createSeasonsRouter(c: AppContainer): Router {
   r.post(
     '/',
     asyncHandler(async (req, res) => {
-      const parsed = createSeasonBodySchema.safeParse(req.body);
+      const parsed = createSeasonBodySchema.safeParse(req.body ?? {});
       if (!parsed.success) {
-        throw new HttpError(400, parsed.error.errors[0]?.message ?? 'Invalid body', 'Bad Request');
+        throw new HttpError(400, parsed.error.issues[0]?.message ?? 'Invalid body', 'Bad Request');
       }
       const gardenId = paramString(req.params.gardenId, 'garden id');
       const { name, startDate, endDate, isActive } = parsed.data;
@@ -56,7 +56,7 @@ export function createSeasonsRouter(c: AppContainer): Router {
     asyncHandler(async (req, res) => {
       const parsed = archiveSeasonBodySchema.safeParse(req.body ?? {});
       if (!parsed.success) {
-        throw new HttpError(400, parsed.error.errors[0]?.message ?? 'Invalid body', 'Bad Request');
+        throw new HttpError(400, parsed.error.issues[0]?.message ?? 'Invalid body', 'Bad Request');
       }
       const gardenId = paramString(req.params.gardenId, 'garden id');
       const seasonId = paramString(req.params.seasonId, 'season id');
@@ -75,9 +75,9 @@ export function createSeasonsRouter(c: AppContainer): Router {
   r.patch(
     '/:seasonId',
     asyncHandler(async (req, res) => {
-      const parsed = patchSeasonBodySchema.safeParse(req.body);
+      const parsed = patchSeasonBodySchema.safeParse(req.body ?? {});
       if (!parsed.success) {
-        throw new HttpError(400, parsed.error.errors[0]?.message ?? 'Invalid body', 'Bad Request');
+        throw new HttpError(400, parsed.error.issues[0]?.message ?? 'Invalid body', 'Bad Request');
       }
       const gardenId = paramString(req.params.gardenId, 'garden id');
       const seasonId = paramString(req.params.seasonId, 'season id');

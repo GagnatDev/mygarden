@@ -32,9 +32,9 @@ export function createPlantProfilesRouter(env: Env, c: AppContainer): Router {
   r.post(
     '/',
     asyncHandler(async (req, res) => {
-      const parsed = createPlantProfileBodySchema.safeParse(req.body);
+      const parsed = createPlantProfileBodySchema.safeParse(req.body ?? {});
       if (!parsed.success) {
-        throw new HttpError(400, parsed.error.errors[0]?.message ?? 'Invalid body', 'Bad Request');
+        throw new HttpError(400, parsed.error.issues[0]?.message ?? 'Invalid body', 'Bad Request');
       }
       const p = await c.plantProfileService.createForUser(req.auth!.id, {
         name: parsed.data.name,
@@ -48,9 +48,9 @@ export function createPlantProfilesRouter(env: Env, c: AppContainer): Router {
   r.patch(
     '/:profileId',
     asyncHandler(async (req, res) => {
-      const parsed = patchPlantProfileBodySchema.safeParse(req.body);
+      const parsed = patchPlantProfileBodySchema.safeParse(req.body ?? {});
       if (!parsed.success) {
-        throw new HttpError(400, parsed.error.errors[0]?.message ?? 'Invalid body', 'Bad Request');
+        throw new HttpError(400, parsed.error.issues[0]?.message ?? 'Invalid body', 'Bad Request');
       }
       const profileId = paramString(req.params.profileId, 'profile id');
       const p = await c.plantProfileService.updateForUser(req.auth!.id, profileId, parsed.data);

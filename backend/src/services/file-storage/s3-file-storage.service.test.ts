@@ -16,7 +16,10 @@ vi.mock('@aws-sdk/client-s3', async () => {
   const actual = await vi.importActual<typeof import('@aws-sdk/client-s3')>('@aws-sdk/client-s3');
   return {
     ...actual,
-    S3Client: vi.fn().mockImplementation(() => ({ send: sendMock })),
+    // Vitest 5 rejects arrow functions as constructable mock implementations.
+    S3Client: vi.fn(function MockS3Client() {
+      return { send: sendMock };
+    }),
   };
 });
 

@@ -86,7 +86,7 @@ export class PlantingRepositoryMongo implements IPlantingRepository {
     const doc = await PlantingModel.findByIdAndUpdate(
       id,
       { $set: patch },
-      { new: true, runValidators: true },
+      { returnDocument: 'after', runValidators: true },
     ).lean();
     if (!doc) return null;
     return toPlanting(doc as PlantingDoc);
