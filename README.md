@@ -4,7 +4,7 @@ Monorepo for the MyGarden garden planning PWA: React frontend, Express/MongoDB b
 
 ## Requirements
 
-- Node.js 24.22.1+ and [pnpm](https://pnpm.io) 9+
+- Node.js 24.22.2+ and [pnpm](https://pnpm.io) 9+
 - Docker and Docker Compose (for local full stack)
 
 ## Development

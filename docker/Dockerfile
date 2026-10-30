@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1
 
-FROM node:24.22.1-alpine AS installer
+FROM node:24.22.2-alpine AS installer
 WORKDIR /app
 COPY package.json pnpm-workspace.yaml pnpm-lock.yaml ./
 COPY backend/package.json ./backend/
@@ -12,7 +12,7 @@ COPY frontend ./frontend
 RUN pnpm --filter backend run build
 RUN pnpm --filter frontend run build
 
-FROM node:24.22.1-alpine
+FROM node:24.22.2-alpine
 WORKDIR /app
 ENV NODE_ENV=production
 ENV PORT=8080

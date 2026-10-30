@@ -331,7 +331,7 @@ A single Docker image packages the entire application:
 ```dockerfile
 # Multi-stage build
 # Stage 1: Build frontend
-FROM node:24.22.1-alpine AS frontend-build
+FROM node:24.22.2-alpine AS frontend-build
 WORKDIR /app/frontend
 COPY frontend/package.json frontend/pnpm-lock.yaml ./
 RUN corepack enable && pnpm install --frozen-lockfile
@@ -339,7 +339,7 @@ COPY frontend/ ./
 RUN pnpm run build
 
 # Stage 2: Build backend
-FROM node:24.22.1-alpine AS backend-build
+FROM node:24.22.2-alpine AS backend-build
 WORKDIR /app/backend
 COPY backend/package.json backend/pnpm-lock.yaml ./
 RUN corepack enable && pnpm install --frozen-lockfile
@@ -347,7 +347,7 @@ COPY backend/ ./
 RUN pnpm run build
 
 # Stage 3: Production image
-FROM node:24.22.1-alpine
+FROM node:24.22.2-alpine
 WORKDIR /app
 COPY --from=backend-build /app/backend/dist ./dist
 COPY --from=backend-build /app/backend/node_modules ./node_modules

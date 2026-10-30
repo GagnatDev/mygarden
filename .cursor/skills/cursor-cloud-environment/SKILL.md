@@ -14,16 +14,16 @@ Apply this skill **only** in a **Cursor Cloud agent** session (isolated Ubuntu V
 
 MyGarden is a pnpm monorepo with two workspace packages: `backend/` (Express + MongoDB) and `frontend/` (React + Vite). See `README.md` for the standard dev commands (`pnpm lint`, `pnpm typecheck`, `pnpm test`, etc.).
 
-The startup update script already runs `pnpm install` under Node 24.22.1 (via nvm) with pnpm 9.15.9 activated via corepack.
+The startup update script already runs `pnpm install` under Node 24.22.2 (via nvm) with pnpm 9.15.9 activated via corepack.
 
 ## Environment requirements
 
-- **Node.js >= 24.22.1** (use `nvm install 24.22.1 && nvm use 24.22.1`). pnpm 9.15.9 is declared via corepack (`corepack enable && corepack prepare pnpm@9.15.9 --activate`).
+- **Node.js >= 24.22.2** (use `nvm install 24.22.2 && nvm use 24.22.2`). pnpm 9.15.9 is declared via corepack (`corepack enable && corepack prepare pnpm@9.15.9 --activate`).
 - **Docker** is required for two things: running MongoDB (the backend's datastore) and running backend integration tests (which use `@testcontainers/mongodb` to spin up disposable MongoDB instances).
 
-### Node 24.22.1 is shadowed in fresh shells
+### Node 24.22.2 is shadowed in fresh shells
 
-A system `node` at `/exec-daemon/node` (v22) precedes nvm on `PATH`, so `nvm use 24.22.1` alone does not change `node`. To actually run with Node 24.22.1, prepend the nvm bin: `export PATH="$HOME/.nvm/versions/node/v24.22.1/bin:$PATH"` (after `. "$HOME/.nvm/nvm.sh"`). The app requires Node >= 24.22.1 at runtime; `pnpm install` itself tolerates the v22 shim.
+A system `node` at `/exec-daemon/node` (v22) precedes nvm on `PATH`, so `nvm use 24.22.2` alone does not change `node`. To actually run with Node 24.22.2, prepend the nvm bin: `export PATH="$HOME/.nvm/versions/node/v24.22.2/bin:$PATH"` (after `. "$HOME/.nvm/nvm.sh"`). The app requires Node >= 24.22.2 at runtime; `pnpm install` itself tolerates the v22 shim.
 
 ### Docker is not auto-started
 
