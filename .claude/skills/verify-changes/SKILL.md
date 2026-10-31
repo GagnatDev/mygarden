@@ -76,14 +76,14 @@ MONGO_TEST_URI=mongodb://127.0.0.1:27017 pnpm --filter backend test
 
 ## Node version
 
-The app requires **Node >= 24.22.1** at runtime, but a fresh shell often has Node 22 on `PATH`
+The app requires **Node >= 24.22.2** at runtime, but a fresh shell often has Node 22 on `PATH`
 (`/exec-daemon/node`). The test runner (vitest) runs fine on Node 22 — the
-`Unsupported engine` warning during `pnpm install`/test is harmless. If you need Node 24.22.1
+`Unsupported engine` warning during `pnpm install`/test is harmless. If you need Node 24.22.2
 (e.g. to run the app itself):
 
 ```bash
-. "$HOME/.nvm/nvm.sh" && nvm install 24.22.1 && nvm use 24.22.1
-export PATH="$HOME/.nvm/versions/node/v24.22.1/bin:$PATH"
+. "$HOME/.nvm/nvm.sh" && nvm install 24.22.2 && nvm use 24.22.2
+export PATH="$HOME/.nvm/versions/node/v24.22.2/bin:$PATH"
 ```
 
 ## Troubleshooting
