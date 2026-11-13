@@ -86,12 +86,24 @@ function mockContainerSize(width: number, height: number) {
   });
 }
 
+function signedCssOffset(operator: string, raw: string): number {
+  const value = Number(raw);
+  return operator === '-' ? -value : value;
+}
+
 function parseViewportTransform(viewport: HTMLElement): { tx: number; ty: number; scale: number } {
+  // jsdom 31 rewrites `calc(-50% + -Npx)` to `calc(-50% - Npx)` when the offset is read back.
   const m = viewport.style.transform.match(
-    /translate\(calc\(-50% \+ ([-\d.]+)px\), calc\(-50% \+ ([-\d.]+)px\)\) scale\(([-\d.]+)\)/,
+    /translate\(calc\(-50% ([+-]) ([-\d.]+)px\), calc\(-50% ([+-]) ([-\d.]+)px\)\) scale\(([-\d.]+)\)/,
   );
-  if (!m) throw new Error(`Could not parse transform: ${viewport.style.transform}`);
-  return { tx: Number(m[1]), ty: Number(m[2]), scale: Number(m[3]) };
+  if (!m?.[1] || !m[2] || !m[3] || !m[4] || !m[5]) {
+    throw new Error(`Could not parse transform: ${viewport.style.transform}`);
+  }
+  return {
+    tx: signedCssOffset(m[1], m[2]),
+    ty: signedCssOffset(m[3], m[4]),
+    scale: Number(m[5]),
+  };
 }
 
 afterEach(() => {
