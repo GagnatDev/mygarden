@@ -219,7 +219,9 @@ export function CalendarDayTasksPanel({
                 </h3>
                 <ul className="mt-2 space-y-3">
                   {section.tasks.map((task) => {
-                    const displayTitle = getTaskDisplayTitle(task, t);
+                    const displayTitle = getTaskDisplayTitle(task, (key, options) =>
+                      options ? t(key, options) : t(key),
+                    );
                     const vis = taskVisualStatus(task, todayKey);
                     const ctx = rowContext(task);
                     const busy = mutatingIds.has(task.id);

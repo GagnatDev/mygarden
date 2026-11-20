@@ -12,19 +12,19 @@
   },
   "dependencies": {
     "date-fns": "^4.4.0",
-    "i18next": "^26.7.2",
-    "i18next-http-backend": "^4.0.10",
+    "i18next": "^27.2.1",
+    "i18next-http-backend": "^4.1.0",
     "idb": "^8.0.4",
     "react": "^19.3.1",
     "react-day-picker": "^10.0.2",
     "react-dom": "^19.3.1",
-    "react-i18next": "^17.1.13",
-    "react-router-dom": "^7.18.5",
+    "react-i18next": "^18.0.3",
+    "react-router-dom": "^7.18.6",
     "workbox-window": "^7.4.1"
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4.3.5",
-    "@testing-library/jest-dom": "^7.0.1",
+    "@testing-library/jest-dom": "^8.0.0",
     "@testing-library/react": "^16.3.3",
     "@types/node": "^24.19.2",
     "@types/react": "^19.3.0",
@@ -37,7 +37,7 @@
     "typescript": "~6.0.3",
     "vite": "^8.3.8",
     "vite-plugin-pwa": "^2.0.0",
-    "vitest": "^5.1.0",
+    "vitest": "^5.1.1",
     "workbox-build": "^7.4.1"
   }
 }

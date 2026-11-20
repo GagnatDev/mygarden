@@ -326,7 +326,9 @@ export function CalendarPage() {
                 </button>
                 <div className="mt-0.5 space-y-0.5" aria-hidden={previews.length > 0 ? true : undefined}>
                   {previews.map((task) => {
-                    const displayTitle = getTaskDisplayTitle(task, t);
+                    const displayTitle = getTaskDisplayTitle(task, (key, options) =>
+                      options ? t(key, options) : t(key),
+                    );
                     const vis = taskVisualStatus(task, todayKey);
                     const color =
                       vis === 'done'
