@@ -14,11 +14,11 @@ Apply this skill **only** in a **Cursor Cloud agent** session (isolated Ubuntu V
 
 MyGarden is a pnpm monorepo with two workspace packages: `backend/` (Express + MongoDB) and `frontend/` (React + Vite). See `README.md` for the standard dev commands (`pnpm lint`, `pnpm typecheck`, `pnpm test`, etc.).
 
-The startup update script already runs `pnpm install` under Node 24.22.3 (via nvm) with pnpm 12.21.0 activated via corepack.
+The startup update script already runs `pnpm install` under Node 24.22.3 (via nvm) with pnpm 12.23.0 activated via corepack.
 
 ## Environment requirements
 
-- **Node.js >= 24.22.3** (use `nvm install 24.22.3 && nvm use 24.22.3`). pnpm 12.21.0 is declared via corepack (`corepack enable && corepack prepare pnpm@12.21.0 --activate`). `pnpm-workspace.yaml` allows build scripts for `bcrypt`, `cpu-features`, `esbuild`, `protobufjs`, and `ssh2`; pnpm 12 does not run dependency lifecycle scripts unless they are listed there.
+- **Node.js >= 24.22.3** (use `nvm install 24.22.3 && nvm use 24.22.3`). pnpm 12.23.0 is declared via corepack (`corepack enable && corepack prepare pnpm@12.23.0 --activate`). `pnpm-workspace.yaml` allows build scripts for `bcrypt`, `cpu-features`, `esbuild`, `protobufjs`, and `ssh2`; pnpm 12 does not run dependency lifecycle scripts unless they are listed there.
 - **Docker** is required for two things: running MongoDB (the backend's datastore) and running backend integration tests (which use `@testcontainers/mongodb` to spin up disposable MongoDB instances).
 
 ### Node 24.22.3 is shadowed in fresh shells
