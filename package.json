@@ -1,7 +1,7 @@
 {
   "name": "minhage",
   "private": true,
-  "packageManager": "pnpm@12.23.0",
+  "packageManager": "pnpm@12.24.0",
   "engines": {
     "node": ">=24.22.3"
   },
