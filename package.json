@@ -1,7 +1,7 @@
 {
   "name": "minhage",
   "private": true,
-  "packageManager": "pnpm@12.21.0",
+  "packageManager": "pnpm@12.24.0",
   "engines": {
     "node": ">=24.22.3"
   },
@@ -26,6 +26,6 @@
     "globals": "^17.14.0",
     "prettier": "^3.10.1",
     "typescript": "^6.0.3",
-    "typescript-eslint": "^8.73.0"
+    "typescript-eslint": "^8.74.0"
   }
 }
